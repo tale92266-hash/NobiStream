@@ -40,6 +40,11 @@ jobs:
             echo "No keystore secret set; building with the default debug key."
           fi
 
+      # Files pushed via the GitHub API lose their executable bit, so
+      # gradlew arrives as 0644 and fails with "Permission denied".
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build debug APK
         env:
           NOBISTREAM_API_ID: ${{ secrets.NOBISTREAM_API_ID }}
