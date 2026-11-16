@@ -39,7 +39,8 @@
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:screenOrientation="sensor" />
+            android:screenOrientation="sensorLandscape"
+            android:supportsPictureInPicture="true" />
 
         <activity
             android:name=".ui.settings.SettingsActivity"

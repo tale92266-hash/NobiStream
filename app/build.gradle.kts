@@ -12,8 +12,8 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0 (v1)"
+        versionCode = 2
+        versionName = "1.1.0 (v2)"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the
@@ -121,6 +121,10 @@ dependencies {
 
     // Image loading for video thumbnails from local files.
     implementation(libs.coil)
+
+    // List item animations (wasabeef recyclerview-animators, from the
+    // awesome-android-ui list Sam picked).
+    implementation(libs.recyclerview.animators)
 
     implementation(libs.kotlinx.coroutines.android)
 

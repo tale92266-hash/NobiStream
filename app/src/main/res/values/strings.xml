@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NobiStream</string>
-    <string name="app_version_label">NobiStream v1 (1.0.0)</string>
+    <string name="app_version_label">NobiStream v2 (1.1.0)</string>
 
     <string name="login_title">Sign in with Telegram</string>
     <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
@@ -49,8 +49,22 @@
     <string name="player_resume">Resume</string>
     <string name="player_restart">Restart</string>
     <string name="player_buffering">Buffering…</string>
+    <string name="player_buffered_percent">%1$d%% buffered</string>
     <string name="player_error">Could not play this video. Check your connection and try again.</string>
     <string name="player_downloading">Downloading video…</string>
+    <string name="player_close">Close player</string>
+    <string name="player_options">Player options</string>
+    <string name="player_play_pause">Play / Pause</string>
+    <string name="player_rewind_10">Back 10 seconds</string>
+    <string name="player_forward_10">Forward 10 seconds</string>
+    <string name="player_fullscreen">Fullscreen</string>
+    <string name="player_aspect_ratio">Aspect ratio</string>
+    <string name="player_pip">Picture-in-picture</string>
+    <string name="player_lock">Lock controls</string>
+    <string name="player_unlock">Unlock controls</string>
+    <string name="player_locked">Controls locked</string>
+    <string name="player_unlocked">Controls unlocked</string>
+    <string name="player_pip_needs_playing">Play the video first to use picture-in-picture</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_api_section">Telegram API credentials</string>
@@ -71,11 +85,12 @@
     <string name="settings_cache_cleared">Cache cleared</string>
     <string name="settings_playback_section">Playback</string>
     <string name="settings_autoplay">Autoplay next video</string>
+    <string name="settings_open_last_episode">Open last episode on start</string>
     <string name="settings_default_filter">Default quality filter</string>
     <string name="settings_account_section">Account</string>
     <string name="settings_logout">Log out of Telegram</string>
     <string name="settings_logout_confirm">Log out? Your saved groups stay, but you will need to sign in again to watch videos.</string>
-    <string name="settings_about">About NobiStream v1. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+    <string name="settings_about">About NobiStream v2. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
 
     <string name="common_retry">Retry</string>
     <string name="common_close">Close</string>

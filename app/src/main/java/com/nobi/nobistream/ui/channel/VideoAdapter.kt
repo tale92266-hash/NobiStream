@@ -13,7 +13,7 @@ import com.nobi.nobistream.core.VideoQuality
 import com.nobi.nobistream.databinding.ItemVideoBinding
 
 class VideoAdapter(
-    private val onClick: (VideoItem) -> Unit,
+    private val onClick: (VideoItem, ImageView) -> Unit,
     private val onThumbNeeded: (VideoItem, ImageView) -> Unit
 ) : ListAdapter<VideoItem, VideoAdapter.ViewHolder>(DIFF) {
 
@@ -54,7 +54,8 @@ class VideoAdapter(
                 binding.videoProgress.visibility = View.GONE
             }
             onThumbNeeded(item, binding.videoThumb)
-            binding.root.setOnClickListener { onClick(item) }
+            binding.videoThumb.transitionName = "video_thumb_${item.messageId}"
+            binding.root.setOnClickListener { onClick(item, binding.videoThumb) }
         }
     }
 

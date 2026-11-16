@@ -63,6 +63,11 @@ class SettingsActivity : AppCompatActivity() {
                 repository.settingsStore.setAutoplay(checked)
             }
         }
+        binding.openLastEpisodeSwitch.setOnCheckedChangeListener { _, checked ->
+            lifecycleScope.launch {
+                repository.settingsStore.setOpenLastEpisode(checked)
+            }
+        }
         val spinnerAdapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
@@ -98,6 +103,15 @@ class SettingsActivity : AppCompatActivity() {
                 repository.settingsStore.autoplay.collect { value ->
                     if (binding.autoplaySwitch.isChecked != value) {
                         binding.autoplaySwitch.isChecked = value
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.openLastEpisode.collect { value ->
+                    if (binding.openLastEpisodeSwitch.isChecked != value) {
+                        binding.openLastEpisodeSwitch.isChecked = value
                     }
                 }
             }

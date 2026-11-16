@@ -85,7 +85,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="@string/channel_search_hint">
+            android:hint="@string/channel_search_hint"
+            app:startIconDrawable="@drawable/ic_search">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/searchEdit"
@@ -99,7 +100,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            android:text="@string/channel_sort_newest" />
+            android:text="@string/channel_sort_newest"
+            app:icon="@drawable/ic_sort" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/refreshButton"
@@ -107,16 +109,22 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            android:text="Refresh" />
+            android:text="Refresh"
+            app:icon="@drawable/ic_refresh" />
     </LinearLayout>
 
-    <ProgressBar
-        android:id="@+id/loadingBar"
-        android:layout_width="wrap_content"
+    <!-- Shimmer skeleton while the first page loads. -->
+    <LinearLayout
+        android:id="@+id/skeletonContainer"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="@dimen/spacing_16"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <include layout="@layout/item_skeleton" />
+        <include layout="@layout/item_skeleton" />
+        <include layout="@layout/item_skeleton" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/videosRecycler"
@@ -124,6 +132,30 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+    <!-- Loading-more footer while later pages load. -->
+    <LinearLayout
+        android:id="@+id/loadMoreFooter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_12"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:indeterminateTint="@color/primary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_8"
+            android:text="@string/channel_loading_more"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/emptyState"

@@ -16,6 +16,27 @@ object QualityParser {
     private val numberedQualityRegex = Regex("""(?i)\b(\d{3,4})\s*p\b""")
     private val bareNumberRegex = Regex("""(?i)\b(2160|1440|1080|720|480|360)\b""")
 
+    /**
+     * Quality from the file's real resolution (v2: the source of truth).
+     * TDLib reports the video width in pixels; height is not needed because
+     * the width alone decides the bucket for 16:9 and 4:3 uploads alike.
+     * Returns UNKNOWN when the file carries no dimensions (width <= 0).
+     */
+    fun fromResolution(width: Int, height: Int): VideoQuality {
+        if (width <= 0 && height <= 0) return VideoQuality.UNKNOWN
+        // Height alone (portrait video) can still classify: use the larger side.
+        val longer = maxOf(width, height)
+        return when {
+            longer >= 3840 -> VideoQuality.Q2160
+            longer >= 1920 -> VideoQuality.Q1080
+            longer >= 1280 -> VideoQuality.Q720
+            longer >= 854 -> VideoQuality.Q480
+            else -> VideoQuality.Q360
+        }
+    }
+
+    /** Quality from a post caption. Fallback when no resolution is known. */
+
     fun parseQuality(caption: String?): VideoQuality {
         if (caption.isNullOrBlank()) return VideoQuality.UNKNOWN
         var best = VideoQuality.UNKNOWN

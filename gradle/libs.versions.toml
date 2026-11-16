@@ -16,6 +16,7 @@ securityCrypto = "1.1.0"
 coil = "2.7.0"
 coroutines = "1.11.0"
 tdlib = "0.1.1"
+recyclerviewAnimators = "4.0.2"
 junit = "4.13.2"
 
 [libraries]
@@ -39,6 +40,7 @@ coil = { group = "io.coil-kt", name = "coil", version.ref = "coil" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 tdlib-core = { group = "io.github.tdlib-android", name = "core", version.ref = "tdlib" }
 tdlib-ktx = { group = "io.github.tdlib-android", name = "ktx", version.ref = "tdlib" }
+recyclerview-animators = { group = "jp.wasabeef", name = "recyclerview-animators", version.ref = "recyclerviewAnimators" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

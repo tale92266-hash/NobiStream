@@ -148,6 +148,15 @@
             android:text="@string/settings_autoplay"
             android:textColor="@color/text_primary" />
 
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/openLastEpisodeSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_8"
+            android:checked="true"
+            android:text="@string/settings_open_last_episode"
+            android:textColor="@color/text_primary" />
+
         <TextView
             style="@style/Text.NobiStream.Caption"
             android:layout_width="match_parent"

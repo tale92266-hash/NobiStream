@@ -7,6 +7,7 @@ import com.nobi.nobistream.core.GroupItem
 import com.nobi.nobistream.core.QualityParser
 import com.nobi.nobistream.core.TelegramUser
 import com.nobi.nobistream.core.VideoItem
+import com.nobi.nobistream.core.VideoQuality
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -273,6 +274,16 @@ class TdLibGateway(context: Context) : TelegramGateway {
                 val video = content.video
                 val file = video.video
                 val caption = content.caption?.text ?: ""
+                // v2: quality comes from the file's real resolution first.
+                // The caption text is only a fallback when TDLib reports
+                // no dimensions (width/height 0).
+                val resolutionQuality =
+                    QualityParser.fromResolution(video.width, video.height)
+                val quality = if (resolutionQuality != VideoQuality.UNKNOWN) {
+                    resolutionQuality
+                } else {
+                    QualityParser.parseQuality(caption)
+                }
                 VideoItem(
                     messageId = message.id,
                     chatId = message.chatId,
@@ -280,7 +291,7 @@ class TdLibGateway(context: Context) : TelegramGateway {
                     remoteFileId = file.remote.id,
                     title = QualityParser.extractTitle(caption, message.id),
                     caption = caption,
-                    quality = QualityParser.parseQuality(caption),
+                    quality = quality,
                     durationSec = video.duration,
                     sizeBytes = if (file.size > 0L) file.size else file.expectedSize,
                     dateEpochSec = message.date.toLong(),
@@ -293,6 +304,8 @@ class TdLibGateway(context: Context) : TelegramGateway {
                 if (!document.mimeType.startsWith("video")) return null
                 val file = document.document
                 val caption = content.caption?.text ?: ""
+                // TdApi.Document carries no width/height, so video files
+                // sent as documents keep the caption-text fallback.
                 VideoItem(
                     messageId = message.id,
                     chatId = message.chatId,

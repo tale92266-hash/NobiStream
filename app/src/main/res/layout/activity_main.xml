@@ -13,6 +13,85 @@
         android:background="?attr/colorSurface"
         app:title="@string/home_title" />
 
+    <!-- v2 hero card: the last-watched episode, one tap resumes it. -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/heroCard"
+        style="@style/Widget.NobiStream.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_16"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:layout_marginEnd="@dimen/spacing_16"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="@dimen/spacing_12">
+
+            <ImageView
+                android:id="@+id/heroThumb"
+                android:layout_width="112dp"
+                android:layout_height="64dp"
+                android:contentDescription="@string/home_continue_watching"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_video_placeholder" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_12"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/home_continue_watching"
+                    android:textColor="@color/primary"
+                    android:textSize="@dimen/text_caption"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/heroTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_4"
+                    android:maxLines="2"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_body"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/heroMeta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_4"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/text_caption" />
+
+                <ProgressBar
+                    android:id="@+id/heroProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="@dimen/spacing_8"
+                    android:max="100"
+                    android:progress="0" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/heroPlayButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/player_play_pause"
+                android:src="@drawable/ic_play" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
     <TextView
         android:id="@+id/continueTitle"
         style="@style/Text.NobiStream.Section"

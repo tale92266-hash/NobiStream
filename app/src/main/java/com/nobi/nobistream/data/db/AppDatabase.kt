@@ -64,6 +64,10 @@ interface PositionDao {
     @Query("SELECT * FROM video_positions WHERE positionSec > 0 AND watched = 0 ORDER BY updatedAtEpochSec DESC LIMIT 10")
     fun observeContinueWatching(): Flow<List<VideoPositionEntity>>
 
+    /** The single most recently watched (unfinished) video, for the Home hero card and auto-redirect. */
+    @Query("SELECT * FROM video_positions WHERE positionSec > 0 AND watched = 0 ORDER BY updatedAtEpochSec DESC LIMIT 1")
+    suspend fun getMostRecent(): VideoPositionEntity?
+
     @Query("SELECT * FROM video_positions WHERE chatId = :chatId AND messageId = :messageId LIMIT 1")
     suspend fun getPosition(chatId: Long, messageId: Long): VideoPositionEntity?
 

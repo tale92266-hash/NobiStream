@@ -136,6 +136,27 @@ class NobiRepository(
     suspend fun getPositionSec(chatId: Long, messageId: Long): Long =
         database.positionDao().getPosition(chatId, messageId)?.positionSec ?: 0L
 
+    /** The most recently watched unfinished video, or null when there is none. */
+    suspend fun getLastWatched(): VideoItem? {
+        val row = database.positionDao().getMostRecent() ?: return null
+        return VideoItem(
+            messageId = row.messageId,
+            chatId = row.chatId,
+            fileId = row.fileId,
+            remoteFileId = row.remoteFileId,
+            title = row.title,
+            caption = row.caption,
+            quality = VideoQuality.fromLabel(row.qualityLabel),
+            durationSec = row.durationSec,
+            sizeBytes = row.sizeBytes,
+            dateEpochSec = row.dateEpochSec,
+            thumbFileId = row.thumbFileId,
+            thumbLocalPath = row.thumbLocalPath,
+            progressSec = row.positionSec,
+            watched = row.watched
+        )
+    }
+
     fun observeContinueWatching(): Flow<List<VideoItem>> =
         database.positionDao().observeContinueWatching().map { rows ->
             rows.map { row ->

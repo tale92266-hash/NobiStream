@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.AuthState
+import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.GroupItem
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivityMainBinding
@@ -25,7 +26,10 @@ import com.nobi.nobistream.ui.channel.ChannelActivity
 import com.nobi.nobistream.ui.login.LoginActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
 import com.nobi.nobistream.ui.settings.SettingsActivity
+import jp.wasabeef.recyclerview.animators.FadeInAnimator
+import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -40,6 +44,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var groupAdapter: GroupAdapter
     private lateinit var continueAdapter: ContinueAdapter
     private var continueItems: List<VideoItem> = emptyList()
+    private var groups: List<GroupItem> = emptyList()
+    private var heroItem: VideoItem? = null
+    private var redirectDone = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         )
         binding.groupsRecycler.layoutManager = LinearLayoutManager(this)
         binding.groupsRecycler.adapter = groupAdapter
+        binding.groupsRecycler.itemAnimator = SlideInUpAnimator()
         continueAdapter = ContinueAdapter(
             onClick = { item -> openContinue(item) },
             onThumbNeeded = { item, view ->
@@ -66,15 +74,20 @@ class MainActivity : AppCompatActivity() {
         binding.continueRecycler.layoutManager =
             LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.continueRecycler.adapter = continueAdapter
+        binding.continueRecycler.itemAnimator = FadeInAnimator()
+        binding.heroPlayButton.setOnClickListener {
+            heroItem?.let { openContinue(it) }
+        }
         binding.addGroupButton.setOnClickListener { showAddGroupDialog() }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                repository.observeGroups().collect { groups ->
-                    groupAdapter.submitList(groups)
+                repository.observeGroups().collect { items ->
+                    groups = items
+                    groupAdapter.submitList(items)
                     binding.emptyState.visibility =
-                        if (groups.isEmpty()) View.VISIBLE else View.GONE
+                        if (items.isEmpty()) View.VISIBLE else View.GONE
                     binding.groupsRecycler.visibility =
-                        if (groups.isEmpty()) View.GONE else View.VISIBLE
+                        if (items.isEmpty()) View.GONE else View.VISIBLE
                 }
             }
         }
@@ -86,9 +99,40 @@ class MainActivity : AppCompatActivity() {
                     val visible = items.isNotEmpty()
                     binding.continueTitle.visibility = if (visible) View.VISIBLE else View.GONE
                     binding.continueRecycler.visibility = if (visible) View.VISIBLE else View.GONE
+                    updateHero(items.firstOrNull())
+                    // v2: one-time redirect to the last-watched episode.
+                    // Only on a fresh start (not rotation / return from player).
+                    if (!redirectDone && savedInstanceState == null) {
+                        redirectDone = true
+                        val openLast = repository.settingsStore.openLastEpisode.first()
+                        val last = items.firstOrNull()
+                        if (openLast && last != null) openContinue(last)
+                    }
                 }
             }
         }
+    }
+
+    /** Hero card: the most recently watched episode, with remaining time. */
+    private fun updateHero(item: VideoItem?) {
+        heroItem = item
+        if (item == null) {
+            binding.heroCard.visibility = View.GONE
+            return
+        }
+        binding.heroCard.visibility = View.VISIBLE
+        binding.heroTitle.text = item.title
+        val groupName = groups.firstOrNull { it.chatId == item.chatId }?.title.orEmpty()
+        val remaining = if (item.durationSec > 0) {
+            val left = (item.durationSec - item.progressSec).coerceAtLeast(0L)
+            "${FormatUtils.formatDuration(left.toInt())} left"
+        } else {
+            ""
+        }
+        binding.heroMeta.text = listOf(groupName, remaining)
+            .filter { it.isNotEmpty() }.joinToString(" • ")
+        binding.heroProgress.progress = (item.progressFraction * 100).toInt()
+        ThumbLoader.load(lifecycleScope, repository, item, binding.heroThumb)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

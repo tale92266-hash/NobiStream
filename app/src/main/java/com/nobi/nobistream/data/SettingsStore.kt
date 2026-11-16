@@ -26,9 +26,15 @@ class SettingsStore(context: Context) {
     val cacheSizeMb: Flow<Int> = dataStore.data.map { it[KEY_CACHE_SIZE_MB] ?: 500 }
     val lastChatId: Flow<Long> = dataStore.data.map { it[KEY_LAST_CHAT_ID] ?: 0L }
     val lastFilter: Flow<String> = dataStore.data.map { it[KEY_LAST_FILTER] ?: "All" }
+    /** v2: when ON (default), opening the app jumps straight to the last-watched episode. */
+    val openLastEpisode: Flow<Boolean> = dataStore.data.map { it[KEY_OPEN_LAST_EPISODE] ?: true }
 
     suspend fun setAutoplay(value: Boolean) {
         dataStore.edit { it[KEY_AUTOPLAY] = value }
+    }
+
+    suspend fun setOpenLastEpisode(value: Boolean) {
+        dataStore.edit { it[KEY_OPEN_LAST_EPISODE] = value }
     }
 
     suspend fun setDefaultFilter(value: String) {
@@ -56,5 +62,6 @@ class SettingsStore(context: Context) {
         val KEY_CACHE_SIZE_MB = intPreferencesKey("cache_size_mb")
         val KEY_LAST_CHAT_ID = longPreferencesKey("last_chat_id")
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")
+        val KEY_OPEN_LAST_EPISODE = booleanPreferencesKey("open_last_episode")
     }
 }
