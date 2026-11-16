@@ -11,3 +11,5 @@ local.properties
 *.p12
 *.pass.txt
 **/build/
+
+previews/
