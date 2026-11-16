@@ -233,7 +233,7 @@ class PlayerActivity : AppCompatActivity() {
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                     val view = binding.playerView
-                    if (view.isControllerVisible) view.hideController() else view.showController()
+                    if (view.isControllerFullyVisible) view.hideController() else view.showController()
                     gestureHandled = true
                     return true
                 }

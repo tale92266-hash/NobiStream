@@ -1,5 +1,6 @@
 package com.nobi.nobistream.playback
 
+import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
@@ -32,9 +33,13 @@ class TdlibDataSource(
     private var readPosition: Long = 0L
     private var bytesRemaining: Long = 0L
     private var opened = false
+    private var currentUri: Uri? = null
+
+    override fun getUri(): Uri? = currentUri
 
     override fun open(dataSpec: DataSpec): Long {
         transferInitializing(dataSpec)
+        currentUri = dataSpec.uri
         fileId = dataSpec.uri.host?.toIntOrNull()
             ?: dataSpec.uri.lastPathSegment?.toIntOrNull()
             ?: throw IllegalArgumentException("Bad tdlib URI: ${dataSpec.uri}")
@@ -51,9 +56,9 @@ class TdlibDataSource(
         readPosition = dataSpec.position
         val totalSize = info.sizeBytes
         bytesRemaining = when {
-            dataSpec.length != C.LENGTH_UNSET -> dataSpec.length
+            dataSpec.length != C.LENGTH_UNSET.toLong() -> dataSpec.length
             totalSize > 0L -> totalSize - dataSpec.position
-            else -> C.LENGTH_UNSET
+            else -> C.LENGTH_UNSET.toLong()
         }
         randomAccessFile = RandomAccessFile(File(info.localPath), "r").apply {
             seek(readPosition)
@@ -66,7 +71,7 @@ class TdlibDataSource(
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
         if (bytesRemaining == 0L) return C.RESULT_END_OF_INPUT
-        val toRead = if (bytesRemaining == C.LENGTH_UNSET) {
+        val toRead = if (bytesRemaining == C.LENGTH_UNSET.toLong()) {
             length
         } else {
             minOf(length.toLong(), bytesRemaining).toInt()
@@ -77,7 +82,7 @@ class TdlibDataSource(
         val read = raf.read(buffer, offset, toRead)
         if (read == -1) return C.RESULT_END_OF_INPUT
         readPosition += read
-        if (bytesRemaining != C.LENGTH_UNSET) bytesRemaining -= read
+        if (bytesRemaining != C.LENGTH_UNSET.toLong()) bytesRemaining -= read
         return read
     }
 
@@ -103,6 +108,7 @@ class TdlibDataSource(
             } finally {
                 randomAccessFile = null
             }
+            currentUri = null
             transferEnded()
         }
     }

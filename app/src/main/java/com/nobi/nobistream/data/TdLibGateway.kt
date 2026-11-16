@@ -284,7 +284,7 @@ class TdLibGateway(context: Context) : TelegramGateway {
                     durationSec = video.duration,
                     sizeBytes = if (file.size > 0L) file.size else file.expectedSize,
                     dateEpochSec = message.date.toLong(),
-                    thumbFileId = video.thumbnail?.photo?.id,
+                    thumbFileId = video.thumbnail?.file?.id,
                     thumbLocalPath = null
                 )
             }
@@ -304,7 +304,7 @@ class TdLibGateway(context: Context) : TelegramGateway {
                     durationSec = 0,
                     sizeBytes = if (file.size > 0L) file.size else file.expectedSize,
                     dateEpochSec = message.date.toLong(),
-                    thumbFileId = document.thumbnail?.photo?.id,
+                    thumbFileId = document.thumbnail?.file?.id,
                     thumbLocalPath = null
                 )
             }
