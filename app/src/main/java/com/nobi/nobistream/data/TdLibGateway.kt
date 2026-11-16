@@ -184,7 +184,7 @@ class TdLibGateway(context: Context) : TelegramGateway {
                         )
                     } else {
                         try {
-                            cont.resume(result as T)
+                            cont.resume(result as T, null)
                         } catch (e: ClassCastException) {
                             cont.resumeWithException(e)
                         }
