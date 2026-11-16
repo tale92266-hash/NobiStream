@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NobiStream</string>
-    <string name="app_version_label">NobiStream v2 (1.1.0)</string>
+    <string name="app_version_label">NobiStream v3 (2.0.0)</string>
 
     <string name="login_title">Sign in with Telegram</string>
     <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
@@ -17,33 +17,52 @@
     <string name="login_password_label">Two-step verification password</string>
     <string name="login_password_hint">Enter your 2FA password</string>
     <string name="login_submit_password">Sign in</string>
+    <string name="login_change_number">Use a different number</string>
     <string name="login_waiting">Connecting to Telegram…</string>
     <string name="login_error">Sign-in failed. Check the number and code and try again.</string>
 
-    <string name="home_title">My Groups</string>
+    <string name="home_title">NobiStream</string>
     <string name="home_add_group">Add Group / Channel</string>
     <string name="home_add_link_hint">Paste a Telegram link, e.g. https://t.me/channel_name</string>
+    <string name="home_add_link_helper">Public groups and channels you can already read. Private links need an invite you have accepted.</string>
+    <string name="home_add_link_invalid">That doesn\'t look like a Telegram link. Paste a t.me link or a @username.</string>
     <string name="home_add">Add</string>
     <string name="home_cancel">Cancel</string>
     <string name="home_no_groups">No groups added yet</string>
     <string name="home_no_groups_body">Tap Add Group / Channel and paste a Telegram group or channel link to see its videos here.</string>
     <string name="home_continue_watching">Continue Watching</string>
+    <string name="home_resume">Resume</string>
+    <string name="home_groups">Your Groups</string>
     <string name="home_videos_count">%1$d videos</string>
+    <string name="home_group_updated">Updated %1$s</string>
     <string name="home_open_settings">Settings</string>
+    <string name="home_remove_group_title">Remove this group?</string>
+    <string name="home_remove_group_body">Remove %1$s from NobiStream? Its videos stay on Telegram.</string>
+    <string name="home_remove">Remove</string>
+    <string name="home_add_exists">This group is already added.</string>
+    <string name="home_add_added">Group added</string>
+    <string name="home_add_failed">Couldn\'t add this group. Check the link and your connection, then try again.</string>
     <string name="home_loading">Loading…</string>
+    <string name="home_left">%1$s left</string>
 
     <string name="channel_filter_all">All</string>
     <string name="channel_search_hint">Search by title or episode</string>
     <string name="channel_sort_newest">Newest first</string>
     <string name="channel_sort_oldest">Oldest first</string>
+    <string name="channel_sort">Sort order</string>
+    <string name="channel_refresh">Refresh</string>
     <string name="channel_no_videos">No videos found</string>
-    <string name="channel_no_videos_body">Try a different filter, or pull down to refresh.</string>
+    <string name="channel_no_videos_body">Try a different filter, or tap Refresh to load the latest videos.</string>
     <string name="channel_loading_more">Loading more videos…</string>
     <string name="channel_quality_unknown">Quality not in post</string>
+    <string name="channel_load_error_title">Couldn\'t load videos</string>
+    <string name="channel_load_error_body">Check your connection and try again. If the group was deleted or made private, it may no longer open here.</string>
+    <string name="channel_load_more_error">Couldn\'t load more videos. Check your connection and scroll again to retry.</string>
 
     <string name="player_next">Next</string>
     <string name="player_previous">Previous</string>
     <string name="player_autoplay">Autoplay next</string>
+    <string name="player_autoplay_desc">Play the next video automatically when this one ends.</string>
     <string name="player_speed">Speed</string>
     <string name="player_resume_from">Resume from %1$s?</string>
     <string name="player_resume">Resume</string>
@@ -51,6 +70,8 @@
     <string name="player_buffering">Buffering…</string>
     <string name="player_buffered_percent">%1$d%% buffered</string>
     <string name="player_error">Could not play this video. Check your connection and try again.</string>
+    <string name="player_error_title">Video couldn\'t play</string>
+    <string name="player_error_body">Check your connection and try again. If it keeps failing, the file may no longer be available on Telegram.</string>
     <string name="player_downloading">Downloading video…</string>
     <string name="player_close">Close player</string>
     <string name="player_options">Player options</string>
@@ -65,8 +86,19 @@
     <string name="player_locked">Controls locked</string>
     <string name="player_unlocked">Controls unlocked</string>
     <string name="player_pip_needs_playing">Play the video first to use picture-in-picture</string>
+    <string name="player_first_video">This is the first video</string>
+    <string name="player_last_video">This is the last video</string>
+    <string name="player_aspect_fit">Fit</string>
+    <string name="player_aspect_fill">Fill</string>
+    <string name="player_aspect_stretch">Stretch</string>
+    <string name="player_no_video">No video to play in this group yet.</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_section_playback">Playback</string>
+    <string name="settings_section_startup">Startup</string>
+    <string name="settings_section_telegram">Telegram</string>
+    <string name="settings_section_cache">Storage</string>
+    <string name="settings_section_app">Application</string>
     <string name="settings_api_section">Telegram API credentials</string>
     <string name="settings_api_id">api_id</string>
     <string name="settings_api_hash">api_hash</string>
@@ -85,12 +117,24 @@
     <string name="settings_cache_cleared">Cache cleared</string>
     <string name="settings_playback_section">Playback</string>
     <string name="settings_autoplay">Autoplay next video</string>
+    <string name="settings_autoplay_desc">Play the next video automatically when one ends.</string>
     <string name="settings_open_last_episode">Open last episode on start</string>
+    <string name="settings_open_last_episode_desc">Jump straight to the episode you were watching when the app opens.</string>
     <string name="settings_default_filter">Default quality filter</string>
+    <string name="settings_default_filter_desc">The filter new channels open with.</string>
     <string name="settings_account_section">Account</string>
+    <string name="settings_account_signed_in">Signed in as %1$s</string>
+    <string name="settings_account_no_username">No username set</string>
+    <string name="settings_account_not_signed_in">Not signed in</string>
+    <string name="settings_account_connected">Connected to Telegram</string>
+    <string name="settings_account_offline">Not connected — sign in to watch videos.</string>
     <string name="settings_logout">Log out of Telegram</string>
     <string name="settings_logout_confirm">Log out? Your saved groups stay, but you will need to sign in again to watch videos.</string>
-    <string name="settings_about">About NobiStream v2. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_licences">Open-source licences</string>
+    <string name="settings_licences_body">NobiStream is built with open-source libraries:\n\n• TDLib (Telegram Database Library) — Boost Software License 1.0\n• ExoPlayer / Media3 — Apache License 2.0\n• Material Components for Android — Apache License 2.0\n• Room, DataStore, Lifecycle — Apache License 2.0\n• Coil — Apache License 2.0\n• recyclerview-animators — Apache License 2.0\n• EncryptedSharedPreferences (Security Crypto) — Apache License 2.0</string>
+    <string name="settings_about">About NobiStream v3. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+    <string name="settings_privacy">NobiStream sends nothing to any server except Telegram, using your own account. Your groups and watch positions stay on this phone.</string>
 
     <string name="common_retry">Retry</string>
     <string name="common_close">Close</string>

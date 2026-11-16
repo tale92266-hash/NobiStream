@@ -11,6 +11,7 @@ import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.core.VideoQuality
 import com.nobi.nobistream.databinding.ItemVideoBinding
+import com.nobi.nobistream.ui.components.PressFeedback
 
 class VideoAdapter(
     private val onClick: (VideoItem, ImageView) -> Unit,
@@ -28,6 +29,10 @@ class VideoAdapter(
 
     inner class ViewHolder(private val binding: ItemVideoBinding) :
         RecyclerView.ViewHolder(binding.root) {
+
+        init {
+            PressFeedback.apply(binding.root)
+        }
 
         fun bind(item: VideoItem) {
             binding.videoTitle.text = item.title

@@ -3,6 +3,7 @@ package com.nobi.nobistream.ui.login
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -29,6 +30,7 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.openSettingsButton.setOnClickListener {
@@ -37,6 +39,12 @@ class LoginActivity : AppCompatActivity() {
         binding.continueButton.setOnClickListener { sendPhone() }
         binding.verifyButton.setOnClickListener { sendCode() }
         binding.passwordButton.setOnClickListener { sendPassword() }
+        // Verification step: back to the phone step (change number).
+        // The code length is never hardcoded — any code Telegram sent works,
+        // and paste works through the standard EditText long-press menu.
+        binding.changeNumberButton.setOnClickListener {
+            showStep(phone = true, code = false, password = false)
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.authState.collect { render(it) }
@@ -92,6 +100,7 @@ class LoginActivity : AppCompatActivity() {
         binding.continueButton.visibility = if (phone) View.VISIBLE else View.GONE
         binding.codeInputLayout.visibility = if (code) View.VISIBLE else View.GONE
         binding.verifyButton.visibility = if (code) View.VISIBLE else View.GONE
+        binding.changeNumberButton.visibility = if (code) View.VISIBLE else View.GONE
         binding.passwordInputLayout.visibility = if (password) View.VISIBLE else View.GONE
         binding.passwordButton.visibility = if (password) View.VISIBLE else View.GONE
     }
@@ -127,19 +136,30 @@ class LoginActivity : AppCompatActivity() {
     private fun runTelegramCall(block: suspend () -> Unit) {
         hideError()
         binding.progressBar.visibility = View.VISIBLE
+        // No double submission while a call is in flight.
+        setActionButtonsEnabled(false)
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 block()
                 withContext(Dispatchers.Main) {
                     binding.progressBar.visibility = View.GONE
+                    setActionButtonsEnabled(true)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     binding.progressBar.visibility = View.GONE
+                    setActionButtonsEnabled(true)
                     showError(e.message ?: getString(R.string.login_error))
                 }
             }
         }
+    }
+
+    private fun setActionButtonsEnabled(enabled: Boolean) {
+        binding.continueButton.isEnabled = enabled
+        binding.verifyButton.isEnabled = enabled
+        binding.passwordButton.isEnabled = enabled
+        binding.changeNumberButton.isEnabled = enabled
     }
 
     private fun showError(message: String) {

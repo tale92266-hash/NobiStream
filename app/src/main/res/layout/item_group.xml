@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v3 channel card: rounded photo, title, "N videos • updated date", chevron. -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    style="@style/Widget.NobiStream.Card"
+    style="@style/Widget.NobiStream.Card.Outlined"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginStart="@dimen/spacing_16"
@@ -11,33 +12,33 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="@dimen/spacing_12">
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/groupPhoto"
             android:layout_width="@dimen/group_icon_size"
             android:layout_height="@dimen/group_icon_size"
             android:contentDescription="@string/home_title"
             android:scaleType="centerCrop"
-            android:src="@drawable/ic_video_placeholder" />
+            android:src="@drawable/ic_video_placeholder"
+            app:shapeAppearanceOverlay="@style/Shape.NobiStream.ImageSmall" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
             android:layout_marginStart="@dimen/spacing_12"
             android:layout_weight="1"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/groupTitle"
+                style="@style/Text.NobiStream.CardTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_body"
-                android:textStyle="bold" />
+                android:ellipsize="end"
+                android:maxLines="1" />
 
             <TextView
                 android:id="@+id/groupSubtitle"
@@ -48,12 +49,10 @@
                 android:textSize="@dimen/text_caption" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:text="›"
-            android:textColor="@color/text_secondary"
-            android:textSize="24sp" />
+        <ImageView
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron_right" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

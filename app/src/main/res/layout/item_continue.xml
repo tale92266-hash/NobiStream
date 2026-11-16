@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v3 Continue Watching row card: 16:9 thumb with progress on its bottom
+     edge, title, and channel + time-left meta below. -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/Widget.NobiStream.Card"
-    android:layout_width="240dp"
+    android:layout_width="@dimen/continue_card_width"
     android:layout_height="wrap_content"
     android:layout_marginStart="@dimen/spacing_8"
     android:layout_marginTop="@dimen/spacing_4"
@@ -13,32 +15,51 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <ImageView
-            android:id="@+id/continueThumb"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:contentDescription="@string/home_continue_watching"
-            android:scaleType="centerCrop"
-            android:src="@drawable/ic_video_placeholder" />
+            android:layout_height="@dimen/continue_thumb_height">
+
+            <ImageView
+                android:id="@+id/continueThumb"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/home_continue_watching"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_video_placeholder" />
+
+            <ProgressBar
+                android:id="@+id/continueProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/progress_bar_height"
+                android:layout_gravity="bottom"
+                android:max="100"
+                android:progress="0"
+                android:progressDrawable="@drawable/progress_video" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/continueTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
             android:maxLines="2"
-            android:padding="@dimen/spacing_8"
+            android:paddingStart="@dimen/spacing_8"
+            android:paddingTop="@dimen/spacing_8"
+            android:paddingEnd="@dimen/spacing_8"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_body" />
 
-        <ProgressBar
-            android:id="@+id/continueProgress"
-            style="?android:attr/progressBarStyleHorizontal"
+        <TextView
+            android:id="@+id/continueMeta"
             android:layout_width="match_parent"
-            android:layout_height="4dp"
-            android:layout_marginStart="@dimen/spacing_8"
-            android:layout_marginEnd="@dimen/spacing_8"
-            android:layout_marginBottom="@dimen/spacing_8"
-            android:max="100"
-            android:progress="0" />
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:paddingStart="@dimen/spacing_8"
+            android:paddingTop="@dimen/spacing_4"
+            android:paddingEnd="@dimen/spacing_8"
+            android:paddingBottom="@dimen/spacing_8"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

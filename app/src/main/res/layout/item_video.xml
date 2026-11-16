@@ -1,21 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  v3 video card (shared by Channel grid and any video list — one style,
+  never a second variant). 2-column grid: 12dp horizontal / 20dp vertical
+  gaps, 16dp screen margins (~158dp wide on a 360dp viewport). Thumbnail
+  is 16:9 by ratio (never a fixed height, so wider grids don't stretch
+  it), radius 12dp; title 14sp medium max 2 lines; meta 12sp; 4dp gaps.
+  Progress is integrated INTO the thumbnail (3dp bar on its bottom edge).
+-->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/Widget.NobiStream.Card"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginStart="@dimen/spacing_16"
-    android:layout_marginTop="@dimen/spacing_8"
-    android:layout_marginEnd="@dimen/spacing_16">
+    android:layout_height="wrap_content">
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="wrap_content">
 
         <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/thumbnail_height">
+            android:id="@+id/thumbFrame"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:layout_constraintDimensionRatio="16:9"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/videoThumb"
@@ -31,12 +40,12 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|start"
                 android:layout_margin="@dimen/spacing_8"
-                android:background="@color/quality_badge"
+                android:background="@drawable/bg_badge_quality"
                 android:paddingStart="@dimen/spacing_8"
                 android:paddingTop="@dimen/spacing_4"
                 android:paddingEnd="@dimen/spacing_8"
                 android:paddingBottom="@dimen/spacing_4"
-                android:textColor="#000000"
+                android:textColor="@color/on_quality_badge"
                 android:textSize="@dimen/text_badge"
                 android:textStyle="bold" />
 
@@ -46,7 +55,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
                 android:layout_margin="@dimen/spacing_8"
-                android:background="@color/scrim"
+                android:background="@drawable/bg_badge_dark"
                 android:paddingStart="@dimen/spacing_8"
                 android:paddingTop="@dimen/spacing_4"
                 android:paddingEnd="@dimen/spacing_8"
@@ -60,7 +69,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|start"
                 android:layout_margin="@dimen/spacing_8"
-                android:background="@color/scrim"
+                android:background="@drawable/bg_badge_dark"
                 android:paddingStart="@dimen/spacing_8"
                 android:paddingTop="@dimen/spacing_4"
                 android:paddingEnd="@dimen/spacing_8"
@@ -69,40 +78,50 @@
                 android:textColor="#FFFFFF"
                 android:textSize="@dimen/text_badge"
                 android:visibility="gone" />
-        </FrameLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="@dimen/spacing_12">
-
-            <TextView
-                android:id="@+id/videoTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxLines="2"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_body"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/videoMeta"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/text_caption" />
-
+            <!-- Resume progress, integrated into the thumbnail's bottom edge. -->
             <ProgressBar
                 android:id="@+id/videoProgress"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="4dp"
-                android:layout_marginTop="@dimen/spacing_8"
+                android:layout_height="@dimen/progress_bar_height"
+                android:layout_gravity="bottom"
                 android:max="100"
                 android:progress="0"
+                android:progressDrawable="@drawable/progress_video"
                 android:visibility="gone" />
-        </LinearLayout>
-    </LinearLayout>
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/videoTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_12"
+            android:layout_marginTop="@dimen/spacing_8"
+            android:layout_marginEnd="@dimen/spacing_12"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="2"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_body"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/thumbFrame" />
+
+        <TextView
+            android:id="@+id/videoMeta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_12"
+            android:layout_marginTop="@dimen/spacing_4"
+            android:layout_marginEnd="@dimen/spacing_12"
+            android:layout_marginBottom="@dimen/spacing_12"
+            android:maxLines="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/videoTitle" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

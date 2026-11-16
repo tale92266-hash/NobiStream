@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v3 player options bottom sheet: 24dp radius, 20dp padding, 32x4dp
+     handle, heading 20sp. Speed chips + autoplay switch + aspect chips.
+     Rows are 56dp; secondary controls live here so the on-video controls
+     stay primary-only (play/pause, prev/next, seek bar). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/spacing_20"
+    android:paddingTop="@dimen/spacing_12"
+    android:paddingEnd="@dimen/spacing_20"
+    android:paddingBottom="@dimen/spacing_24">
+
+    <View
+        android:layout_width="@dimen/bottom_sheet_handle_width"
+        android:layout_height="@dimen/bottom_sheet_handle_height"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_handle" />
+
+    <TextView
+        style="@style/Text.NobiStream.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:text="@string/player_options" />
+
+    <TextView
+        style="@style/Text.NobiStream.SectionHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:text="@string/player_speed" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/speedChips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8"
+        app:chipSpacingHorizontal="@dimen/chip_gap"
+        app:selectionRequired="true"
+        app:singleSelection="true" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:gravity="center_vertical"
+        android:minHeight="56dp"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/Text.NobiStream.Body"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_autoplay" />
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:text="@string/player_autoplay_desc" />
+        </LinearLayout>
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/sheetAutoplaySwitch"
+            style="@style/Widget.NobiStream.Switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <TextView
+        style="@style/Text.NobiStream.SectionHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:text="@string/player_aspect_ratio" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/aspectChips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8"
+        app:chipSpacingHorizontal="@dimen/chip_gap"
+        app:selectionRequired="true"
+        app:singleSelection="true" />
+
+</LinearLayout>

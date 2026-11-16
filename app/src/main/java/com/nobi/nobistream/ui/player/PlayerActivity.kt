@@ -10,12 +10,12 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import android.view.GestureDetector
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import android.widget.ImageButton
-import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -30,11 +30,14 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.chip.Chip
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivityPlayerBinding
+import com.nobi.nobistream.databinding.LayoutBottomSheetPlayerBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.playback.TdlibDataSource
 import kotlinx.coroutines.Dispatchers
@@ -45,14 +48,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * v2 video player: fullscreen landscape, all controls ON the video
+ * v3 video player: fullscreen landscape, all controls ON the video
  * (custom exo_player_control_view.xml, Material Symbols icons), MX-style
  * extras — picture-in-picture, aspect-ratio cycle, controls lock,
  * horizontal swipe to seek — and a real buffering overlay (spinner +
  * buffered %) so buffering is never confused with a stuck frame.
  *
- * The data source is unchanged from v1 (TDLib streaming); only the
- * presentation changed.
+ * v3 changes are presentation only: secondary controls (speed, autoplay,
+ * aspect) moved from a popup menu into a bottom sheet; playback failures
+ * show an error state with Retry instead of a toast; the bottom row shows
+ * the episode counter. The engine (TDLib streaming) is untouched.
  */
 class PlayerActivity : AppCompatActivity() {
 
@@ -60,9 +65,7 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_CHAT_ID = "chat_id"
         const val EXTRA_MESSAGE_ID = "message_id"
 
-        private const val MENU_AUTOPLAY = 1
-        private const val MENU_SPEED_BASE = 100
-        private const val GROUP_SPEED = 2
+        private const val CONTROLLER_TIMEOUT_MS = 3000
 
         private const val SCROLL_NONE = 0
         private const val SCROLL_VERTICAL = 1
@@ -117,6 +120,9 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var ctrlLock: ImageButton
     private lateinit var ctrlTitle: TextView
     private lateinit var ctrlSpeedLabel: TextView
+    private lateinit var ctrlCounter: TextView
+
+    private var optionsSheet: BottomSheetDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,9 +144,15 @@ class PlayerActivity : AppCompatActivity() {
         // Controller views first: setFullscreen() touches the fullscreen icon.
         findControllerViews()
         setFullscreen(true)
-        binding.playerView.setControllerShowTimeoutMs(3000)
+        binding.playerView.setControllerShowTimeoutMs(CONTROLLER_TIMEOUT_MS)
         wireControllerButtons()
         binding.lockOverlayButton.setOnClickListener { setLocked(false) }
+        binding.playerError.apply {
+            setTitle(getString(R.string.player_error_title))
+            setBody(getString(R.string.player_error_body))
+            setRetry { playAt(index) }
+            setDismiss { finish() }
+        }
 
         lifecycleScope.launch {
             repository.settingsStore.autoplay.collect { value ->
@@ -171,7 +183,7 @@ class PlayerActivity : AppCompatActivity() {
                     if (playlist.isEmpty()) {
                         Toast.makeText(
                             this@PlayerActivity,
-                            getString(R.string.player_error),
+                            getString(R.string.player_no_video),
                             Toast.LENGTH_LONG
                         ).show()
                         finish()
@@ -194,6 +206,7 @@ class PlayerActivity : AppCompatActivity() {
         ctrlLock = view.findViewById(R.id.ctrlLock)
         ctrlTitle = view.findViewById(R.id.ctrlTitle)
         ctrlSpeedLabel = view.findViewById(R.id.ctrlSpeedLabel)
+        ctrlCounter = view.findViewById(R.id.ctrlCounter)
     }
 
     private fun wireControllerButtons() {
@@ -208,8 +221,8 @@ class PlayerActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.ctrlAspect).setOnClickListener { cycleAspect() }
         view.findViewById<View>(R.id.ctrlPip).setOnClickListener { enterPip() }
         ctrlLock.setOnClickListener { setLocked(true) }
-        view.findViewById<View>(R.id.ctrlOptions).setOnClickListener { showOptionsMenu(it) }
-        ctrlSpeedLabel.setOnClickListener { showOptionsMenu(it) }
+        view.findViewById<View>(R.id.ctrlOptions).setOnClickListener { showOptionsSheet() }
+        ctrlSpeedLabel.setOnClickListener { showOptionsSheet() }
     }
 
     /** Fullscreen = sensor landscape + immersive (system bars hidden). */
@@ -250,6 +263,12 @@ class PlayerActivity : AppCompatActivity() {
         showFeedback(R.drawable.ic_aspect_ratio, "Aspect: ${aspectLabels[aspectIndex]}")
     }
 
+    private fun setAspect(index: Int) {
+        aspectIndex = index.coerceIn(aspectModes.indices)
+        binding.playerView.resizeMode = aspectModes[aspectIndex]
+        showFeedback(R.drawable.ic_aspect_ratio, "Aspect: ${aspectLabels[aspectIndex]}")
+    }
+
     private fun enterPip() {
         val exo = player
         if (exo == null || !exo.isPlaying) {
@@ -276,42 +295,68 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.hideController()
             binding.bufferingOverlay.visibility = View.GONE
             binding.gestureFeedback.visibility = View.GONE
+            binding.playerError.visibility = View.GONE
             binding.lockOverlayButton.visibility = View.GONE
         } else if (locked) {
             binding.lockOverlayButton.visibility = View.VISIBLE
         }
     }
 
-    private fun showOptionsMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor)
-        popup.menu.add(0, MENU_AUTOPLAY, 0, getString(R.string.player_autoplay)).apply {
-            isCheckable = true
-            isChecked = autoplay
-        }
+    /**
+     * Player options bottom sheet (pixel spec §07): rows 56dp, speed chips,
+     * autoplay switch, aspect chips. While the sheet is open the controls
+     * must NOT auto-hide (timeout 0 = shown indefinitely); the 3s timeout
+     * is restored when the sheet dismisses.
+     */
+    private fun showOptionsSheet() {
+        if (optionsSheet?.isShowing == true) return
+        val sheetBinding = LayoutBottomSheetPlayerBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this)
+        optionsSheet = dialog
+
         speeds.forEachIndexed { i, speed ->
-            popup.menu.add(GROUP_SPEED, MENU_SPEED_BASE + i, i + 1, "${speed}x").apply {
-                isCheckable = true
-                isChecked = i == currentSpeedIndex
+            val chip = LayoutInflater.from(this)
+                .inflate(R.layout.item_option_chip, sheetBinding.speedChips, false) as Chip
+            chip.text = "${speed}x"
+            chip.isChecked = i == currentSpeedIndex
+            chip.setOnCheckedChangeListener { _, checked ->
+                if (checked) {
+                    setSpeed(i)
+                    dialog.dismiss()
+                }
+            }
+            sheetBinding.speedChips.addView(chip)
+        }
+        aspectLabels.forEachIndexed { i, label ->
+            val chip = LayoutInflater.from(this)
+                .inflate(R.layout.item_option_chip, sheetBinding.aspectChips, false) as Chip
+            chip.text = label
+            chip.isChecked = i == aspectIndex
+            chip.setOnCheckedChangeListener { _, checked ->
+                if (checked) {
+                    setAspect(i)
+                    dialog.dismiss()
+                }
+            }
+            sheetBinding.aspectChips.addView(chip)
+        }
+        sheetBinding.sheetAutoplaySwitch.isChecked = autoplay
+        sheetBinding.sheetAutoplaySwitch.setOnCheckedChangeListener { _, checked ->
+            autoplay = checked
+            lifecycleScope.launch {
+                repository.settingsStore.setAutoplay(checked)
             }
         }
-        popup.menu.setGroupCheckable(GROUP_SPEED, true, true)
-        popup.setOnMenuItemClickListener { item ->
-            when {
-                item.itemId == MENU_AUTOPLAY -> {
-                    autoplay = !autoplay
-                    lifecycleScope.launch {
-                        repository.settingsStore.setAutoplay(autoplay)
-                    }
-                    true
-                }
-                item.groupId == GROUP_SPEED -> {
-                    setSpeed(item.itemId - MENU_SPEED_BASE)
-                    true
-                }
-                else -> false
-            }
+
+        binding.playerView.setControllerShowTimeoutMs(0)
+        binding.playerView.showController()
+        dialog.setContentView(sheetBinding.root)
+        dialog.setOnDismissListener {
+            if (optionsSheet == dialog) optionsSheet = null
+            binding.playerView.setControllerShowTimeoutMs(CONTROLLER_TIMEOUT_MS)
+            binding.playerView.showController()
         }
-        popup.show()
+        dialog.show()
     }
 
     private fun setSpeed(index: Int) {
@@ -362,6 +407,7 @@ class PlayerActivity : AppCompatActivity() {
                 Player.STATE_BUFFERING -> binding.bufferingOverlay.visibility = View.VISIBLE
                 Player.STATE_READY -> {
                     binding.bufferingOverlay.visibility = View.GONE
+                    binding.playerError.visibility = View.GONE
                     startPostponedEnterTransitionOnce()
                     updatePlayPauseIcon()
                 }
@@ -381,11 +427,7 @@ class PlayerActivity : AppCompatActivity() {
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             binding.bufferingOverlay.visibility = View.GONE
-            Toast.makeText(
-                this@PlayerActivity,
-                getString(R.string.player_error),
-                Toast.LENGTH_LONG
-            ).show()
+            binding.playerError.visibility = View.VISIBLE
         }
     }
 
@@ -413,7 +455,8 @@ class PlayerActivity : AppCompatActivity() {
             if (!firstLoad) {
                 Toast.makeText(
                     this,
-                    if (newIndex < 0) "This is the first video" else "This is the last video",
+                    if (newIndex < 0) getString(R.string.player_first_video)
+                    else getString(R.string.player_last_video),
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -423,6 +466,8 @@ class PlayerActivity : AppCompatActivity() {
         index = newIndex
         val item = playlist[index]
         ctrlTitle.text = item.title
+        ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
+        binding.playerError.visibility = View.GONE
         val exo = player ?: return
         exo.setMediaItem(MediaItem.fromUri("tdlib://${item.fileId}"))
         exo.prepare()
@@ -612,6 +657,8 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        optionsSheet?.dismiss()
+        optionsSheet = null
         bufferHandler.removeCallbacks(bufferUpdater)
         feedbackHandler.removeCallbacks(hideFeedback)
         savePositionNow()

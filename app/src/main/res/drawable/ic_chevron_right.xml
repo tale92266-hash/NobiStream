@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols (outlined): chevron_right, 24dp, #E3E3E3 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#E3E3E3"
+        android:pathData="M504-480 320-664l56-56 240 240-240 240-56-56 184-184-184-184Z" />
+</vector>

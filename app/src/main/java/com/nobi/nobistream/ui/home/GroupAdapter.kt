@@ -7,8 +7,10 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import com.nobi.nobistream.R
+import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.GroupItem
 import com.nobi.nobistream.databinding.ItemGroupBinding
+import com.nobi.nobistream.ui.components.PressFeedback
 import java.io.File
 
 class GroupAdapter(
@@ -28,16 +30,25 @@ class GroupAdapter(
     inner class ViewHolder(private val binding: ItemGroupBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
+        init {
+            PressFeedback.apply(binding.root)
+        }
+
         fun bind(item: GroupItem) {
             binding.groupTitle.text = item.title
-            binding.groupSubtitle.text = itemView.context.getString(
-                R.string.home_videos_count, item.videoCount
-            )
+            val count = itemView.context.getString(R.string.home_videos_count, item.videoCount)
+            val date = FormatUtils.formatDate(item.lastUpdatedEpochSec)
+            binding.groupSubtitle.text = if (date.isEmpty()) {
+                count
+            } else {
+                "$count • ${itemView.context.getString(R.string.home_group_updated, date)}"
+            }
             val photoPath = item.photoLocalPath
             if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
                 binding.groupPhoto.load(File(photoPath)) {
                     placeholder(R.drawable.ic_video_placeholder)
                     error(R.drawable.ic_video_placeholder)
+                    crossfade(200)
                 }
             } else {
                 binding.groupPhoto.setImageResource(R.drawable.ic_video_placeholder)

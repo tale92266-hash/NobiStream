@@ -200,7 +200,14 @@ class TdLibGateway(context: Context) : TelegramGateway {
     private suspend fun refreshMe() {
         try {
             val me = send(TdApi.GetMe())
-            userFlow.value = TelegramUser(me.firstName, null)
+            val name = listOf(me.firstName, me.lastName)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { me.firstName }
+            // TDLib 1.8: usernames live in User.usernames.activeUsername.
+            val username = runCatching { me.usernames?.activeUsername }.getOrNull()
+            val phone = me.phoneNumber.takeIf { it.isNotBlank() }
+            userFlow.value = TelegramUser(name, username, phone)
         } catch (_: Exception) {
             // Not fatal; the name is only shown in the UI.
         }

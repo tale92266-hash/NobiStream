@@ -66,8 +66,12 @@ data class GroupItem(
     val lastUpdatedEpochSec: Long
 )
 
-/** The signed-in Telegram user, shown on Home / Settings. */
+/** The signed-in Telegram user, shown in Settings / Account. Only the
+ * user's own account info, shown to themselves — never any code, secret
+ * or identifier beyond the name, @username and phone Telegram itself
+ * shows in its own Settings. */
 data class TelegramUser(
-    val firstName: String,
-    val username: String?
+    val displayName: String,
+    val username: String?,
+    val phoneNumber: String?
 )

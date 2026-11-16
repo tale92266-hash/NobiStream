@@ -8,10 +8,12 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ItemContinueBinding
+import com.nobi.nobistream.ui.components.PressFeedback
 
 class ContinueAdapter(
     private val onClick: (VideoItem) -> Unit,
-    private val onThumbNeeded: (VideoItem, ImageView) -> Unit
+    private val onThumbNeeded: (VideoItem, ImageView) -> Unit,
+    private val metaProvider: (VideoItem) -> String
 ) : ListAdapter<VideoItem, ContinueAdapter.ViewHolder>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -26,8 +28,13 @@ class ContinueAdapter(
     inner class ViewHolder(private val binding: ItemContinueBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
+        init {
+            PressFeedback.apply(binding.root)
+        }
+
         fun bind(item: VideoItem) {
             binding.continueTitle.text = item.title
+            binding.continueMeta.text = metaProvider(item)
             binding.continueProgress.progress = (item.progressFraction * 100).toInt()
             onThumbNeeded(item, binding.continueThumb)
             binding.root.setOnClickListener { onClick(item) }

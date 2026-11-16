@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v3 Home: custom app bar 56dp (brand icon 28dp + brand text 19sp +
+     settings 48dp), ONE unified Continue Watching section (featured card
+     16:9 radius 20dp + row, no duplicated hero), then Your Groups.
+     Groups stay a vertical list (v2 behaviour); the video library grid
+     lives on the Channel screen, reusing the same VideoCard. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -6,150 +11,108 @@
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
+    <!-- App bar: 56dp, brand icon 28dp, brand text 19sp, settings 48dp. -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
-        app:title="@string/home_title" />
+        android:layout_height="@dimen/toolbar_height"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/screen_margin"
+        android:paddingEnd="@dimen/spacing_8">
 
-    <!-- v2 hero card: the last-watched episode, one tap resumes it. -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/heroCard"
-        style="@style/Widget.NobiStream.Card"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_16"
-        android:layout_marginTop="@dimen/spacing_16"
-        android:layout_marginEnd="@dimen/spacing_16"
-        android:visibility="gone">
+        <ImageView
+            android:layout_width="@dimen/icon_size_large"
+            android:layout_height="@dimen/icon_size_large"
+            android:contentDescription="@string/app_name"
+            android:src="@mipmap/ic_launcher" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            style="@style/Text.NobiStream.BrandTitle"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="@dimen/spacing_12">
+            android:layout_marginStart="@dimen/spacing_12"
+            android:layout_weight="1"
+            android:text="@string/home_title" />
 
-            <ImageView
-                android:id="@+id/heroThumb"
-                android:layout_width="112dp"
-                android:layout_height="64dp"
-                android:contentDescription="@string/home_continue_watching"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_video_placeholder" />
+        <ImageButton
+            android:id="@+id/homeSettingsButton"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/home_open_settings"
+            android:src="@drawable/ic_settings" />
+    </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/spacing_12"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/home_continue_watching"
-                    android:textColor="@color/primary"
-                    android:textSize="@dimen/text_caption"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/heroTitle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_4"
-                    android:maxLines="2"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/text_body"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/heroMeta"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_4"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="@dimen/text_caption" />
-
-                <ProgressBar
-                    android:id="@+id/heroProgress"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="4dp"
-                    android:layout_marginTop="@dimen/spacing_8"
-                    android:max="100"
-                    android:progress="0" />
-            </LinearLayout>
-
-            <ImageButton
-                android:id="@+id/heroPlayButton"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/player_play_pause"
-                android:src="@drawable/ic_play" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+    <!-- Unified Continue Watching: featured card = most recent episode. -->
+    <include
+        android:id="@+id/featuredCard"
+        layout="@layout/item_featured_continue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/continueTitle"
         style="@style/Text.NobiStream.Section"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="@dimen/spacing_16"
+        android:paddingStart="@dimen/screen_margin"
         android:paddingTop="@dimen/spacing_16"
-        android:paddingEnd="@dimen/spacing_16"
+        android:paddingEnd="@dimen/screen_margin"
         android:text="@string/home_continue_watching"
         android:visibility="gone" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/continueRecycler"
         android:layout_width="match_parent"
-        android:layout_height="190dp"
+        android:layout_height="196dp"
         android:layout_marginTop="@dimen/spacing_8"
+        android:clipToPadding="false"
         android:orientation="horizontal"
+        android:paddingStart="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_8"
         android:visibility="gone"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/addGroupButton"
-        style="@style/Widget.NobiStream.Button.Primary"
+    <!-- Your Groups header + compact Add action (replaces the full-width button). -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="@dimen/spacing_16"
-        android:text="@string/home_add_group" />
+        android:layout_marginTop="@dimen/spacing_16"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/screen_margin"
+        android:paddingEnd="@dimen/screen_margin">
+
+        <TextView
+            style="@style/Text.NobiStream.Section"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/home_groups" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/addGroupButton"
+            style="@style/Widget.NobiStream.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/button_height_small"
+            android:text="@string/home_add_group"
+            app:icon="@drawable/ic_add" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/groupsRecycler"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:paddingBottom="@dimen/spacing_8"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
-    <LinearLayout
+    <com.nobi.nobistream.ui.components.EmptyStateView
         android:id="@+id/emptyState"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="@dimen/spacing_24"
-        android:visibility="gone">
-
-        <TextView
-            style="@style/Text.NobiStream.Section"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/home_no_groups" />
-
-        <TextView
-            style="@style/Text.NobiStream.Caption"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_8"
-            android:gravity="center"
-            android:text="@string/home_no_groups_body" />
-    </LinearLayout>
+        android:visibility="gone" />
 
 </LinearLayout>

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v3 Channel: toolbar, redesigned filter chips (clear selected state,
+     32dp, horizontal scroll), pill search field + icon-only sort/refresh,
+     skeleton while loading, ErrorState on first-page failure. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -9,9 +12,10 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
-        app:navigationIcon="@drawable/ic_back" />
+        android:layout_height="@dimen/toolbar_height"
+        android:background="@color/background"
+        app:navigationIcon="@drawable/ic_back"
+        app:titleTextColor="@color/text_primary" />
 
     <HorizontalScrollView
         android:layout_width="match_parent"
@@ -22,15 +26,16 @@
             android:id="@+id/filterChips"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="@dimen/spacing_8"
+            android:paddingStart="@dimen/screen_margin"
             android:paddingTop="@dimen/spacing_8"
-            android:paddingEnd="@dimen/spacing_8"
+            android:paddingEnd="@dimen/screen_margin"
+            app:chipSpacingHorizontal="@dimen/chip_gap"
             app:selectionRequired="true"
             app:singleSelection="true">
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipAll"
-                style="@style/Widget.Material3.Chip.Filter"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"
@@ -39,7 +44,7 @@
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip480"
-                style="@style/Widget.Material3.Chip.Filter"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"
@@ -47,7 +52,7 @@
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip720"
-                style="@style/Widget.Material3.Chip.Filter"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"
@@ -55,7 +60,7 @@
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip1080"
-                style="@style/Widget.Material3.Chip.Filter"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"
@@ -63,7 +68,7 @@
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chip4k"
-                style="@style/Widget.Material3.Chip.Filter"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"
@@ -74,16 +79,17 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_8"
+        android:layout_marginStart="@dimen/screen_margin"
         android:layout_marginTop="@dimen/spacing_8"
         android:layout_marginEnd="@dimen/spacing_8"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/searchLayout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            style="@style/Widget.NobiStream.TextInputLayout.Search"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="@dimen/search_field_height"
             android:layout_weight="1"
             android:hint="@string/channel_search_hint"
             app:startIconDrawable="@drawable/ic_search">
@@ -91,47 +97,80 @@
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/searchEdit"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="match_parent"
+                android:inputType="text"
+                android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.button.MaterialButton
+        <ImageButton
             android:id="@+id/sortButton"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:text="@string/channel_sort_newest"
-            app:icon="@drawable/ic_sort" />
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/channel_sort_newest"
+            android:src="@drawable/ic_sort" />
 
-        <com.google.android.material.button.MaterialButton
+        <ImageButton
             android:id="@+id/refreshButton"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:text="Refresh"
-            app:icon="@drawable/ic_refresh" />
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/channel_refresh"
+            android:src="@drawable/ic_refresh" />
     </LinearLayout>
 
-    <!-- Shimmer skeleton while the first page loads. -->
-    <LinearLayout
+    <!-- Shimmer skeleton in the SAME 2-column grid as the real cards. -->
+    <GridLayout
         android:id="@+id/skeletonContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:columnCount="2"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
         android:visibility="gone">
 
-        <include layout="@layout/item_skeleton" />
-        <include layout="@layout/item_skeleton" />
-        <include layout="@layout/item_skeleton" />
-    </LinearLayout>
+        <include
+            layout="@layout/item_skeleton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginHorizontal="6dp"
+            android:layout_marginVertical="10dp" />
+
+        <include
+            layout="@layout/item_skeleton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginHorizontal="6dp"
+            android:layout_marginVertical="10dp" />
+
+        <include
+            layout="@layout/item_skeleton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginHorizontal="6dp"
+            android:layout_marginVertical="10dp" />
+
+        <include
+            layout="@layout/item_skeleton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginHorizontal="6dp"
+            android:layout_marginVertical="10dp" />
+    </GridLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/videosRecycler"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+        android:clipToPadding="false"
+        android:paddingStart="@dimen/screen_margin"
+        android:paddingEnd="@dimen/screen_margin"
+        android:paddingBottom="@dimen/spacing_8" />
 
     <!-- Loading-more footer while later pages load. -->
     <LinearLayout
@@ -157,29 +196,18 @@
             android:textSize="@dimen/text_caption" />
     </LinearLayout>
 
-    <LinearLayout
+    <com.nobi.nobistream.ui.components.EmptyStateView
         android:id="@+id/emptyState"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="@dimen/spacing_24"
-        android:visibility="gone">
+        android:visibility="gone" />
 
-        <TextView
-            style="@style/Text.NobiStream.Section"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/channel_no_videos" />
-
-        <TextView
-            style="@style/Text.NobiStream.Caption"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_8"
-            android:gravity="center"
-            android:text="@string/channel_no_videos_body" />
-    </LinearLayout>
+    <com.nobi.nobistream.ui.components.ErrorStateView
+        android:id="@+id/errorState"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone" />
 
 </LinearLayout>

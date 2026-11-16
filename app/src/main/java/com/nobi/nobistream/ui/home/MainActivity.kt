@@ -2,17 +2,16 @@ package com.nobi.nobistream.ui.home
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
-import android.widget.EditText
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import android.view.inputmethod.EditorInfo
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.AuthState
@@ -20,6 +19,7 @@ import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.GroupItem
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivityMainBinding
+import com.nobi.nobistream.databinding.LayoutBottomSheetAddChannelBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.channel.ChannelActivity
@@ -33,7 +33,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Home: saved groups, Continue Watching, add a group/channel link. */
+/**
+ * v3 Home: custom 56dp app bar (brand icon + brand text + settings),
+ * ONE unified Continue Watching section (featured card + row — the old
+ * hero card and the row showed the same video twice), then Your Groups.
+ *
+ * No search action here: a dedicated Search screen does not exist in v2
+ * and is listed as a missing feature needing approval (see report).
+ * No Home refresh either: groups refresh from Telegram only by opening
+ * a channel (v2 behaviour).
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -45,18 +54,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var continueAdapter: ContinueAdapter
     private var continueItems: List<VideoItem> = emptyList()
     private var groups: List<GroupItem> = emptyList()
-    private var heroItem: VideoItem? = null
+    private var featuredItem: VideoItem? = null
     private var redirectDone = false
+    private var addSheet: BottomSheetDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setSupportActionBar(binding.toolbar)
         if (locator.gateway.authState.value != AuthState.READY) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
+        }
+        binding.homeSettingsButton.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
         groupAdapter = GroupAdapter(
             onClick = { group -> openChannel(group) },
@@ -69,25 +82,34 @@ class MainActivity : AppCompatActivity() {
             onClick = { item -> openContinue(item) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
-            }
+            },
+            metaProvider = { item -> continueMeta(item) }
         )
         binding.continueRecycler.layoutManager =
             LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.continueRecycler.adapter = continueAdapter
         binding.continueRecycler.itemAnimator = FadeInAnimator()
-        binding.heroPlayButton.setOnClickListener {
-            heroItem?.let { openContinue(it) }
+        binding.featuredCard.featuredResumeButton.setOnClickListener {
+            featuredItem?.let { openContinue(it) }
         }
-        binding.addGroupButton.setOnClickListener { showAddGroupDialog() }
+        binding.featuredCard.root.setOnClickListener {
+            featuredItem?.let { openContinue(it) }
+        }
+        binding.addGroupButton.setOnClickListener { showAddChannelSheet() }
+        binding.emptyState.apply {
+            setIcon(R.drawable.ic_add)
+            setTitle(getString(R.string.home_no_groups))
+            setBody(getString(R.string.home_no_groups_body))
+            setAction(getString(R.string.home_add_group)) { showAddChannelSheet() }
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.observeGroups().collect { items ->
                     groups = items
                     groupAdapter.submitList(items)
-                    binding.emptyState.visibility =
-                        if (items.isEmpty()) View.VISIBLE else View.GONE
-                    binding.groupsRecycler.visibility =
-                        if (items.isEmpty()) View.GONE else View.VISIBLE
+                    val empty = items.isEmpty()
+                    binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
+                    binding.groupsRecycler.visibility = if (empty) View.GONE else View.VISIBLE
                 }
             }
         }
@@ -95,11 +117,12 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.observeContinueWatching().collect { items ->
                     continueItems = items
-                    continueAdapter.submitList(items)
-                    val visible = items.isNotEmpty()
-                    binding.continueTitle.visibility = if (visible) View.VISIBLE else View.GONE
-                    binding.continueRecycler.visibility = if (visible) View.VISIBLE else View.GONE
-                    updateHero(items.firstOrNull())
+                    // Unified section: featured = first item, row = the rest.
+                    continueAdapter.submitList(items.drop(1))
+                    val hasRow = items.size > 1
+                    binding.continueTitle.visibility = if (hasRow) View.VISIBLE else View.GONE
+                    binding.continueRecycler.visibility = if (hasRow) View.VISIBLE else View.GONE
+                    updateFeatured(items.firstOrNull())
                     // v2: one-time redirect to the last-watched episode.
                     // Only on a fresh start (not rotation / return from player).
                     if (!redirectDone && savedInstanceState == null) {
@@ -113,41 +136,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Hero card: the most recently watched episode, with remaining time. */
-    private fun updateHero(item: VideoItem?) {
-        heroItem = item
-        if (item == null) {
-            binding.heroCard.visibility = View.GONE
-            return
-        }
-        binding.heroCard.visibility = View.VISIBLE
-        binding.heroTitle.text = item.title
+    override fun onDestroy() {
+        addSheet?.dismiss()
+        addSheet = null
+        super.onDestroy()
+    }
+
+    /** "Channel name • 12:34 left" under a Continue Watching row card. */
+    private fun continueMeta(item: VideoItem): String {
         val groupName = groups.firstOrNull { it.chatId == item.chatId }?.title.orEmpty()
         val remaining = if (item.durationSec > 0) {
             val left = (item.durationSec - item.progressSec).coerceAtLeast(0L)
-            "${FormatUtils.formatDuration(left.toInt())} left"
+            getString(R.string.home_left, FormatUtils.formatDuration(left.toInt()))
         } else {
             ""
         }
-        binding.heroMeta.text = listOf(groupName, remaining)
-            .filter { it.isNotEmpty() }.joinToString(" • ")
-        binding.heroProgress.progress = (item.progressFraction * 100).toInt()
-        ThumbLoader.load(lifecycleScope, repository, item, binding.heroThumb)
+        return listOf(groupName, remaining).filter { it.isNotEmpty() }.joinToString(" • ")
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_settings -> {
-                startActivity(Intent(this, SettingsActivity::class.java))
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
+    /** Featured card: the most recently watched episode, with remaining time. */
+    private fun updateFeatured(item: VideoItem?) {
+        featuredItem = item
+        if (item == null) {
+            binding.featuredCard.root.visibility = View.GONE
+            return
         }
+        binding.featuredCard.root.visibility = View.VISIBLE
+        binding.featuredCard.featuredTitle.text = item.title
+        binding.featuredCard.featuredMeta.text = continueMeta(item)
+        binding.featuredCard.featuredProgress.progress = (item.progressFraction * 100).toInt()
+        ThumbLoader.load(lifecycleScope, repository, item, binding.featuredCard.featuredThumb)
     }
 
     private fun openChannel(group: GroupItem) {
@@ -166,39 +184,103 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun showAddGroupDialog() {
-        val input = EditText(this).apply {
-            hint = getString(R.string.home_add_link_hint)
+    /**
+     * Add Channel bottom sheet (pixel spec §04): 24dp radius, 20dp padding,
+     * 32x4dp handle, heading 20sp, input 56dp, button 52dp. Validates the
+     * link, shows an inline loading state, blocks duplicates and double
+     * submits. Closes only on success or explicit Cancel.
+     */
+    private fun showAddChannelSheet() {
+        val sheetBinding = LayoutBottomSheetAddChannelBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this).apply {
+            setContentView(sheetBinding.root)
+            // Spec: closes only on success or explicit Cancel.
+            setCancelable(false)
+            setCanceledOnTouchOutside(false)
         }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.home_add_group)
-            .setView(input)
-            .setPositiveButton(R.string.home_add) { _, _ ->
-                val link = input.text?.toString()?.trim().orEmpty()
-                if (link.isEmpty()) return@setPositiveButton
-                lifecycleScope.launch(Dispatchers.IO) {
-                    try {
-                        repository.addGroup(link)
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                this@MainActivity,
-                                e.message ?: getString(R.string.common_error_generic),
-                                Toast.LENGTH_LONG
+        addSheet = dialog
+        var adding = false
+
+        fun setAdding(value: Boolean) {
+            adding = value
+            sheetBinding.addChannelLoading.visibility = if (value) View.VISIBLE else View.GONE
+            sheetBinding.addChannelButton.isEnabled = !value
+            sheetBinding.addChannelCancelButton.isEnabled = !value
+            sheetBinding.addChannelEdit.isEnabled = !value
+        }
+
+        fun submit() {
+            if (adding) return
+            val link = sheetBinding.addChannelEdit.text?.toString()?.trim().orEmpty()
+            val username = extractUsername(link)
+            if (username == null) {
+                sheetBinding.addChannelInputLayout.error =
+                    getString(R.string.home_add_link_invalid)
+                return
+            }
+            if (groups.any { it.username.equals(username, ignoreCase = true) }) {
+                sheetBinding.addChannelInputLayout.error = getString(R.string.home_add_exists)
+                return
+            }
+            sheetBinding.addChannelInputLayout.error = null
+            setAdding(true)
+            lifecycleScope.launch(Dispatchers.IO) {
+                val ok = runCatching { repository.addGroup(link) }.isSuccess
+                withContext(Dispatchers.Main) {
+                    if (!isFinishing && dialog.isShowing) {
+                        if (ok) {
+                            dialog.dismiss()
+                            Snackbar.make(
+                                binding.root,
+                                R.string.home_add_added,
+                                Snackbar.LENGTH_SHORT
                             ).show()
+                        } else {
+                            setAdding(false)
+                            // Generic message only — never a technical
+                            // exception string in the UI.
+                            sheetBinding.addChannelInputLayout.error =
+                                getString(R.string.home_add_failed)
                         }
                     }
                 }
             }
-            .setNegativeButton(R.string.home_cancel, null)
-            .show()
+        }
+
+        sheetBinding.addChannelButton.setOnClickListener { submit() }
+        sheetBinding.addChannelEdit.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                submit()
+                true
+            } else {
+                false
+            }
+        }
+        sheetBinding.addChannelCancelButton.setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { if (addSheet == dialog) addSheet = null }
+        dialog.show()
+    }
+
+    /**
+     * Username out of a t.me link / @username / bare username.
+     * Null when nothing usable is in the text (invalid link).
+     */
+    private fun extractUsername(link: String): String? {
+        var text = link.trim()
+        if (text.isEmpty()) return null
+        text = text.removePrefix("https://").removePrefix("http://")
+            .removePrefix("www.").removePrefix("t.me/").removePrefix("@")
+        val segment = text.split('/', '?', ' ', '\n').firstOrNull().orEmpty()
+        if (segment.isEmpty()) return null
+        if (!segment.matches(Regex("[A-Za-z0-9_]{4,}"))) return null
+        return segment
     }
 
     private fun confirmRemove(group: GroupItem) {
-        AlertDialog.Builder(this)
-            .setTitle(group.title)
-            .setMessage("Remove this group from NobiStream? Its videos stay on Telegram.")
-            .setPositiveButton(R.string.common_ok) { _, _ ->
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.home_remove_group_title)
+            .setMessage(getString(R.string.home_remove_group_body, group.title))
+            .setPositiveButton(R.string.home_remove) { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     repository.removeGroup(group.chatId)
                 }

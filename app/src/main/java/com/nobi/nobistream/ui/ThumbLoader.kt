@@ -25,6 +25,9 @@ object ThumbLoader {
             imageView.load(File(local)) {
                 placeholder(R.drawable.ic_video_placeholder)
                 error(R.drawable.ic_video_placeholder)
+                // Thumbnail fade 200ms (animation token); Coil already
+                // sizes the decode to the view, so no oversized bitmaps.
+                crossfade(200)
             }
             return
         }
@@ -38,6 +41,7 @@ object ThumbLoader {
                 imageView.load(File(path)) {
                     placeholder(R.drawable.ic_video_placeholder)
                     error(R.drawable.ic_video_placeholder)
+                    crossfade(200)
                 }
             }
         }

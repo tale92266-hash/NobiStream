@@ -1,21 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  NobiStream v3 spacing / shape / size tokens — pixel spec (4dp grid).
+  XS 4 / SM 8 / MD 12 / LG 16 / XL 20 / XXL 24 / XXXL 32.
+  Screen margin 16dp (24dp on large screens, values-sw600dp).
+  Section spacing 28dp, large section 40dp.
+-->
 <resources>
+    <!-- Spacing (4dp scale) -->
+    <dimen name="spacing_2">2dp</dimen>
     <dimen name="spacing_4">4dp</dimen>
     <dimen name="spacing_8">8dp</dimen>
     <dimen name="spacing_12">12dp</dimen>
     <dimen name="spacing_16">16dp</dimen>
     <dimen name="spacing_20">20dp</dimen>
     <dimen name="spacing_24">24dp</dimen>
+    <dimen name="spacing_28">28dp</dimen>
     <dimen name="spacing_32">32dp</dimen>
-    <dimen name="corner_small">8dp</dimen>
-    <dimen name="corner_medium">12dp</dimen>
+    <dimen name="spacing_40">40dp</dimen>
+
+    <!-- Screen margins: 16dp standard, 24dp on large screens -->
+    <dimen name="screen_margin">16dp</dimen>
+    <dimen name="screen_margin_compact">12dp</dimen>
+
+    <!-- Section spacing -->
+    <dimen name="section_spacing">28dp</dimen>
+    <dimen name="section_spacing_large">40dp</dimen>
+
+    <!-- Corners: card 16dp, small 10dp, featured 20dp, dialog/sheet 24dp -->
+    <dimen name="corner_small">10dp</dimen>
+    <dimen name="corner_medium">16dp</dimen>
     <dimen name="corner_large">16dp</dimen>
+    <dimen name="corner_thumb">12dp</dimen>
+    <dimen name="corner_featured">20dp</dimen>
+    <dimen name="corner_sheet">24dp</dimen>
+    <dimen name="corner_dialog">24dp</dimen>
+    <dimen name="corner_full">999dp</dimen>
+
+    <!-- Typography (native Roboto/system — no bundled font, see report) -->
+    <dimen name="text_display">24sp</dimen>
     <dimen name="text_title">20sp</dimen>
-    <dimen name="text_section">16sp</dimen>
+    <dimen name="text_section">18sp</dimen>
+    <dimen name="text_card_title">15sp</dimen>
+    <dimen name="text_featured_title">16sp</dimen>
+    <dimen name="text_brand">19sp</dimen>
     <dimen name="text_body">14sp</dimen>
     <dimen name="text_caption">12sp</dimen>
     <dimen name="text_badge">11sp</dimen>
-    <dimen name="button_height">48dp</dimen>
+    <dimen name="text_overline">12sp</dimen>
+
+    <!-- Components: primary button 52dp, secondary 48dp, text field 56dp -->
+    <dimen name="button_height">52dp</dimen>
+    <dimen name="button_height_small">48dp</dimen>
+    <dimen name="toolbar_height">56dp</dimen>
+    <dimen name="search_field_height">56dp</dimen>
+    <dimen name="chip_height">36dp</dimen>
+    <dimen name="chip_padding">12dp</dimen>
+    <dimen name="chip_gap">8dp</dimen>
+    <dimen name="settings_row_min_height">64dp</dimen>
+    <dimen name="divider_height">1dp</dimen>
+    <dimen name="bottom_sheet_handle_width">32dp</dimen>
+    <dimen name="bottom_sheet_handle_height">4dp</dimen>
+
+    <!-- Icons (Material Symbols, one family; outlined inactive, filled selected) -->
+    <dimen name="icon_size_metadata">16dp</dimen>
+    <dimen name="icon_size_small">20dp</dimen>
+    <dimen name="icon_size">24dp</dimen>
+    <dimen name="icon_size_large">28dp</dimen>
+    <dimen name="icon_button_size">48dp</dimen>
+
+    <!-- Player: play/pause touch 64dp with ~48dp icon; secondary touch 48dp, icons 28-32dp -->
+    <dimen name="player_control_size">48dp</dimen>
+    <dimen name="player_play_size">64dp</dimen>
+    <dimen name="player_play_icon">48dp</dimen>
+    <dimen name="player_secondary_icon">32dp</dimen>
+    <dimen name="player_buffering_size">48dp</dimen>
+    <dimen name="player_lock_size">72dp</dimen>
+    <dimen name="player_timebar_height">24dp</dimen>
+    <dimen name="player_top_area">64dp</dimen>
+
+    <!-- Video cards -->
     <dimen name="thumbnail_height">180dp</dimen>
+    <dimen name="featured_thumb_height">200dp</dimen>
+    <dimen name="continue_card_width">200dp</dimen>
+    <dimen name="continue_thumb_height">112dp</dimen>
     <dimen name="group_icon_size">56dp</dimen>
+    <dimen name="progress_bar_height">3dp</dimen>
+    <dimen name="grid_gap_horizontal">12dp</dimen>
+    <dimen name="grid_gap_vertical">20dp</dimen>
+
+    <!-- Elevation (used sparingly; tonal separation preferred) -->
+    <dimen name="elevation_0">0dp</dimen>
+    <dimen name="elevation_1">1dp</dimen>
+    <dimen name="elevation_2">2dp</dimen>
+    <dimen name="elevation_4">4dp</dimen>
+    <dimen name="card_stroke_width">1dp</dimen>
 </resources>

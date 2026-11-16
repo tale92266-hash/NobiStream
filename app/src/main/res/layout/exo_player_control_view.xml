@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Custom Media3 controller (v2). PlayerView only manages the ids it knows:
+  Custom Media3 controller (v3). PlayerView only manages the ids it knows:
   exo_position / exo_duration / exo_progress (DefaultTimeBar). Every other
   button has a custom id and is wired by PlayerActivity, so ALL icons are
   the Material Symbols drawables (24dp, #E3E3E3) — no Media3 stock icons.
+
+  Hierarchy: top bar (close, title, options) / centre transport /
+  time + seek bar / bottom row (fullscreen, aspect, PiP, lock, episode
+  counter, speed). Speed + autoplay + aspect also live in the options
+  bottom sheet; the speed label here is a shortcut into it.
 -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -11,11 +16,12 @@
     android:layout_height="match_parent"
     android:background="@drawable/player_controller_scrim">
 
-    <!-- Top bar: close, title, settings -->
+    <!-- Top bar: close, title, settings. 48dp buttons + 8dp top margin = ~64dp top area. -->
     <ImageButton
         android:id="@+id/ctrlBack"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="@dimen/icon_button_size"
+        android:layout_height="@dimen/icon_button_size"
+        android:layout_marginTop="@dimen/spacing_8"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_close"
         android:src="@drawable/ic_close"
@@ -40,21 +46,25 @@
 
     <ImageButton
         android:id="@+id/ctrlOptions"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="@dimen/icon_button_size"
+        android:layout_height="@dimen/icon_button_size"
+        android:layout_marginTop="@dimen/spacing_8"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_options"
         android:src="@drawable/ic_settings"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Center controls -->
+    <!-- Center controls: 16dp gaps between neighbours (8dp margins each
+         side), play/pause 64dp touch with ~48dp icon (8dp padding),
+         secondary 48dp touch with 32dp icons (8dp padding). -->
     <ImageButton
         android:id="@+id/ctrlPrev"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="@dimen/player_control_size"
+        android:layout_height="@dimen/player_control_size"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_previous"
+        android:padding="@dimen/spacing_8"
         android:src="@drawable/ic_skip_previous"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/ctrlRew"
@@ -64,10 +74,13 @@
 
     <ImageButton
         android:id="@+id/ctrlRew"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="@dimen/player_control_size"
+        android:layout_height="@dimen/player_control_size"
+        android:layout_marginStart="@dimen/spacing_8"
+        android:layout_marginEnd="@dimen/spacing_8"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_rewind_10"
+        android:padding="@dimen/spacing_8"
         android:src="@drawable/ic_replay_10"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/ctrlPlayPause"
@@ -76,10 +89,13 @@
 
     <ImageButton
         android:id="@+id/ctrlPlayPause"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
+        android:layout_width="@dimen/player_play_size"
+        android:layout_height="@dimen/player_play_size"
+        android:layout_marginStart="@dimen/spacing_8"
+        android:layout_marginEnd="@dimen/spacing_8"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_play_pause"
+        android:padding="@dimen/spacing_8"
         android:src="@drawable/ic_pause"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/ctrlFfwd"
@@ -88,10 +104,13 @@
 
     <ImageButton
         android:id="@+id/ctrlFfwd"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="@dimen/player_control_size"
+        android:layout_height="@dimen/player_control_size"
+        android:layout_marginStart="@dimen/spacing_8"
+        android:layout_marginEnd="@dimen/spacing_8"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_forward_10"
+        android:padding="@dimen/spacing_8"
         android:src="@drawable/ic_forward_10"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/ctrlNext"
@@ -100,17 +119,19 @@
 
     <ImageButton
         android:id="@+id/ctrlNext"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="@dimen/player_control_size"
+        android:layout_height="@dimen/player_control_size"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/player_next"
+        android:padding="@dimen/spacing_8"
         android:src="@drawable/ic_skip_next"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/ctrlFfwd"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Bottom: time + seek bar -->
+    <!-- Bottom: time + seek bar. Track 3dp, touch height 24dp, thumb 12dp,
+         16dp side margins, time text 12sp. -->
     <TextView
         android:id="@id/exo_position"
         android:layout_width="wrap_content"
@@ -134,18 +155,21 @@
     <androidx.media3.ui.DefaultTimeBar
         android:id="@id/exo_progress"
         android:layout_width="0dp"
-        android:layout_height="26dp"
-        android:layout_marginStart="@dimen/spacing_8"
-        android:layout_marginEnd="@dimen/spacing_8"
-        app:buffered_color="@color/text_disabled"
+        android:layout_height="@dimen/player_timebar_height"
+        android:layout_marginStart="@dimen/spacing_16"
+        android:layout_marginEnd="@dimen/spacing_16"
+        app:bar_height="3dp"
+        app:buffered_color="@color/progress_buffered"
         app:played_color="@color/primary"
         app:scrubber_color="@color/primary"
+        app:scrubber_enabled_size="12dp"
+        app:touch_target_height="24dp"
         app:unplayed_color="@color/outline"
         app:layout_constraintBottom_toTopOf="@id/ctrlBottomRow"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Bottom row: fullscreen, aspect, PiP, lock -->
+    <!-- Bottom row: fullscreen, aspect, PiP, lock, episode counter, speed -->
     <LinearLayout
         android:id="@+id/ctrlBottomRow"
         android:layout_width="match_parent"
@@ -160,32 +184,32 @@
 
         <ImageButton
             android:id="@+id/ctrlFullscreen"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_fullscreen"
             android:src="@drawable/ic_fullscreen_exit" />
 
         <ImageButton
             android:id="@+id/ctrlAspect"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_aspect_ratio"
             android:src="@drawable/ic_aspect_ratio" />
 
         <ImageButton
             android:id="@+id/ctrlPip"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_pip"
             android:src="@drawable/ic_pip" />
 
         <ImageButton
             android:id="@+id/ctrlLock"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_lock"
             android:src="@drawable/ic_lock_open" />
@@ -196,9 +220,18 @@
             android:layout_weight="1" />
 
         <TextView
+            android:id="@+id/ctrlCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="@dimen/spacing_8"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption" />
+
+        <TextView
             android:id="@+id/ctrlSpeedLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
             android:padding="@dimen/spacing_8"
             android:text="1.0x"
             android:textColor="@color/text_primary"

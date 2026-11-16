@@ -7,12 +7,13 @@ import android.os.Bundle
 import android.view.View
 import android.view.Window
 import android.widget.ImageView
-import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.VideoItem
@@ -26,7 +27,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** One group/channel: its videos, quality filter chips, search, sort. */
+/**
+ * One group/channel: its videos in the SAME 2-column VideoCard grid as the
+ * Home library (pixel spec §03/§05 — one card style, never a second
+ * variant). Quality filter chips, search, sort, refresh — all v2 behaviour,
+ * redesigned. Filter changes only re-run DiffUtil (no full reload, scroll
+ * position preserved). First-page failures show an error state with Retry
+ * and a generic message — never a technical exception string.
+ */
 class ChannelActivity : AppCompatActivity() {
 
     companion object {
@@ -56,6 +64,7 @@ class ChannelActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.requestFeature(Window.FEATURE_CONTENT_TRANSITIONS)
+        enableEdgeToEdge()
         binding = ActivityChannelBinding.inflate(layoutInflater)
         setContentView(binding.root)
         chatId = intent.getLongExtra(EXTRA_CHAT_ID, 0L)
@@ -67,13 +76,21 @@ class ChannelActivity : AppCompatActivity() {
                 ThumbLoader.load(lifecycleScope, repository, item, view)
             }
         )
-        binding.videosRecycler.layoutManager = LinearLayoutManager(this)
+        val spanCount = gridSpanCount()
+        binding.videosRecycler.layoutManager = GridLayoutManager(this, spanCount)
         binding.videosRecycler.adapter = adapter
         binding.videosRecycler.itemAnimator = SlideInUpAnimator()
+        binding.videosRecycler.addItemDecoration(
+            GridSpacingItemDecoration(
+                spanCount,
+                resources.getDimensionPixelSize(R.dimen.grid_gap_horizontal),
+                resources.getDimensionPixelSize(R.dimen.grid_gap_vertical)
+            )
+        )
         binding.videosRecycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 if (dy <= 0) return
-                val manager = recyclerView.layoutManager as LinearLayoutManager
+                val manager = recyclerView.layoutManager as GridLayoutManager
                 if (manager.findLastVisibleItemPosition() >= adapter.itemCount - 5) {
                     loadPage()
                 }
@@ -95,12 +112,28 @@ class ChannelActivity : AppCompatActivity() {
         }
         binding.sortButton.setOnClickListener {
             sortNewest = !sortNewest
-            binding.sortButton.setText(
+            binding.sortButton.contentDescription = getString(
                 if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest
             )
             applyFilter()
+            Snackbar.make(
+                binding.root,
+                if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest,
+                Snackbar.LENGTH_SHORT
+            ).show()
         }
         binding.refreshButton.setOnClickListener { resetAndLoad() }
+        binding.emptyState.apply {
+            setIcon(R.drawable.ic_search)
+            setTitle(getString(R.string.channel_no_videos))
+            setBody(getString(R.string.channel_no_videos_body))
+            setAction(getString(R.string.channel_refresh)) { resetAndLoad() }
+        }
+        binding.errorState.apply {
+            setTitle(getString(R.string.channel_load_error_title))
+            setBody(getString(R.string.channel_load_error_body))
+            setRetry { resetAndLoad() }
+        }
         lifecycleScope.launch {
             val savedFilter = repository.settingsStore.defaultFilter.first()
             if (savedFilter != currentFilter) {
@@ -125,11 +158,25 @@ class ChannelActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Responsive grid (pixel spec): 2 columns compact, 3 columns on
+     * >=600dp, 4 columns on >=840dp. Cards never stretch — extra width
+     * becomes another column, not a wider card.
+     */
+    private fun gridSpanCount(): Int {
+        return when (resources.configuration.screenWidthDp) {
+            in 0..599 -> 2
+            in 600..839 -> 3
+            else -> 4
+        }
+    }
+
     private fun resetAndLoad() {
         allVideos.clear()
         fromMessageId = 0L
         hasMore = true
         adapter.submitList(emptyList())
+        binding.errorState.visibility = View.GONE
         loadPage()
     }
 
@@ -157,11 +204,19 @@ class ChannelActivity : AppCompatActivity() {
                     loading = false
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
-                    Toast.makeText(
-                        this@ChannelActivity,
-                        e.message ?: getString(R.string.common_error_generic),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    if (firstPage) {
+                        // Error state with Retry; the technical message
+                        // stays out of the UI.
+                        binding.videosRecycler.visibility = View.GONE
+                        binding.emptyState.visibility = View.GONE
+                        binding.errorState.visibility = View.VISIBLE
+                    } else {
+                        Snackbar.make(
+                            binding.root,
+                            R.string.channel_load_more_error,
+                            Snackbar.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         }
@@ -172,6 +227,8 @@ class ChannelActivity : AppCompatActivity() {
         if (show) {
             binding.skeletonContainer.visibility = View.VISIBLE
             binding.videosRecycler.visibility = View.GONE
+            binding.emptyState.visibility = View.GONE
+            binding.errorState.visibility = View.GONE
             skeletonAnimator = ObjectAnimator.ofFloat(
                 binding.skeletonContainer, View.ALPHA, 0.45f, 1f
             ).apply {
@@ -201,10 +258,12 @@ class ChannelActivity : AppCompatActivity() {
         }
         if (!sortNewest) list = list.reversed()
         displayedVideos = list
+        // DiffUtil only — no full reload, scroll position preserved.
         adapter.submitList(list)
         val empty = list.isEmpty() && !loading
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
         binding.videosRecycler.visibility = if (empty) View.GONE else View.VISIBLE
+        if (!empty) binding.errorState.visibility = View.GONE
     }
 
     private fun openPlayer(item: VideoItem, thumb: ImageView) {

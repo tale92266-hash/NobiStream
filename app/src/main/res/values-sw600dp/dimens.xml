@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen margins on large screens (sw600dp): 24dp instead of 16dp. -->
+    <dimen name="screen_margin">24dp</dimen>
+</resources>
