@@ -204,8 +204,12 @@ class TdLibGateway(context: Context) : TelegramGateway {
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
                 .ifBlank { me.firstName }
-            // TDLib 1.8: usernames live in User.usernames.activeUsername.
-            val username = runCatching { me.usernames?.activeUsername }.getOrNull()
+            // TDLib 1.8: usernames live in User.usernames — activeUsernames
+            // (array; first is primary), falling back to editableUsername.
+            val username = me.usernames?.let { u ->
+                u.activeUsernames.firstOrNull()?.takeIf { it.isNotBlank() }
+                    ?: u.editableUsername.takeIf { it.isNotBlank() }
+            }
             val phone = me.phoneNumber.takeIf { it.isNotBlank() }
             userFlow.value = TelegramUser(name, username, phone)
         } catch (_: Exception) {
