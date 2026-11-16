@@ -20,7 +20,7 @@ NobiStream is an Android app that lets you sign in to your own Telegram account 
 | Kotlin | 2.2.21 |
 | compileSdk / targetSdk | 35 |
 | minSdk | 26 |
-| Media3 (ExoPlayer) | 1.11.1 |
+| Media3 (ExoPlayer) | 1.8.0 (1.11.x needs compileSdk 36; this project stays on the proven 35 stack) |
 | Room | 2.8.5 |
 | TDLib | 1.8.64 via `io.github.tdlib-android:core/ktx:0.1.1` (Maven Central, prebuilt) |
 | Coil | 2.7.0 |
