@@ -18,15 +18,27 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # NOTE: secrets must NOT be used in a step-level `if:` condition.
+      # GitHub rejects `if: ${{ secrets.X }}` with "Unrecognized
+      # named-value: 'secrets'" and invalidates the whole workflow.
+      # The guard lives in bash instead; secrets are mapped via env:.
       - name: Decode keystore
-        if: ${{ secrets.NOBISTREAM_KEYSTORE_B64 != '' }}
+        env:
+          NOBISTREAM_KEYSTORE_B64: ${{ secrets.NOBISTREAM_KEYSTORE_B64 }}
+          NOBISTREAM_KEYSTORE_PASSWORD: ${{ secrets.NOBISTREAM_KEYSTORE_PASSWORD }}
+          NOBISTREAM_KEY_ALIAS: ${{ secrets.NOBISTREAM_KEY_ALIAS }}
+          NOBISTREAM_KEY_PASSWORD: ${{ secrets.NOBISTREAM_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.NOBISTREAM_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/nobistream.p12"
-          echo "NOBISTREAM_KEYSTORE_FILE=$RUNNER_TEMP/nobistream.p12" >> "$GITHUB_ENV"
-          echo "NOBISTREAM_KEYSTORE_PASSWORD=${{ secrets.NOBISTREAM_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "NOBISTREAM_KEY_ALIAS=${{ secrets.NOBISTREAM_KEY_ALIAS }}" >> "$GITHUB_ENV"
-          echo "NOBISTREAM_KEY_PASSWORD=${{ secrets.NOBISTREAM_KEY_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "Keystore decoded (signed build)."
+          if [ -n "$NOBISTREAM_KEYSTORE_B64" ]; then
+            echo "$NOBISTREAM_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nobistream.p12"
+            echo "NOBISTREAM_KEYSTORE_FILE=$RUNNER_TEMP/nobistream.p12" >> "$GITHUB_ENV"
+            echo "NOBISTREAM_KEYSTORE_PASSWORD=$NOBISTREAM_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "NOBISTREAM_KEY_ALIAS=$NOBISTREAM_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "NOBISTREAM_KEY_PASSWORD=$NOBISTREAM_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "Keystore decoded (signed build)."
+          else
+            echo "No keystore secret set; building with the default debug key."
+          fi
 
       - name: Build debug APK
         env:
