@@ -1,0 +1,45 @@
+name: Build NobiStream debug APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Decode keystore
+        if: ${{ secrets.NOBISTREAM_KEYSTORE_B64 != '' }}
+        run: |
+          echo "${{ secrets.NOBISTREAM_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/nobistream.p12"
+          echo "NOBISTREAM_KEYSTORE_FILE=$RUNNER_TEMP/nobistream.p12" >> "$GITHUB_ENV"
+          echo "NOBISTREAM_KEYSTORE_PASSWORD=${{ secrets.NOBISTREAM_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "NOBISTREAM_KEY_ALIAS=${{ secrets.NOBISTREAM_KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "NOBISTREAM_KEY_PASSWORD=${{ secrets.NOBISTREAM_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "Keystore decoded (signed build)."
+
+      - name: Build debug APK
+        env:
+          NOBISTREAM_API_ID: ${{ secrets.NOBISTREAM_API_ID }}
+          NOBISTREAM_API_HASH: ${{ secrets.NOBISTREAM_API_HASH }}
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: SHA-256 of APK
+        run: sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobistream-v1-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

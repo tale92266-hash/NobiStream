@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#229ED9</color>
+    <color name="primary_dark">#1B7FB8</color>
+    <color name="accent">#229ED9</color>
+    <color name="background">#0B1220</color>
+    <color name="surface">#131C2E</color>
+    <color name="surface_variant">#1B2740</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#9AA8BC</color>
+    <color name="text_disabled">#5B6B80</color>
+    <color name="divider">#24334A</color>
+    <color name="outline">#2E3D57</color>
+    <color name="success">#34C77B</color>
+    <color name="warning">#F5A623</color>
+    <color name="error">#E5484D</color>
+    <color name="quality_badge">#FFB020</color>
+    <color name="progress_played">#229ED9</color>
+    <color name="progress_track">#2E3D57</color>
+    <color name="scrim">#CC000000</color>
+</resources>

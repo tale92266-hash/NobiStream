@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Placeholder v1 launcher mark: white N on transparent foreground.
+         Background colour comes from ic_launcher_background.xml, per the
+         standing icon rule (transparent PNG/vector foreground only). -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,80 V28 h8 L72,66 V28 h8 V80 h-8 L36,42 V80 Z" />
+</vector>

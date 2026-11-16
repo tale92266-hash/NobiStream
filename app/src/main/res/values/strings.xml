@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NobiStream</string>
+    <string name="app_version_label">NobiStream v1 (1.0.0)</string>
+
+    <string name="login_title">Sign in with Telegram</string>
+    <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
+    <string name="login_api_needed_title">API credentials needed</string>
+    <string name="login_api_needed_body">Open Settings and enter the free api_id and api_hash from my.telegram.org first. They are stored only on this phone.</string>
+    <string name="login_phone_label">Phone number</string>
+    <string name="login_phone_hint">9876543210</string>
+    <string name="login_country_code">+91</string>
+    <string name="login_continue">Continue</string>
+    <string name="login_code_label">Verification code</string>
+    <string name="login_code_hint">Enter the code sent to your Telegram</string>
+    <string name="login_verify">Verify</string>
+    <string name="login_password_label">Two-step verification password</string>
+    <string name="login_password_hint">Enter your 2FA password</string>
+    <string name="login_submit_password">Sign in</string>
+    <string name="login_waiting">Connecting to Telegram…</string>
+    <string name="login_error">Sign-in failed. Check the number and code and try again.</string>
+
+    <string name="home_title">My Groups</string>
+    <string name="home_add_group">Add Group / Channel</string>
+    <string name="home_add_link_hint">Paste a Telegram link, e.g. https://t.me/channel_name</string>
+    <string name="home_add">Add</string>
+    <string name="home_cancel">Cancel</string>
+    <string name="home_no_groups">No groups added yet</string>
+    <string name="home_no_groups_body">Tap Add Group / Channel and paste a Telegram group or channel link to see its videos here.</string>
+    <string name="home_continue_watching">Continue Watching</string>
+    <string name="home_videos_count">%1$d videos</string>
+    <string name="home_open_settings">Settings</string>
+    <string name="home_loading">Loading…</string>
+
+    <string name="channel_filter_all">All</string>
+    <string name="channel_search_hint">Search by title or episode</string>
+    <string name="channel_sort_newest">Newest first</string>
+    <string name="channel_sort_oldest">Oldest first</string>
+    <string name="channel_no_videos">No videos found</string>
+    <string name="channel_no_videos_body">Try a different filter, or pull down to refresh.</string>
+    <string name="channel_loading_more">Loading more videos…</string>
+    <string name="channel_quality_unknown">Quality not in post</string>
+
+    <string name="player_next">Next</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_autoplay">Autoplay next</string>
+    <string name="player_speed">Speed</string>
+    <string name="player_resume_from">Resume from %1$s?</string>
+    <string name="player_resume">Resume</string>
+    <string name="player_restart">Restart</string>
+    <string name="player_buffering">Buffering…</string>
+    <string name="player_error">Could not play this video. Check your connection and try again.</string>
+    <string name="player_downloading">Downloading video…</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_api_section">Telegram API credentials</string>
+    <string name="settings_api_id">api_id</string>
+    <string name="settings_api_hash">api_hash</string>
+    <string name="settings_api_hint">Get free credentials at my.telegram.org (API development tools). Never share them with anyone.</string>
+    <string name="settings_status_builtin">Credentials are built into this install.</string>
+    <string name="settings_status_saved">Credentials are saved on this phone.</string>
+    <string name="settings_status_missing">No credentials saved yet.</string>
+    <string name="settings_clear_saved">Use built-in credentials instead</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_saved">Saved</string>
+    <string name="settings_cache_section">Cache</string>
+    <string name="settings_cache_size">Video cache size</string>
+    <string name="settings_cache_500">500 MB</string>
+    <string name="settings_cache_1gb">1 GB</string>
+    <string name="settings_clear_cache">Clear cache</string>
+    <string name="settings_cache_cleared">Cache cleared</string>
+    <string name="settings_playback_section">Playback</string>
+    <string name="settings_autoplay">Autoplay next video</string>
+    <string name="settings_default_filter">Default quality filter</string>
+    <string name="settings_account_section">Account</string>
+    <string name="settings_logout">Log out of Telegram</string>
+    <string name="settings_logout_confirm">Log out? Your saved groups stay, but you will need to sign in again to watch videos.</string>
+    <string name="settings_about">About NobiStream v1. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+
+    <string name="common_retry">Retry</string>
+    <string name="common_close">Close</string>
+    <string name="common_ok">OK</string>
+    <string name="common_no_internet">No internet connection</string>
+    <string name="common_error_generic">Something went wrong. Please try again.</string>
+    <string name="common_watched">Watched</string>
+</resources>
