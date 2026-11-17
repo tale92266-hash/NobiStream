@@ -306,6 +306,21 @@
                 android:paddingBottom="@dimen/spacing_24"
                 android:visibility="gone" />
 
+            <!-- v4 explicit Load more button (48dp, Secondary): always
+                 visible while more videos may exist; disabled + loading
+                 label mid-load. Auto-load-on-scroll stays as well. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/libraryLoadMoreButton"
+                style="@style/Widget.NobiStream.Button.Secondary"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height_small"
+                android:layout_marginStart="@dimen/screen_margin"
+                android:layout_marginTop="@dimen/spacing_8"
+                android:layout_marginEnd="@dimen/screen_margin"
+                android:layout_marginBottom="@dimen/spacing_8"
+                android:text="@string/channel_load_more"
+                android:visibility="gone" />
+
             <com.nobi.nobistream.ui.components.ErrorStateView
                 android:id="@+id/libraryErrorState"
                 android:layout_width="match_parent"

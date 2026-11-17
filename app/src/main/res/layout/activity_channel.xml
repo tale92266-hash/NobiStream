@@ -196,6 +196,20 @@
             android:textSize="@dimen/text_caption" />
     </LinearLayout>
 
+    <!-- v4 explicit Load more button (48dp, Secondary): always visible
+         while more videos may exist; disabled + loading label mid-load. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/loadMoreButton"
+        style="@style/Widget.NobiStream.Button.Secondary"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/button_height_small"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/spacing_8"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:layout_marginBottom="@dimen/spacing_8"
+        android:text="@string/channel_load_more"
+        android:visibility="gone" />
+
     <com.nobi.nobistream.ui.components.EmptyStateView
         android:id="@+id/emptyState"
         android:layout_width="match_parent"

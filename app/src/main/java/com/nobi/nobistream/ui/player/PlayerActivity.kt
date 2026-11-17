@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -145,6 +146,11 @@ class PlayerActivity : AppCompatActivity() {
         findControllerViews()
         setFullscreen(true)
         binding.playerView.setControllerShowTimeoutMs(CONTROLLER_TIMEOUT_MS)
+        // v4: PlayerView's own tap-to-toggle is OFF — our GestureDetector
+        // below is the ONLY tap handler (see setupGestures). With both
+        // active, one tap toggled the controller twice (show then hide)
+        // and the tap looked dead. The 3s auto-hide timeout still applies.
+        binding.playerView.setControllerHideOnTouch(false)
         wireControllerButtons()
         binding.lockOverlayButton.setOnClickListener { setLocked(false) }
         binding.playerError.apply {
@@ -391,7 +397,16 @@ class PlayerActivity : AppCompatActivity() {
     private fun startPlayer() {
         val factory = TdlibDataSource.Factory(locator.gateway)
         val mediaSourceFactory = ProgressiveMediaSource.Factory(factory)
+        // v4: bigger buffers for high-bitrate 1080p+ over MTProto,
+        // which is far slower than a CDN — start only after 5s is
+        // buffered, keep up to 60s prefetched, and rebuffer with a
+        // 10s runway. (ExoPlayer defaults: 50s / 50s / 2.5s / 5s —
+        // the 2.5s start was rebuffering almost immediately on 1080p.)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30_000, 60_000, 5_000, 10_000)
+            .build()
         player = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .also { exo ->
@@ -526,7 +541,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupGestures() {
-        var gestureHandled = false
         val detector = GestureDetector(
             this,
             object : GestureDetector.SimpleOnGestureListener() {
@@ -536,7 +550,6 @@ class PlayerActivity : AppCompatActivity() {
                     if (locked) return true
                     val view = binding.playerView
                     if (view.isControllerFullyVisible) view.hideController() else view.showController()
-                    gestureHandled = true
                     return true
                 }
 
@@ -544,7 +557,6 @@ class PlayerActivity : AppCompatActivity() {
                     if (locked) return true
                     val width = binding.playerView.width
                     if (e.x < width / 2f) seekBy(-10_000L) else seekBy(10_000L)
-                    gestureHandled = true
                     return true
                 }
 
@@ -610,9 +622,15 @@ class PlayerActivity : AppCompatActivity() {
                     scrollTotalDx = 0f
                 }
             }
-            gestureHandled = false
             detector.onTouchEvent(event)
-            gestureHandled
+            // v4: consume EVERY surface touch. The old code returned
+            // `gestureHandled`, which was still false on DOWN/UP
+            // (onSingleTapConfirmed only fires ~300ms later, once a
+            // double-tap is ruled out), so PlayerView's own tap-toggle
+            // ALSO ran — one tap toggled the controller twice and the
+            // tap looked dead. Buttons are child views and still get
+            // their own taps first; only the bare surface reaches here.
+            true
         }
     }
 

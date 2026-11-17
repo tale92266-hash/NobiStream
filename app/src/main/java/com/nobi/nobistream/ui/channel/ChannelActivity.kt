@@ -123,6 +123,7 @@ class ChannelActivity : AppCompatActivity() {
             ).show()
         }
         binding.refreshButton.setOnClickListener { resetAndLoad() }
+        binding.loadMoreButton.setOnClickListener { loadPage() }
         binding.emptyState.apply {
             setIcon(R.drawable.ic_search)
             setTitle(getString(R.string.channel_no_videos))
@@ -183,6 +184,7 @@ class ChannelActivity : AppCompatActivity() {
     private fun loadPage() {
         if (loading || !hasMore) return
         loading = true
+        updateLoadMoreButton()
         val firstPage = allVideos.isEmpty()
         if (firstPage) showSkeleton(true) else binding.loadMoreFooter.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
@@ -194,16 +196,25 @@ class ChannelActivity : AppCompatActivity() {
                     binding.loadMoreFooter.visibility = View.GONE
                     if (page.videos.isNotEmpty()) {
                         allVideos.addAll(page.videos)
-                        fromMessageId = page.videos.last().messageId
                     }
-                    if (page.videos.size < PAGE_SIZE) hasMore = false
+                    // v4: advance on the oldest RAW message, not the
+                    // last video — a window can hold few videos (text
+                    // posts between them). hasMore comes from the raw
+                    // window too: a full 50-message window means older
+                    // messages may still exist, even when it held 0
+                    // videos. The old video-count check stopped the
+                    // list after the first thin window.
+                    if (page.lastMessageId > 0L) fromMessageId = page.lastMessageId
+                    hasMore = page.rawCount >= PAGE_SIZE
                     applyFilter()
+                    updateLoadMoreButton()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     loading = false
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
+                    updateLoadMoreButton()
                     if (firstPage) {
                         // Error state with Retry; the technical message
                         // stays out of the UI.
@@ -220,6 +231,21 @@ class ChannelActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * v4 explicit Load more button: visible whenever more videos may
+     * exist (hasMore), disabled with a loading label while a page
+     * loads. Auto-load-on-scroll stays, but the button is the
+     * guaranteed path — scrolling never has to be the only way.
+     */
+    private fun updateLoadMoreButton() {
+        val show = hasMore && allVideos.isNotEmpty()
+        binding.loadMoreButton.visibility = if (show) View.VISIBLE else View.GONE
+        binding.loadMoreButton.isEnabled = !loading
+        binding.loadMoreButton.text = getString(
+            if (loading) R.string.channel_loading_more else R.string.channel_load_more
+        )
     }
 
     /** Shimmer skeleton: placeholder cards pulsing while the first page loads. */
@@ -264,6 +290,7 @@ class ChannelActivity : AppCompatActivity() {
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
         binding.videosRecycler.visibility = if (empty) View.GONE else View.VISIBLE
         if (!empty) binding.errorState.visibility = View.GONE
+        updateLoadMoreButton()
     }
 
     private fun openPlayer(item: VideoItem, thumb: ImageView) {

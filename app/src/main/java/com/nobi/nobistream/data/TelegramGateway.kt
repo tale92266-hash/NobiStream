@@ -12,13 +12,34 @@ data class VideoFileInfo(
     val sizeBytes: Long,
     val localPath: String,
     val downloadedBytes: Long,
-    val isComplete: Boolean
+    val isComplete: Boolean,
+    /**
+     * v4: the contiguous READABLE prefix starting at [downloadOffset]
+     * (TL localFile.downloaded_prefix_size). THIS is the readiness
+     * field. [downloadedBytes] (downloaded_size) is progress-only —
+     * the TL scheme says parts beyond the prefix "may contain
+     * garbage" — so it must never gate reads, which is exactly what
+     * the old code did.
+     */
+    val downloadOffset: Long = 0L,
+    val downloadedPrefixSize: Long = 0L
 )
 
 /** One page of chat history. */
 data class VideoPage(
     val videos: List<VideoItem>,
-    val totalCount: Int
+    val totalCount: Int,
+    /**
+     * v4: id of the OLDEST raw message TDLib returned in this page
+     * (0 when the page was empty). Pagination must advance on this,
+     * not on the last video: a 50-message window can hold few videos
+     * (text posts in between), and advancing only on videos stalls
+     * paging — the old code then also set hasMore from the video
+     * count, so the list just stopped.
+     */
+    val lastMessageId: Long = 0L,
+    /** Raw messages TDLib returned (videos + text + everything). */
+    val rawCount: Int = 0
 )
 
 /**

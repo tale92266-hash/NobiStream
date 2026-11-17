@@ -265,9 +265,14 @@ class NobiRepository(
             }
             if (page.videos.isNotEmpty()) {
                 all.addAll(page.videos)
-                nextCursors[group.chatId] = page.videos.last().messageId
             }
-            if (page.videos.size >= limit) hasMore = true
+            // v4: advance on the oldest RAW message (see VideoPage):
+            // a window can hold few videos, and the old video-count
+            // hasMore stopped the library after the first thin window.
+            if (page.lastMessageId > 0L) {
+                nextCursors[group.chatId] = page.lastMessageId
+            }
+            if (page.rawCount >= limit) hasMore = true
         }
         all.sortByDescending { it.dateEpochSec }
         return LibraryPage(videos = all, cursors = nextCursors, hasMore = hasMore)

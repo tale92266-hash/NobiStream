@@ -26,8 +26,15 @@ class SettingsStore(context: Context) {
     val cacheSizeMb: Flow<Int> = dataStore.data.map { it[KEY_CACHE_SIZE_MB] ?: 500 }
     val lastChatId: Flow<Long> = dataStore.data.map { it[KEY_LAST_CHAT_ID] ?: 0L }
     val lastFilter: Flow<String> = dataStore.data.map { it[KEY_LAST_FILTER] ?: "All" }
-    /** v2: when ON (default), opening the app jumps straight to the last-watched episode. */
-    val openLastEpisode: Flow<Boolean> = dataStore.data.map { it[KEY_OPEN_LAST_EPISODE] ?: true }
+    /**
+     * v4: default OFF — Home must open first; the last episode opens
+     * only from the Home hero card, or when the user explicitly turns
+     * this switch ON in Settings. (v2/v3 defaulted ON, which yanked
+     * the user straight into the Player on every cold start.)
+     * DataStore key absent = OFF, so existing installs that never
+     * touched the switch also get OFF without any migration.
+     */
+    val openLastEpisode: Flow<Boolean> = dataStore.data.map { it[KEY_OPEN_LAST_EPISODE] ?: false }
 
     /**
      * v4: recent search queries, newest first, capped at 10,

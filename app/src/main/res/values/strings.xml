@@ -73,6 +73,7 @@
     <string name="channel_no_videos">No videos found</string>
     <string name="channel_no_videos_body">Try a different filter, or tap Refresh to load the latest videos.</string>
     <string name="channel_loading_more">Loading more videos…</string>
+    <string name="channel_load_more">Load more</string>
     <string name="channel_quality_unknown">Quality not in post</string>
     <string name="channel_load_error_title">Couldn\'t load videos</string>
     <string name="channel_load_error_body">Check your connection and try again. If the group was deleted or made private, it may no longer open here.</string>

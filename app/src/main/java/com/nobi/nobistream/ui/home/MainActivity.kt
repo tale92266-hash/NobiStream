@@ -108,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         binding.continueSeeAll.setOnClickListener {
             startActivity(Intent(this, ContinueAllActivity::class.java))
         }
+        binding.libraryLoadMoreButton.setOnClickListener { loadLibraryPage() }
         binding.librarySortButton.setOnClickListener { showSortMenu() }
         groupAdapter = GroupAdapter(
             onClick = { group -> openChannel(group) },
@@ -284,6 +285,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadLibraryPage() {
         if (libraryLoading || !libraryHasMore || groups.isEmpty()) return
         libraryLoading = true
+        updateLibraryLoadMoreButton()
         val firstPage = allLibrary.isEmpty()
         if (!firstPage) binding.libraryLoadMoreFooter.visibility = View.VISIBLE
         val currentGroups = groups.toList()
@@ -298,8 +300,6 @@ class MainActivity : AppCompatActivity() {
                     libraryHasMore = page.hasMore
                     libraryLoaded = true
                     libraryFirstPageFailed = false
-                    // Merge by (chatId, messageId): a group whose page
-                    // was empty keeps its old cursor, so no duplicates.
                     val seen = allLibrary.map { it.chatId to it.messageId }.toHashSet()
                     for (video in page.videos) {
                         if (seen.add(video.chatId to video.messageId)) {
@@ -314,6 +314,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     libraryLoading = false
                     binding.libraryLoadMoreFooter.visibility = View.GONE
+                    updateLibraryLoadMoreButton()
                     if (firstPage) {
                         libraryFirstPageFailed = true
                         binding.libraryHeader.visibility = View.VISIBLE
@@ -331,6 +332,20 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * v4 explicit Load more button: visible whenever more library
+     * videos may exist (libraryHasMore), disabled with a loading
+     * label mid-load. Auto-load-on-scroll stays as well.
+     */
+    private fun updateLibraryLoadMoreButton() {
+        val show = libraryHasMore && allLibrary.isNotEmpty() && !libraryFirstPageFailed
+        binding.libraryLoadMoreButton.visibility = if (show) View.VISIBLE else View.GONE
+        binding.libraryLoadMoreButton.isEnabled = !libraryLoading
+        binding.libraryLoadMoreButton.text = getString(
+            if (libraryLoading) R.string.channel_loading_more else R.string.channel_load_more
+        )
     }
 
     /** Filter + sort only — DiffUtil, no full reload, scroll preserved. */
@@ -354,6 +369,7 @@ class MainActivity : AppCompatActivity() {
         binding.libraryEmptyState.visibility = if (empty) View.VISIBLE else View.GONE
         binding.libraryRecycler.visibility = if (empty) View.GONE else View.VISIBLE
         if (!empty) binding.libraryErrorState.visibility = View.GONE
+        updateLibraryLoadMoreButton()
     }
 
     private fun showSortMenu() {
@@ -374,7 +390,7 @@ class MainActivity : AppCompatActivity() {
                 else -> LibrarySort.NEWEST
             }
             applyLibraryFilter()
-            Snackbar.make(binding.root, item.title, Snackbar.LENGTH_SHORT).show()
+            Snackbar.make(binding.root, item.title.toString(), Snackbar.LENGTH_SHORT).show()
             true
         }
         menu.show()

@@ -276,7 +276,12 @@ class TdLibGateway(context: Context) : TelegramGateway {
         // With offset 0 the fromMessageId message itself is included again.
         val messages = result.messages.filter { it.id != fromMessageId }
         val videos = messages.mapNotNull { mapMessage(it) }
-        return VideoPage(videos = videos, totalCount = result.totalCount)
+        return VideoPage(
+            videos = videos,
+            totalCount = result.totalCount,
+            lastMessageId = messages.lastOrNull()?.id ?: 0L,
+            rawCount = messages.size
+        )
     }
 
     /**
@@ -301,8 +306,16 @@ class TdLibGateway(context: Context) : TelegramGateway {
                 TdApi.SearchMessagesFilterVideo()
             )
         )
-        val videos = found.messages.messages.mapNotNull { mapMessage(it) }
-        return VideoPage(videos = videos, totalCount = found.messages.totalCount)
+        // FoundChatMessages is flat: totalCount + messages[] directly
+        // (no TdApi.Messages wrapper), plus nextFromMessageId.
+        val videos = found.messages.mapNotNull { mapMessage(it) }
+        val raw = found.messages
+        return VideoPage(
+            videos = videos,
+            totalCount = found.totalCount,
+            lastMessageId = raw.lastOrNull()?.id ?: 0L,
+            rawCount = raw.size
+        )
     }
 
     private fun mapMessage(message: TdApi.Message): VideoItem? {
@@ -392,7 +405,9 @@ class TdLibGateway(context: Context) : TelegramGateway {
             sizeBytes = if (file.size > 0L) file.size else file.expectedSize,
             localPath = path,
             downloadedBytes = file.local.downloadedSize,
-            isComplete = file.local.isDownloadingCompleted
+            isComplete = file.local.isDownloadingCompleted,
+            downloadOffset = file.local.downloadOffset.toLong(),
+            downloadedPrefixSize = file.local.downloadedPrefixSize.toLong()
         )
     }
 
