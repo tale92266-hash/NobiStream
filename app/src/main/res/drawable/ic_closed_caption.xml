@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- v6 fallback CC badge (HAND-DRAWN, not the official Material
+         Symbols path): the fetch of the official "closed_caption"
+         outlined SVG from google/material-design-icons timed out, so
+         this is a rounded-rectangle badge with two stroked "C"
+         letters, in the same 24dp / #E3E3E3 style as the other
+         controller icons. It is deliberately NOT presented as the
+         official path — a future agent can swap in the official
+         closed_caption_24px.svg path data when it can be fetched. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeWidth="1.8"
+        android:strokeColor="#E3E3E3"
+        android:pathData="M4.5,5 H19.5 A2.5,2.5 0 0 1 22,7.5 V16.5 A2.5,2.5 0 0 1 19.5,19 H4.5 A2.5,2.5 0 0 1 2,16.5 V7.5 A2.5,2.5 0 0 1 4.5,5 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeWidth="1.7"
+        android:strokeColor="#E3E3E3"
+        android:strokeLineCap="round"
+        android:pathData="M10.6,9.2 A3.4,3.4 0 1,0 10.6,14.8" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeWidth="1.7"
+        android:strokeColor="#E3E3E3"
+        android:strokeLineCap="round"
+        android:pathData="M18.6,9.2 A3.4,3.4 0 1,0 18.6,14.8" />
+</vector>

@@ -129,23 +129,50 @@ class NobiRepository(
      * that fails, re-read the message itself. Returns the item
      * unchanged only when both fail, so the player fails honestly
      * instead of silently playing a dead id.
+     *
+     * v6: [resolveVideoItemDetailed] also reports whether EITHER
+     * path succeeded — the player needs to know a genuinely
+     * unresolvable file (both failed) so its error screen can say
+     * "Couldn't play this video" instead of retrying a stall
+     * forever on a file that does not exist.
      */
-    suspend fun resolveVideoItem(item: VideoItem): VideoItem {
+    data class ResolvedVideo(val item: VideoItem, val freshIdResolved: Boolean)
+
+    suspend fun resolveVideoItemDetailed(item: VideoItem): ResolvedVideo {
         if (item.remoteFileId.isNotEmpty()) {
             val freshId = runCatching { gateway.resolveFileId(item.remoteFileId) }.getOrNull()
-            if (freshId != null && freshId != item.fileId) {
-                return item.copy(fileId = freshId)
+            if (freshId != null) {
+                return ResolvedVideo(
+                    if (freshId != item.fileId) item.copy(fileId = freshId) else item,
+                    true
+                )
             }
-            if (freshId != null) return item
         }
         val fresh = runCatching {
             gateway.getMessageVideo(item.chatId, item.messageId)
         }.getOrNull()
         if (fresh != null) {
-            return fresh.copy(progressSec = item.progressSec, watched = item.watched)
+            return ResolvedVideo(
+                fresh.copy(progressSec = item.progressSec, watched = item.watched),
+                true
+            )
         }
-        return item
+        return ResolvedVideo(item, false)
     }
+
+    suspend fun resolveVideoItem(item: VideoItem): VideoItem =
+        resolveVideoItemDetailed(item).item
+
+    /**
+     * v6: subtitle sidecars (.srt/.vtt) attached near this video's
+     * message. Never throws — no sidecar found (or discovery
+     * failed) is an empty list, and the player then simply shows no
+     * CC button. Discovery runs off the playback path, so a slow
+     * chat history can never delay the video starting.
+     */
+    suspend fun findSubtitles(item: VideoItem): List<SubtitleTrack> =
+        runCatching { gateway.findSubtitleFiles(item.chatId, item.messageId) }
+            .getOrDefault(emptyList())
 
     suspend fun downloadThumbnail(fileId: Int): String? =
         gateway.downloadThumbnail(fileId)

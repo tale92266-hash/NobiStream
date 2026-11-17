@@ -406,6 +406,82 @@ class TdLibGateway(context: Context) : TelegramGateway {
         return toInfo(file)
     }
 
+    override suspend fun downloadSubtitle(fileId: Int): String? {
+        val file = send(TdApi.DownloadFile(fileId, 1, 0, 0, true))
+        fileStates[file.id] = file
+        val path = file.local.path
+        return if (path.isNotEmpty() && File(path).exists()) path else null
+    }
+
+    /**
+     * v6 subtitles: TDLib's MessageVideo carries NO subtitle field,
+     * so sidecars are discovered from the DOCUMENT messages around
+     * the video message in the same chat (channels usually post the
+     * .srt/.vtt next to the episode). A negative offset centres the
+     * GetChatHistory window on the video message (±15 messages);
+     * if that call fails, fall back to the video message + 15 older
+     * ones. Only documents whose file name ends .srt/.vtt
+     * (case-insensitive) count, de-duplicated by file name. A
+     * sidecar that fails to download is skipped, never fatal — the
+     * video simply gets no CC button for it.
+     */
+    override suspend fun findSubtitleFiles(chatId: Long, messageId: Long): List<SubtitleTrack> {
+        val history = runCatching {
+            send(TdApi.GetChatHistory(chatId, messageId, -15, 31, false))
+        }.getOrNull() ?: runCatching {
+            send(TdApi.GetChatHistory(chatId, messageId, 0, 16, false))
+        }.getOrNull() ?: return emptyList()
+        val found = LinkedHashMap<String, SubtitleTrack>()
+        for (message in history.messages) {
+            val content = message.content as? TdApi.MessageDocument ?: continue
+            val document = content.document
+            val name = document.fileName
+            if (name.isBlank()) continue
+            val lower = name.lowercase()
+            val isVtt = lower.endsWith(".vtt")
+            if (!isVtt && !lower.endsWith(".srt")) continue
+            if (found.containsKey(lower)) continue
+            val localPath = runCatching {
+                downloadSubtitle(document.document.id)
+            }.getOrNull() ?: continue
+            found[lower] = SubtitleTrack(
+                fileId = document.document.id,
+                fileName = name,
+                language = parseSubtitleLanguage(name),
+                isVtt = isVtt,
+                localPath = localPath
+            )
+        }
+        return found.values.toList()
+    }
+
+    /**
+     * Language from a sidecar file name: "Ep361.en.srt" -> "en",
+     * "Naruto - English.srt" -> "en". A bare "Episode 12.srt" has
+     * no language marker and returns null (undetermined — the
+     * player still offers it, it just has no language label).
+     */
+    private fun parseSubtitleLanguage(fileName: String): String? {
+        val base = fileName.substringBeforeLast('.')
+        val dotLang = base.substringAfterLast('.', "").lowercase()
+        if (dotLang.length in 2..3 && dotLang.all { it.isLetter() }) return dotLang
+        val lower = base.lowercase()
+        return when {
+            "english" in lower -> "en"
+            "hindi" in lower -> "hi"
+            "spanish" in lower || "español" in lower -> "es"
+            "french" in lower || "français" in lower -> "fr"
+            "german" in lower -> "de"
+            "russian" in lower -> "ru"
+            "arabic" in lower -> "ar"
+            "portuguese" in lower -> "pt"
+            "japanese" in lower -> "ja"
+            "korean" in lower -> "ko"
+            "chinese" in lower -> "zh"
+            else -> null
+        }
+    }
+
     override suspend fun ensureRange(fileId: Int, offset: Long, length: Long): VideoFileInfo? {
         val file = send(TdApi.DownloadFile(fileId, 32, offset, length, true))
         fileStates[file.id] = file

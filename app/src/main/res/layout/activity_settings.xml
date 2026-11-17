@@ -194,6 +194,164 @@
                     android:textColor="@color/text_primary" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- v6 Subtitles: always-show default + caption style
+                 (size / colour / background, persisted in SettingsStore).
+                 The note states the two honest limits: no sidecar file
+                 means no CC button, and text burned into the video
+                 itself can never be turned off. -->
+            <TextView
+                style="@style/Text.NobiStream.SectionHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/section_spacing"
+                android:text="@string/settings_section_subtitles" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8"
+                android:gravity="center_vertical"
+                android:minHeight="@dimen/settings_row_min_height"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_closed_caption" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/spacing_16"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/Text.NobiStream.Body"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/settings_subtitles_always" />
+
+                    <TextView
+                        style="@style/Text.NobiStream.Caption"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/spacing_4"
+                        android:text="@string/settings_subtitles_always_desc" />
+                </LinearLayout>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/subtitleAlwaysShowSwitch"
+                    style="@style/Widget.NobiStream.Switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/divider_height"
+                android:background="@color/divider" />
+
+            <TextView
+                style="@style/Text.NobiStream.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_16"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/settings_subtitles_size" />
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:text="@string/settings_subtitles_size_desc" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/subtitleSizeLayout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8">
+
+                <AutoCompleteTextView
+                    android:id="@+id/subtitleSizeInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                style="@style/Text.NobiStream.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_16"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/settings_subtitles_color" />
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:text="@string/settings_subtitles_color_desc" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/subtitleColorLayout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8">
+
+                <AutoCompleteTextView
+                    android:id="@+id/subtitleColorInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                style="@style/Text.NobiStream.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_16"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/settings_subtitles_background" />
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:text="@string/settings_subtitles_background_desc" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/subtitleBackgroundLayout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8">
+
+                <AutoCompleteTextView
+                    android:id="@+id/subtitleBackgroundInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_16"
+                android:text="@string/settings_subtitles_burned_in_note" />
+
             <!-- Startup -->
             <TextView
                 style="@style/Text.NobiStream.SectionHeader"

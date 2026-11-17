@@ -45,6 +45,24 @@ class SettingsStore(context: Context) {
     val smartFilter: Flow<Boolean> = dataStore.data.map { it[KEY_SMART_FILTER] ?: true }
 
     /**
+     * v6 subtitles: default OFF — subtitles appear only when the
+     * user wants them. When ON and a video has a sidecar track,
+     * subtitles are enabled as soon as the video (or its discovered
+     * tracks) load. Style settings below apply to every video.
+     */
+    val subtitleAlwaysShow: Flow<Boolean> =
+        dataStore.data.map { it[KEY_SUBTITLE_ALWAYS_SHOW] ?: false }
+    /** "Small" / "Medium" / "Large" — fractional text size on the video. */
+    val subtitleSize: Flow<String> =
+        dataStore.data.map { it[KEY_SUBTITLE_SIZE] ?: "Medium" }
+    /** "White" / "Yellow" / "Cyan". */
+    val subtitleColor: Flow<String> =
+        dataStore.data.map { it[KEY_SUBTITLE_COLOR] ?: "White" }
+    /** "Semi-black" / "Black" / "Transparent". */
+    val subtitleBackground: Flow<String> =
+        dataStore.data.map { it[KEY_SUBTITLE_BACKGROUND] ?: "Semi-black" }
+
+    /**
      * v4: recent search queries, newest first, capped at 10,
      * de-duplicated (case-insensitive). Query text only — nothing
      * else is stored. Kept as one newline-joined string so the
@@ -73,6 +91,22 @@ class SettingsStore(context: Context) {
 
     suspend fun setSmartFilter(value: Boolean) {
         dataStore.edit { it[KEY_SMART_FILTER] = value }
+    }
+
+    suspend fun setSubtitleAlwaysShow(value: Boolean) {
+        dataStore.edit { it[KEY_SUBTITLE_ALWAYS_SHOW] = value }
+    }
+
+    suspend fun setSubtitleSize(value: String) {
+        dataStore.edit { it[KEY_SUBTITLE_SIZE] = value }
+    }
+
+    suspend fun setSubtitleColor(value: String) {
+        dataStore.edit { it[KEY_SUBTITLE_COLOR] = value }
+    }
+
+    suspend fun setSubtitleBackground(value: String) {
+        dataStore.edit { it[KEY_SUBTITLE_BACKGROUND] = value }
     }
 
     suspend fun setAutoplay(value: Boolean) {
@@ -110,6 +144,10 @@ class SettingsStore(context: Context) {
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")
         val KEY_OPEN_LAST_EPISODE = booleanPreferencesKey("open_last_episode")
         val KEY_SMART_FILTER = booleanPreferencesKey("smart_filter")
+        val KEY_SUBTITLE_ALWAYS_SHOW = booleanPreferencesKey("subtitle_always_show")
+        val KEY_SUBTITLE_SIZE = stringPreferencesKey("subtitle_size")
+        val KEY_SUBTITLE_COLOR = stringPreferencesKey("subtitle_color")
+        val KEY_SUBTITLE_BACKGROUND = stringPreferencesKey("subtitle_background")
         val KEY_RECENT_SEARCHES = stringPreferencesKey("recent_searches")
         const val MAX_RECENT_SEARCHES = 10
     }

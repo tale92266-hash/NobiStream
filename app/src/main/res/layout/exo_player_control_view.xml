@@ -221,6 +221,18 @@
             android:contentDescription="@string/player_lock"
             android:src="@drawable/ic_lock_open" />
 
+        <!-- v6 Rule 6: CC button. GONE unless a subtitle sidecar was
+             found for this video (PlayerActivity drives visibility).
+             Tinted #229ED9 while subtitles are ON, plain #E3E3E3 off. -->
+        <ImageButton
+            android:id="@+id/ctrlSubtitles"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/player_subtitles"
+            android:src="@drawable/ic_closed_caption"
+            android:visibility="gone" />
+
         <View
             android:layout_width="0dp"
             android:layout_height="1dp"

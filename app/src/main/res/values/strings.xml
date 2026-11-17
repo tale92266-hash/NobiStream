@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NobiStream</string>
-    <string name="app_version_label">NobiStream v4 (2.1.0)</string>
+    <string name="app_version_label">NobiStream v6 (2.3.0)</string>
 
     <string name="login_title">Sign in with Telegram</string>
     <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
@@ -93,10 +93,23 @@
     <string name="player_resume">Resume</string>
     <string name="player_restart">Restart</string>
     <string name="player_buffering">Buffering…</string>
+    <!-- v6 Rule 2: shown under the spinner after 10s of continuous
+         stall (OUR deliberate choice, not a YouTube number). -->
+    <string name="player_offline_retrying">You\'re offline — retrying…</string>
     <string name="player_buffered_percent">%1$d%% buffered</string>
     <string name="player_error">Could not play this video. Check your connection and try again.</string>
     <string name="player_error_title">Video couldn\'t play</string>
     <string name="player_error_body">Couldn\'t download this video from Telegram. Check your connection and try again.</string>
+    <!-- v6 Rule 2: error wording differs by cause. Network = the file
+         is fine but the connection died after retries were exhausted;
+         file = the video itself failed (unresolvable, parse, decoder). -->
+    <string name="player_error_network_body">Connection lost — Tap to retry</string>
+    <string name="player_error_file_body">Couldn\'t play this video</string>
+    <!-- v6 Rule 6: subtitles. The CC button only exists when a
+         subtitle sidecar was found for this video. -->
+    <string name="player_subtitles">Subtitles</string>
+    <string name="player_subtitles_off">Off</string>
+    <string name="player_subtitle_chooser_title">Subtitles</string>
     <string name="player_downloading">Downloading video…</string>
     <string name="player_close">Close player</string>
     <string name="player_options">Player options</string>
@@ -120,6 +133,16 @@
 
     <string name="settings_title">Settings</string>
     <string name="settings_section_playback">Playback</string>
+    <string name="settings_section_subtitles">Subtitles</string>
+    <string name="settings_subtitles_always">Always show subtitles</string>
+    <string name="settings_subtitles_always_desc">Show subtitles automatically when a video has them.</string>
+    <string name="settings_subtitles_size">Subtitle size</string>
+    <string name="settings_subtitles_size_desc">How big subtitles appear on the video.</string>
+    <string name="settings_subtitles_color">Subtitle colour</string>
+    <string name="settings_subtitles_color_desc">Text colour for subtitles.</string>
+    <string name="settings_subtitles_background">Subtitle background</string>
+    <string name="settings_subtitles_background_desc">Background behind subtitle text.</string>
+    <string name="settings_subtitles_burned_in_note">Subtitles appear only for videos with a subtitle file (.srt or .vtt) attached in Telegram — the CC button shows only then. Text burned into the video itself can\'t be turned off.</string>
     <string name="settings_section_startup">Startup</string>
     <string name="settings_section_telegram">Telegram</string>
     <string name="settings_section_cache">Storage</string>
@@ -160,7 +183,7 @@
     <string name="settings_version">Version</string>
     <string name="settings_licences">Open-source licences</string>
     <string name="settings_licences_body">NobiStream is built with open-source libraries:\n\n• TDLib (Telegram Database Library) — Boost Software License 1.0\n• ExoPlayer / Media3 — Apache License 2.0\n• Material Components for Android — Apache License 2.0\n• Room, DataStore, Lifecycle — Apache License 2.0\n• Coil — Apache License 2.0\n• recyclerview-animators — Apache License 2.0\n• EncryptedSharedPreferences (Security Crypto) — Apache License 2.0</string>
-    <string name="settings_about">About NobiStream v4. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+    <string name="settings_about">About NobiStream v6. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
     <string name="settings_privacy">NobiStream sends nothing to any server except Telegram, using your own account. Your groups and watch positions stay on this phone.</string>
 
     <string name="common_retry">Retry</string>

@@ -25,6 +25,17 @@ data class VideoFileInfo(
     val downloadedPrefixSize: Long = 0L
 )
 
+/** One subtitle sidecar file (.srt/.vtt) found near a video message. */
+data class SubtitleTrack(
+    val fileId: Int,
+    val fileName: String,
+    /** ISO language code parsed from the file name, or null when unknown. */
+    val language: String?,
+    val isVtt: Boolean,
+    /** Local path of the downloaded subtitle file. */
+    val localPath: String
+)
+
 /** One page of chat history. */
 data class VideoPage(
     val videos: List<VideoItem>,
@@ -120,6 +131,21 @@ interface TelegramGateway {
 
     /** Synchronously download the requested byte range of a video file. */
     suspend fun ensureRange(fileId: Int, offset: Long, length: Long): VideoFileInfo?
+
+    /**
+     * v6 subtitles: subtitle sidecar files (.srt/.vtt) attached as
+     * documents near the video's message in the same chat. TDLib's
+     * MessageVideo has NO subtitle field, so this searches the
+     * messages around the video message instead. Empty when the
+     * video has no sidecar — the player then shows no CC button,
+     * never invented subtitles. Each returned track is already
+     * downloaded (small files); [SubtitleTrack.localPath] is its
+     * local path. Never throws for "nothing found".
+     */
+    suspend fun findSubtitleFiles(chatId: Long, messageId: Long): List<SubtitleTrack>
+
+    /** Download a small file (e.g. a subtitle sidecar); its local path, or null. */
+    suspend fun downloadSubtitle(fileId: Int): String?
 
     /** Release the TDLib client. */
     fun close()

@@ -57,6 +57,20 @@
             android:layout_marginTop="@dimen/spacing_4"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption" />
+
+        <!-- v6 Rule 2: small offline line under the spinner, shown only
+             after 10s of continuous stall (Handler timer in
+             PlayerActivity). Never a Retry button — a stall retries
+             in the background on its own. -->
+        <TextView
+            android:id="@+id/bufferingOfflineText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_4"
+            android:text="@string/player_offline_retrying"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Gesture feedback pill: icon + text (brightness / volume / seek). -->

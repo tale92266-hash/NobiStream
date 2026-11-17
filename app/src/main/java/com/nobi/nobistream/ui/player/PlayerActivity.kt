@@ -4,7 +4,10 @@ import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Typeface
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -25,13 +28,17 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.CaptionStyleCompat
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.chip.Chip
 import com.nobi.nobistream.NobiStreamApplication
@@ -39,10 +46,14 @@ import com.nobi.nobistream.R
 import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
+import com.nobi.nobistream.data.SubtitleTrack
 import com.nobi.nobistream.databinding.ActivityPlayerBinding
 import com.nobi.nobistream.databinding.LayoutBottomSheetPlayerBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.playback.TdlibDataSource
+import java.io.File
+import java.io.IOException
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -62,6 +73,18 @@ import kotlinx.coroutines.withContext
  * aspect) moved from a popup menu into a bottom sheet; playback failures
  * show an error state with Retry instead of a toast; the bottom row shows
  * the episode counter. The engine (TDLib streaming) is untouched.
+ *
+ * v6 (YouTube-style playback): a stall is NEVER an error screen —
+ * STATE_BUFFERING shows only the spinner while the download retries in
+ * the background (Rule 1), with an offline line after 10s of one
+ * continuous stall and network-vs-file error wording (Rule 2); buffer
+ * targets are 50s/120s/1s/2s + 30s back buffer (Rule 3); there is NO
+ * per-segment ABR — Telegram has no per-segment renditions to switch
+ * between (Rule 5); subtitles come from .srt/.vtt sidecars discovered
+ * near the video message, with a CC button only when a track exists
+ * (Rule 6); and the resume path is race-free (setMediaItem at the
+ * saved position + stall-classified resume errors) so tapping Resume
+ * can no longer show the error screen for a far, unbuffered range.
  */
 class PlayerActivity : AppCompatActivity() {
 
@@ -72,6 +95,21 @@ class PlayerActivity : AppCompatActivity() {
         private const val CONTROLLER_TIMEOUT_MS = 3000
         /** Netflix-style fade for the controls (spec: 200–300ms). */
         private const val CONTROLLER_FADE_MS = 250L
+
+        /**
+         * v6 Rule 1: a stall is retried at most this many times at
+         * the Activity level before the error screen appears. OUR
+         * deliberate choice — NOT a YouTube number (YouTube publishes
+         * no such bound; see the research report). ExoPlayer already
+         * retries each load 3x internally before onPlayerError, so
+         * 10 here is ~30+ load attempts against a genuinely stuck
+         * download. Counts CONSECUTIVE failures — a successful load
+         * resets it to 0.
+         */
+        private const val MAX_STALL_RETRIES = 10
+
+        /** v6 Rule 2: offline text after this long in one continuous stall. OUR choice. */
+        private const val OFFLINE_TEXT_DELAY_MS = 10_000L
 
         private const val SCROLL_NONE = 0
         private const val SCROLL_VERTICAL = 1
@@ -117,6 +155,34 @@ class PlayerActivity : AppCompatActivity() {
      */
     private var pendingResumeSec: Long? = null
     private var pendingResumeIndex: Int = -1
+
+    /**
+     * v6 Rule 1/2 — stall handling. A load/IO failure while playing
+     * or buffering is a STALL (spinner + background retry), never an
+     * error screen, until MAX_STALL_RETRIES consecutive failures.
+     * Only a genuinely fatal error (decoder / renderer / parse, or
+     * a file that cannot even be resolved) shows the error screen.
+     */
+    private var stallRetryCount = 0
+    private var hasPlayed = false
+    private var resumeSeekPending = false
+    /** True when NEITHER resolve path produced a fresh file id — the file itself is gone. */
+    private var currentItemUnresolvable = false
+    private val stallHandler = Handler(Looper.getMainLooper())
+    private val stallRetryRunnable = Runnable { retryStalledLoad() }
+    private val offlineHandler = Handler(Looper.getMainLooper())
+    private val offlineRunnable = Runnable {
+        binding.bufferingOfflineText.visibility = View.VISIBLE
+    }
+
+    // v6 Rule 6 — subtitles.
+    private var subtitleTracks: List<SubtitleTrack> = emptyList()
+    private var subtitleDiscoveryJob: Job? = null
+    private var subtitlesEnabled = false
+    /** Message id whose tracks are already attached to currentMediaItem. */
+    private var attachedSubtitleMessageId: Long = -1L
+    private var currentMediaItem: MediaItem? = null
+    private lateinit var ctrlSubtitles: ImageButton
 
     private var enterTransitionStarted = false
 
@@ -191,6 +257,9 @@ class PlayerActivity : AppCompatActivity() {
             // v4-fb3: Retry genuinely re-requests — playAt() resolves
             // a fresh file id and builds a new MediaItem/data source,
             // and resumes silently (no dialog on a retry).
+            // v6 Rule 7: Retry also resets the stall-retry counter
+            // (playAt does that) so a fresh attempt gets the full
+            // retry budget.
             setRetry { playAt(index, askResume = false) }
             setDismiss { finish() }
         }
@@ -202,6 +271,9 @@ class PlayerActivity : AppCompatActivity() {
         }
         setupGestures()
         bufferHandler.post(bufferUpdater)
+        // v6 Rule 6: caption style from Settings, applied once — the
+        // same PlayerView (and its SubtitleView) serves every video.
+        applySubtitleStyle()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -259,6 +331,7 @@ class PlayerActivity : AppCompatActivity() {
         ctrlTitle = view.findViewById(R.id.ctrlTitle)
         ctrlSpeedLabel = view.findViewById(R.id.ctrlSpeedLabel)
         ctrlCounter = view.findViewById(R.id.ctrlCounter)
+        ctrlSubtitles = view.findViewById(R.id.ctrlSubtitles)
     }
 
     private fun wireControllerButtons() {
@@ -277,6 +350,7 @@ class PlayerActivity : AppCompatActivity() {
         ctrlLock.setOnClickListener { setLocked(true) }
         view.findViewById<View>(R.id.ctrlOptions).setOnClickListener { showOptionsSheet() }
         ctrlSpeedLabel.setOnClickListener { showOptionsSheet() }
+        ctrlSubtitles.setOnClickListener { onSubtitlesButtonClicked() }
     }
 
     /** Fullscreen = sensor landscape + immersive (system bars hidden). */
@@ -504,13 +578,28 @@ class PlayerActivity : AppCompatActivity() {
     private fun startPlayer() {
         val factory = TdlibDataSource.Factory(locator.gateway)
         val mediaSourceFactory = ProgressiveMediaSource.Factory(factory)
-        // v4: bigger buffers for high-bitrate 1080p+ over MTProto,
-        // which is far slower than a CDN — start only after 5s is
-        // buffered, keep up to 60s prefetched, and rebuffer with a
-        // 10s runway. (ExoPlayer defaults: 50s / 50s / 2.5s / 5s —
-        // the 2.5s start was rebuffering almost immediately on 1080p.)
+        // v6 Rule 3 — YouTube-like buffer targets. ExoPlayer's current
+        // defaults are 50s/50s/1s/2s; YouTube web measures ~120s ahead
+        // (research report §2). OUR deliberate choice: min 50s, max
+        // 120s, start 1s, rebuffer 2s, plus a 30s back buffer so
+        // backward seeks are cheap. Buffer health <3s is the danger
+        // zone; ExoPlayer's loader already prioritises the current
+        // window and TdlibDataSource's 8MB lookahead keeps the
+        // download ahead — no extra download-priority machinery is
+        // invented here.
+        //
+        // v6 Rule 5 — NO per-segment ABR quality switching, by design:
+        // YouTube switches quality every 2–4s because it has
+        // per-segment renditions. Telegram does NOT — each quality is
+        // a separate whole file, so NobiStream cannot switch quality
+        // mid-video. Quality stays: Smart Filter picks the best copy
+        // per episode, the quality chip is manual. A slow network
+        // copes by buffering + spinner, not by dropping quality. Do
+        // NOT "fix" this by adding ABR — there is nothing to switch
+        // between.
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30_000, 60_000, 5_000, 10_000)
+            .setBufferDurationsMs(50_000, 120_000, 1_000, 2_000)
+            .setBackBufferDurationMs(30_000, true)
             .build()
         player = ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
@@ -526,10 +615,25 @@ class PlayerActivity : AppCompatActivity() {
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             when (state) {
-                Player.STATE_BUFFERING -> binding.bufferingOverlay.visibility = View.VISIBLE
+                Player.STATE_BUFFERING -> {
+                    // v6 Rule 1: a stall shows ONLY the spinner (and,
+                    // after 10s, the small offline line) — never an
+                    // error screen, however long it lasts. The last
+                    // frame stays frozen underneath; the download
+                    // keeps running in the background.
+                    binding.bufferingOverlay.visibility = View.VISIBLE
+                    startOfflineTimer()
+                }
                 Player.STATE_READY -> {
                     binding.bufferingOverlay.visibility = View.GONE
                     binding.playerError.visibility = View.GONE
+                    cancelOfflineTimer()
+                    // v6: a successful load clears the stall budget —
+                    // the 10-attempt bound counts CONSECUTIVE
+                    // failures, and a recovered stall is not one.
+                    stallRetryCount = 0
+                    stallHandler.removeCallbacks(stallRetryRunnable)
+                    resumeSeekPending = false
                     startPostponedEnterTransitionOnce()
                     updatePlayPauseIcon()
                     // v4-fb3: the resume dialog fires ONLY here — once
@@ -543,6 +647,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 Player.STATE_ENDED -> {
                     binding.bufferingOverlay.visibility = View.GONE
+                    cancelOfflineTimer()
                     savePositionNow()
                     if (autoplay) playAt(index + 1, askResume = false)
                 }
@@ -553,6 +658,7 @@ class PlayerActivity : AppCompatActivity() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updatePlayPauseIcon()
             if (isPlaying) {
+                hasPlayed = true
                 startSaveTicker()
                 // Playing again: the 3s auto-hide resumes.
                 scheduleAutoHide()
@@ -569,19 +675,156 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            // v4-fb3: a failed source must never get a resume dialog
-            // over the error screen — and log the REAL error (the old
-            // code logged nothing, so the failure was un-diagnosable).
-            pendingResumeSec = null
+        override fun onPlayerError(error: PlaybackException) {
+            // v4-fb3: log the REAL error (the old code logged
+            // nothing, so the failure was un-diagnosable).
             Log.e(
                 "PlayerActivity",
                 "Playback failed for ${playlist.getOrNull(index)?.title}",
                 error
             )
-            binding.bufferingOverlay.visibility = View.GONE
-            binding.playerError.visibility = View.VISIBLE
+            if (!currentItemUnresolvable && isStallError(error)) {
+                // v6 Rule 1: a load/IO failure is a STALL, not a
+                // fatal error. Keep the spinner, keep downloading in
+                // the background, retry with backoff. The resume
+                // dialog (if armed) is NOT cleared — it can still
+                // fire once the stall recovers and the player
+                // reaches READY.
+                stallRetryCount++
+                if (stallRetryCount >= MAX_STALL_RETRIES) {
+                    // Retries exhausted: the download is genuinely
+                    // stuck. Only now does the error screen appear.
+                    showFatalError(networkFailure = true)
+                } else {
+                    binding.bufferingOverlay.visibility = View.VISIBLE
+                    binding.playerError.visibility = View.GONE
+                    startOfflineTimer()
+                    scheduleStallRetry()
+                }
+                return
+            }
+            // Fatal: decoder / renderer / parse failure, or a file
+            // that could not even be resolved. Error screen at once.
+            showFatalError(networkFailure = isNetworkError(error) && !currentItemUnresolvable)
         }
+    }
+
+    /**
+     * v6 Rule 1: classify a PlaybackException. A STALL is any failure
+     * whose cause chain holds an IOException (our data source throws
+     * IOException when bytes cannot be downloaded yet) or whose error
+     * code is an IO / timeout / behind-live-window code — ExoPlayer
+     * surfaces exactly these while the download is merely slow or
+     * the network is down. Everything else (decoder, renderer,
+     * parse, DRM) is FATAL: the file itself cannot play, and
+     * retrying would only spin forever. File-not-found and
+     * no-permission are fatal too: the bytes do not exist, so no
+     * amount of retrying helps.
+     */
+    private fun isStallError(error: PlaybackException): Boolean {
+        var cause: Throwable? = error.cause
+        while (cause != null) {
+            if (cause is IOException) return true
+            cause = cause.cause
+        }
+        return when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
+            PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW,
+            PlaybackException.ERROR_CODE_TIMEOUT -> true
+            else -> false
+        }
+    }
+
+    /** True when a fatal error's cause chain is an IO/network failure (drives the error wording). */
+    private fun isNetworkError(error: PlaybackException): Boolean {
+        var cause: Throwable? = error.cause
+        while (cause != null) {
+            if (cause is IOException) return true
+            cause = cause.cause
+        }
+        return when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> true
+            else -> false
+        }
+    }
+
+    /**
+     * v6 Rule 2: the ONLY place the error screen appears.
+     * [networkFailure] picks the wording: the connection died after
+     * retries were exhausted vs the video file itself failed.
+     */
+    private fun showFatalError(networkFailure: Boolean) {
+        // v4-fb3: a failed source must never get a resume dialog over
+        // the error screen.
+        pendingResumeSec = null
+        resumeSeekPending = false
+        cancelOfflineTimer()
+        stallHandler.removeCallbacks(stallRetryRunnable)
+        stallRetryCount = 0
+        binding.bufferingOverlay.visibility = View.GONE
+        binding.playerError.apply {
+            setTitle(getString(R.string.player_error_title))
+            setBody(
+                getString(
+                    if (networkFailure) R.string.player_error_network_body
+                    else R.string.player_error_file_body
+                )
+            )
+        }
+        binding.playerError.visibility = View.VISIBLE
+    }
+
+    /**
+     * v6 Rule 1: schedule the next stall retry with backoff 2s ->
+     * 5s -> 10s (OUR deliberate choice, not a YouTube number). The
+     * retry itself is just ExoPlayer.prepare() — the documented
+     * retry after a failure — which re-opens the source at the exact
+     * stalled position with playWhenReady untouched, so a user pause
+     * stays paused and a stall auto-resumes when data arrives.
+     */
+    private fun scheduleStallRetry() {
+        stallHandler.removeCallbacks(stallRetryRunnable)
+        val delayMs = when (stallRetryCount) {
+            1 -> 2_000L
+            2 -> 5_000L
+            else -> 10_000L
+        }
+        stallHandler.postDelayed(stallRetryRunnable, delayMs)
+    }
+
+    private fun retryStalledLoad() {
+        player?.prepare()
+    }
+
+    private fun cancelStallRetry() {
+        stallHandler.removeCallbacks(stallRetryRunnable)
+    }
+
+    /**
+     * v6 Rule 2: after 10s of one continuous stall, show the small
+     * "You're offline — retrying…" line under the spinner. The timer
+     * restarts on every fresh STATE_BUFFERING and is cancelled on
+     * READY / fatal error / a new video. It only runs for a real
+     * stall (mid-playback, a resume seek, or inside the retry loop)
+     * — a slow first load just shows the spinner and the buffered %.
+     * 10s is OUR deliberate choice.
+     */
+    private fun startOfflineTimer() {
+        cancelOfflineTimer()
+        if (!hasPlayed && !resumeSeekPending && stallRetryCount == 0) return
+        offlineHandler.postDelayed(offlineRunnable, OFFLINE_TEXT_DELAY_MS)
+    }
+
+    private fun cancelOfflineTimer() {
+        offlineHandler.removeCallbacks(offlineRunnable)
+        binding.bufferingOfflineText.visibility = View.GONE
     }
 
     private fun startPostponedEnterTransitionOnce() {
@@ -636,29 +879,73 @@ class PlayerActivity : AppCompatActivity() {
         ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
         binding.playerError.visibility = View.GONE
         pendingResumeSec = null
+        // v6: a new video cancels any pending stall retry / offline
+        // timer and resets the stall budget; it also drops the
+        // previous video's subtitle tracks and discovery job.
+        cancelStallRetry()
+        cancelOfflineTimer()
+        stallRetryCount = 0
+        resumeSeekPending = false
+        currentItemUnresolvable = false
+        subtitleDiscoveryJob?.cancel()
+        subtitleTracks = emptyList()
+        subtitlesEnabled = false
+        attachedSubtitleMessageId = -1L
+        currentMediaItem = null
+        updateCcButton()
         val exo = player ?: return
         lifecycleScope.launch(Dispatchers.IO) {
-            val resolved = runCatching { repository.resolveVideoItem(item) }.getOrElse { item }
+            val detailed =
+                runCatching { repository.resolveVideoItemDetailed(item) }.getOrNull()
+            val resolved = detailed?.item ?: item
             val saved = repository.getPositionSec(resolved.chatId, resolved.messageId)
             withContext(Dispatchers.Main) {
                 // The user may have moved on while resolving — never
                 // hijack the newer episode with the older one.
                 if (index != newIndex || player == null) return@withContext
-                exo.setMediaItem(MediaItem.fromUri("tdlib://${resolved.fileId}"))
-                exo.prepare()
+                currentItemUnresolvable = detailed?.freshIdResolved == false
+                currentMediaItem = buildMediaItem(resolved, emptyList())
                 val resumable = saved > 5L && resolved.durationSec > 0 &&
                     saved < resolved.durationSec - 10L
                 when {
-                    !resumable -> exo.play()
+                    !resumable -> {
+                        exo.setMediaItem(currentMediaItem!!, 0L)
+                        exo.prepare()
+                        exo.play()
+                    }
                     askResume -> {
+                        // v6 resume fix: while the dialog is pending
+                        // the player is PAUSED (playWhenReady false).
+                        // A list-open that reached playAt with
+                        // playWhenReady still true would play from 0
+                        // behind the dialog while the 5s save ticker
+                        // overwrote the saved position in Room. The
+                        // dialog still only fires on STATE_READY
+                        // (v4 rule, kept).
+                        exo.playWhenReady = false
+                        exo.setMediaItem(currentMediaItem!!, 0L)
+                        exo.prepare()
                         pendingResumeSec = saved
                         pendingResumeIndex = newIndex
                     }
                     else -> {
-                        exo.seekTo(saved * 1000L)
+                        // Silent resume (Next / Previous / autoplay /
+                        // Retry): race-free — ONE prepare() directly
+                        // at the saved position, so ExoPlayer opens
+                        // the source there instead of loading from 0
+                        // first and then seeking (see the v6 resume
+                        // note in showResumeDialog).
+                        resumeSeekPending = true
+                        val targetMs = clampResumeTarget(saved * 1000L, resolved.durationSec)
+                        exo.setMediaItem(currentMediaItem!!, targetMs)
+                        exo.prepare()
                         exo.play()
                     }
                 }
+                // v6 Rule 6: subtitle discovery runs async and NEVER
+                // blocks playback — the video starts now, the CC
+                // button appears when (and if) a sidecar is found.
+                startSubtitleDiscovery(resolved)
             }
         }
     }
@@ -674,15 +961,58 @@ class PlayerActivity : AppCompatActivity() {
                 )
             )
             .setPositiveButton(R.string.player_resume) { _, _ ->
-                exo.seekTo(savedSec * 1000L)
+                // v6 resume fix — ROOT CAUSE (verified in the v5
+                // code): a cold-start resume did prepare() at
+                // position 0 (starting a from-0 download) and then
+                // seekTo()'d into a far, unbuffered range (e.g. Ep
+                // 361, saved 22:28 of 23:06). TDLib's sequential
+                // download could not prove that far range inside the
+                // data source's 60s ensureDownloaded window, so the
+                // IOException surfaced as the fatal "Video couldn't
+                // play" screen. The fix: a resume IS a seek — it goes
+                // through ONE setMediaItem(item, startPositionMs) +
+                // prepare(), so ExoPlayer opens the source DIRECTLY
+                // at the saved position (no competing from-0 load),
+                // and any load error on the way is classified as a
+                // STALL (spinner + background retry, Rule 1) instead
+                // of an error screen.
+                resumeSeekPending = true
+                val targetMs = clampResumeTarget(
+                    savedSec * 1000L,
+                    playlist.getOrNull(index)?.durationSec ?: 0
+                )
+                val mediaItem = currentMediaItem
+                if (mediaItem != null) {
+                    exo.setMediaItem(mediaItem, targetMs)
+                    exo.prepare()
+                } else {
+                    exo.seekTo(targetMs)
+                }
                 exo.play()
             }
             .setNegativeButton(R.string.player_restart) { _, _ ->
-                exo.seekTo(0L)
+                val mediaItem = currentMediaItem
+                if (mediaItem != null) {
+                    exo.setMediaItem(mediaItem, 0L)
+                    exo.prepare()
+                } else {
+                    exo.seekTo(0L)
+                }
                 exo.play()
             }
             .setCancelable(false)
             .show()
+    }
+
+    /**
+     * v6: clamp a resume target to duration-2s so a stale / near-end
+     * saved position can never seek past the end. The resumable rule
+     * (saved < duration-10s) already keeps it inside; this is the
+     * belt-and-braces for a duration that only becomes known later.
+     */
+    private fun clampResumeTarget(savedMs: Long, durationSec: Int): Long {
+        if (durationSec <= 0) return savedMs.coerceAtLeast(0L)
+        return savedMs.coerceIn(0L, durationSec * 1000L - 2_000L)
     }
 
     /**
@@ -747,6 +1077,180 @@ class PlayerActivity : AppCompatActivity() {
                 ctrlCounter.text =
                     if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
             }
+        }
+    }
+
+    // ---- v6 Rule 6: subtitles ----
+
+    /** Build the MediaItem for a video, with subtitle configs when tracks are known. */
+    private fun buildMediaItem(item: VideoItem, subs: List<SubtitleTrack>): MediaItem {
+        val builder = MediaItem.Builder().setUri("tdlib://${item.fileId}")
+        if (subs.isNotEmpty()) {
+            builder.setSubtitleConfigurations(subs.mapIndexed { i, track ->
+                MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(File(track.localPath)))
+                    .setMimeType(
+                        if (track.isVtt) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
+                    )
+                    .setLanguage(track.language)
+                    .setSelectionFlags(
+                        if (i == 0) C.SELECTION_FLAG_DEFAULT else 0
+                    )
+                    .build()
+            })
+        }
+        return builder.build()
+    }
+
+    /**
+     * v6 Rule 6: discover subtitle sidecars WITHOUT blocking
+     * playback. Runs on IO while the video already plays; when (and
+     * if) tracks are found, the CC button appears and — when
+     * "Always show subtitles" is on — the first track is enabled.
+     * Attaching tracks needs one re-prepare at the same position
+     * (Media3 has no live track injection for progressive sources);
+     * TDLib's cache already holds the video bytes, so this is fast
+     * and position-exact. The CC toggle itself never re-prepares.
+     */
+    private fun startSubtitleDiscovery(item: VideoItem) {
+        subtitleDiscoveryJob?.cancel()
+        subtitleDiscoveryJob = lifecycleScope.launch(Dispatchers.IO) {
+            val tracks = runCatching { repository.findSubtitles(item) }.getOrDefault(emptyList())
+            withContext(Dispatchers.Main) {
+                val exo = player ?: return@withContext
+                if (index !in playlist.indices) return@withContext
+                if (playlist[index].messageId != item.messageId) return@withContext
+                subtitleTracks = tracks
+                updateCcButton()
+                if (tracks.isEmpty()) return@withContext
+                if (attachedSubtitleMessageId == item.messageId) return@withContext
+                // Never yank the error screen away to attach tracks —
+                // Retry re-runs discovery after a fresh playAt.
+                if (binding.playerError.visibility == View.VISIBLE) return@withContext
+                attachedSubtitleMessageId = item.messageId
+                val position = exo.currentPosition
+                val wasPlaying = exo.playWhenReady
+                currentMediaItem = buildMediaItem(item, tracks)
+                exo.setMediaItem(currentMediaItem!!, position)
+                exo.prepare()
+                exo.playWhenReady = wasPlaying
+                applySubtitleStyle()
+                lifecycleScope.launch {
+                    val alwaysShow = runCatching {
+                        repository.settingsStore.subtitleAlwaysShow.first()
+                    }.getOrNull() ?: false
+                    if (alwaysShow && player != null && subtitleTracks.isNotEmpty()) {
+                        setSubtitlesEnabled(true, subtitleTracks.first().language)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun onSubtitlesButtonClicked() {
+        if (subtitleTracks.isEmpty()) return
+        if (subtitleTracks.size == 1) {
+            setSubtitlesEnabled(!subtitlesEnabled, subtitleTracks.first().language)
+            return
+        }
+        showSubtitleChooser()
+    }
+
+    private fun showSubtitleChooser() {
+        val labels = subtitleTracks.map { displayLanguage(it) }.toMutableList()
+        labels.add(getString(R.string.player_subtitles_off))
+        AlertDialog.Builder(this)
+            .setTitle(R.string.player_subtitle_chooser_title)
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == subtitleTracks.size) {
+                    setSubtitlesEnabled(false)
+                } else {
+                    setSubtitlesEnabled(true, subtitleTracks[which].language)
+                }
+            }
+            .show()
+    }
+
+    /**
+     * v6 Rule 6: one tap toggles subtitles mid-playback — NO player
+     * restart, NO rebuffer. This only flips the text track
+     * selection; the video source is untouched.
+     */
+    private fun setSubtitlesEnabled(enabled: Boolean, language: String? = null) {
+        val exo = player ?: return
+        subtitlesEnabled = enabled
+        val params = exo.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+        if (enabled && language != null) params.setPreferredTextLanguage(language)
+        exo.trackSelectionParameters = params.build()
+        updateCcButton()
+    }
+
+    private fun updateCcButton() {
+        val hasTracks = subtitleTracks.isNotEmpty()
+        ctrlSubtitles.visibility = if (hasTracks) View.VISIBLE else View.GONE
+        if (!hasTracks) return
+        if (subtitlesEnabled) {
+            ctrlSubtitles.setColorFilter(getColor(R.color.primary))
+        } else {
+            ctrlSubtitles.clearColorFilter()
+        }
+    }
+
+    private fun displayLanguage(track: SubtitleTrack): String {
+        val code = track.language
+        if (code != null) {
+            val name = Locale.forLanguageTag(code).displayLanguage
+            if (name.isNotBlank()) return name
+            return code
+        }
+        return track.fileName
+    }
+
+    /**
+     * v6 Rule 6: caption style from Settings (size / colour /
+     * background), rendered through PlayerView's SubtitleView.
+     * Two honest limits, also stated in Settings: a video with no
+     * subtitle file gets no CC button, and subtitles burned into the
+     * video itself can never be turned off — they are part of the
+     * video, not a track.
+     */
+    private fun applySubtitleStyle() {
+        val view = binding.playerView.subtitleView ?: return
+        lifecycleScope.launch {
+            val size = runCatching {
+                repository.settingsStore.subtitleSize.first()
+            }.getOrNull() ?: "Medium"
+            val color = runCatching {
+                repository.settingsStore.subtitleColor.first()
+            }.getOrNull() ?: "White"
+            val background = runCatching {
+                repository.settingsStore.subtitleBackground.first()
+            }.getOrNull() ?: "Semi-black"
+            view.setFractionalTextSize(
+                when (size) {
+                    "Small" -> 0.04f
+                    "Large" -> 0.07f
+                    else -> 0.0533f
+                }
+            )
+            val foreground = when (color) {
+                "Yellow" -> 0xFFFFFF00.toInt()
+                "Cyan" -> 0xFF00E5FF.toInt()
+                else -> Color.WHITE
+            }
+            val bg = when (background) {
+                "Black" -> 0xCC000000.toInt()
+                "Transparent" -> Color.TRANSPARENT
+                else -> 0x99000000.toInt()
+            }
+            view.setStyle(
+                CaptionStyleCompat(
+                    foreground, bg, Color.TRANSPARENT,
+                    CaptionStyleCompat.EDGE_TYPE_NONE, Color.BLACK, Typeface.DEFAULT
+                )
+            )
+            // Our Settings win over any style embedded in the .vtt file.
+            view.setApplyEmbeddedStyles(false)
         }
     }
 
@@ -920,6 +1424,11 @@ class PlayerActivity : AppCompatActivity() {
         bufferHandler.removeCallbacks(bufferUpdater)
         feedbackHandler.removeCallbacks(hideFeedback)
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        // v6: cancel the stall retry + offline timer + subtitle
+        // discovery so nothing fires after the activity is gone.
+        cancelStallRetry()
+        cancelOfflineTimer()
+        subtitleDiscoveryJob?.cancel()
         savePositionNow()
         stopSaveTicker()
         player?.release()

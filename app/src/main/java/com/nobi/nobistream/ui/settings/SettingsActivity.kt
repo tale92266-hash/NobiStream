@@ -39,6 +39,11 @@ class SettingsActivity : AppCompatActivity() {
 
     private val filterOptions = listOf("All", "480p", "720p", "1080p", "4K")
 
+    // v6 subtitles: option lists (same hardcoded-list precedent as filterOptions).
+    private val subtitleSizeOptions = listOf("Small", "Medium", "Large")
+    private val subtitleColorOptions = listOf("White", "Yellow", "Cyan")
+    private val subtitleBackgroundOptions = listOf("Semi-black", "Black", "Transparent")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -88,6 +93,45 @@ class SettingsActivity : AppCompatActivity() {
                 repository.settingsStore.setSmartFilter(checked)
             }
         }
+        // v6 subtitles: always-show switch + style dropdowns.
+        binding.subtitleAlwaysShowSwitch.setOnCheckedChangeListener { _, checked ->
+            lifecycleScope.launch {
+                repository.settingsStore.setSubtitleAlwaysShow(checked)
+            }
+        }
+        val subtitleSizeAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            subtitleSizeOptions
+        )
+        binding.subtitleSizeInput.setAdapter(subtitleSizeAdapter)
+        binding.subtitleSizeInput.setOnItemClickListener { _, _, position, _ ->
+            lifecycleScope.launch {
+                repository.settingsStore.setSubtitleSize(subtitleSizeOptions[position])
+            }
+        }
+        val subtitleColorAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            subtitleColorOptions
+        )
+        binding.subtitleColorInput.setAdapter(subtitleColorAdapter)
+        binding.subtitleColorInput.setOnItemClickListener { _, _, position, _ ->
+            lifecycleScope.launch {
+                repository.settingsStore.setSubtitleColor(subtitleColorOptions[position])
+            }
+        }
+        val subtitleBackgroundAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            subtitleBackgroundOptions
+        )
+        binding.subtitleBackgroundInput.setAdapter(subtitleBackgroundAdapter)
+        binding.subtitleBackgroundInput.setOnItemClickListener { _, _, position, _ ->
+            lifecycleScope.launch {
+                repository.settingsStore.setSubtitleBackground(subtitleBackgroundOptions[position])
+            }
+        }
         val filterAdapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
@@ -127,6 +171,45 @@ class SettingsActivity : AppCompatActivity() {
                 repository.settingsStore.smartFilter.collect { value ->
                     if (binding.smartFilterSwitch.isChecked != value) {
                         binding.smartFilterSwitch.isChecked = value
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.subtitleAlwaysShow.collect { value ->
+                    if (binding.subtitleAlwaysShowSwitch.isChecked != value) {
+                        binding.subtitleAlwaysShowSwitch.isChecked = value
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.subtitleSize.collect { size ->
+                    val current = binding.subtitleSizeInput.text?.toString().orEmpty()
+                    if (current != size) {
+                        binding.subtitleSizeInput.setText(size, false)
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.subtitleColor.collect { color ->
+                    val current = binding.subtitleColorInput.text?.toString().orEmpty()
+                    if (current != color) {
+                        binding.subtitleColorInput.setText(color, false)
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.subtitleBackground.collect { background ->
+                    val current = binding.subtitleBackgroundInput.text?.toString().orEmpty()
+                    if (current != background) {
+                        binding.subtitleBackgroundInput.setText(background, false)
                     }
                 }
             }
