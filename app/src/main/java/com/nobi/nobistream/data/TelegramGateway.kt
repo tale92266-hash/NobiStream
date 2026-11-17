@@ -58,6 +58,13 @@ interface TelegramGateway {
     /** Load one page of video messages, newest first. */
     suspend fun loadVideos(chatId: Long, fromMessageId: Long, limit: Int): VideoPage
 
+    /**
+     * Server-side search of video messages in one chat (TDLib
+     * SearchChatMessages + SearchMessagesFilterVideo). Returns newest
+     * first; empty when nothing matches.
+     */
+    suspend fun searchVideos(chatId: Long, query: String, limit: Int): VideoPage
+
     /** Download a thumbnail file synchronously; returns its local path. */
     suspend fun downloadThumbnail(fileId: Int): String?
 

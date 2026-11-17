@@ -29,6 +29,33 @@ class SettingsStore(context: Context) {
     /** v2: when ON (default), opening the app jumps straight to the last-watched episode. */
     val openLastEpisode: Flow<Boolean> = dataStore.data.map { it[KEY_OPEN_LAST_EPISODE] ?: true }
 
+    /**
+     * v4: recent search queries, newest first, capped at 10,
+     * de-duplicated (case-insensitive). Query text only — nothing
+     * else is stored. Kept as one newline-joined string so the
+     * order survives (a stringSet would lose it).
+     */
+    val recentSearches: Flow<List<String>> = dataStore.data.map { prefs ->
+        prefs[KEY_RECENT_SEARCHES].orEmpty()
+            .split('\n').map { it.trim() }.filter { it.isNotEmpty() }.take(MAX_RECENT_SEARCHES)
+    }
+
+    suspend fun addRecentSearch(query: String) {
+        val clean = query.trim().replace('\n', ' ').take(100)
+        if (clean.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_RECENT_SEARCHES].orEmpty()
+                .split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+            val updated = (listOf(clean) + current.filter { !it.equals(clean, ignoreCase = true) })
+                .take(MAX_RECENT_SEARCHES)
+            prefs[KEY_RECENT_SEARCHES] = updated.joinToString("\n")
+        }
+    }
+
+    suspend fun clearRecentSearches() {
+        dataStore.edit { it.remove(KEY_RECENT_SEARCHES) }
+    }
+
     suspend fun setAutoplay(value: Boolean) {
         dataStore.edit { it[KEY_AUTOPLAY] = value }
     }
@@ -63,5 +90,7 @@ class SettingsStore(context: Context) {
         val KEY_LAST_CHAT_ID = longPreferencesKey("last_chat_id")
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")
         val KEY_OPEN_LAST_EPISODE = booleanPreferencesKey("open_last_episode")
+        val KEY_RECENT_SEARCHES = stringPreferencesKey("recent_searches")
+        const val MAX_RECENT_SEARCHES = 10
     }
 }

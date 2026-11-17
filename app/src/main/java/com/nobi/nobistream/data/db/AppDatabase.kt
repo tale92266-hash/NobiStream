@@ -64,6 +64,14 @@ interface PositionDao {
     @Query("SELECT * FROM video_positions WHERE positionSec > 0 AND watched = 0 ORDER BY updatedAtEpochSec DESC LIMIT 10")
     fun observeContinueWatching(): Flow<List<VideoPositionEntity>>
 
+    /**
+     * v4: the same list WITHOUT the 10-item cap, for the full
+     * Continue Watching ("See all") screen. Same query otherwise —
+     * no schema change, no migration.
+     */
+    @Query("SELECT * FROM video_positions WHERE positionSec > 0 AND watched = 0 ORDER BY updatedAtEpochSec DESC")
+    fun observeContinueWatchingAll(): Flow<List<VideoPositionEntity>>
+
     /** The single most recently watched (unfinished) video, for the Home hero card and auto-redirect. */
     @Query("SELECT * FROM video_positions WHERE positionSec > 0 AND watched = 0 ORDER BY updatedAtEpochSec DESC LIMIT 1")
     suspend fun getMostRecent(): VideoPositionEntity?

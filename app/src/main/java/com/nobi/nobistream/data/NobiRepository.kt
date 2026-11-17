@@ -159,25 +159,155 @@ class NobiRepository(
 
     fun observeContinueWatching(): Flow<List<VideoItem>> =
         database.positionDao().observeContinueWatching().map { rows ->
-            rows.map { row ->
-                VideoItem(
-                    messageId = row.messageId,
-                    chatId = row.chatId,
-                    fileId = row.fileId,
-                    remoteFileId = row.remoteFileId,
-                    title = row.title,
-                    caption = row.caption,
-                    quality = VideoQuality.fromLabel(row.qualityLabel),
-                    durationSec = row.durationSec,
-                    sizeBytes = row.sizeBytes,
-                    dateEpochSec = row.dateEpochSec,
-                    thumbFileId = row.thumbFileId,
-                    thumbLocalPath = row.thumbLocalPath,
-                    progressSec = row.positionSec,
-                    watched = row.watched
-                )
+            rows.map { rowToVideo(it) }
+        }
+
+    /** v4: the full Continue Watching list (no 10-item cap), newest first. */
+    fun observeContinueWatchingAll(): Flow<List<VideoItem>> =
+        database.positionDao().observeContinueWatchingAll().map { rows ->
+            rows.map { rowToVideo(it) }
+        }
+
+    private fun rowToVideo(row: VideoPositionEntity): VideoItem =
+        VideoItem(
+            messageId = row.messageId,
+            chatId = row.chatId,
+            fileId = row.fileId,
+            remoteFileId = row.remoteFileId,
+            title = row.title,
+            caption = row.caption,
+            quality = VideoQuality.fromLabel(row.qualityLabel),
+            durationSec = row.durationSec,
+            sizeBytes = row.sizeBytes,
+            dateEpochSec = row.dateEpochSec,
+            thumbFileId = row.thumbFileId,
+            thumbLocalPath = row.thumbLocalPath,
+            progressSec = row.positionSec,
+            watched = row.watched
+        )
+
+    /**
+     * v4: search video titles/captions across ALL added groups.
+     * Primary route is TDLib server-side search per group
+     * (SearchChatMessages + video filter). When that throws for a
+     * group (e.g. search unsupported there), it falls back to
+     * filtering that group's most recent loaded page locally, so a
+     * search still returns something instead of failing outright.
+     * Results are merged, de-duplicated and newest first, with saved
+     * resume positions merged in like loadVideos does.
+     */
+    suspend fun searchVideos(query: String, groups: List<GroupItem>): List<VideoItem> {
+        val clean = query.trim()
+        if (clean.isEmpty() || groups.isEmpty()) return emptyList()
+        val found = mutableListOf<VideoItem>()
+        for (group in groups) {
+            val page = try {
+                gateway.searchVideos(group.chatId, clean, 50)
+            } catch (_: Exception) {
+                runCatching { loadVideos(group.chatId, 0L, 50) }.getOrNull()
+                    ?.let { loaded ->
+                        VideoPage(
+                            videos = loaded.videos.filter {
+                                it.title.contains(clean, ignoreCase = true) ||
+                                    it.caption.contains(clean, ignoreCase = true)
+                            },
+                            totalCount = loaded.totalCount
+                        )
+                    } ?: continue
+            }
+            found.addAll(page.videos)
+        }
+        // Merge saved resume positions (server search returns none).
+        val merged = found.map { video ->
+            val saved = database.positionDao()
+                .getPosition(video.chatId, video.messageId)
+            if (saved != null) {
+                video.copy(progressSec = saved.positionSec, watched = saved.watched)
+            } else {
+                video
             }
         }
+        val seen = HashSet<Pair<Long, Long>>()
+        return merged
+            .filter { seen.add(it.chatId to it.messageId) }
+            .sortedByDescending { it.dateEpochSec }
+    }
+
+    /** One merged page of the Home library: first/next page per group. */
+    data class LibraryPage(
+        val videos: List<VideoItem>,
+        /** Next fromMessageId per group (0 = group not started). */
+        val cursors: Map<Long, Long>,
+        /** True when at least one group returned a full page. */
+        val hasMore: Boolean
+    )
+
+    /**
+     * v4: load one library page — one history page from EACH added
+     * group, merged newest first. [cursors] maps chatId to the
+     * fromMessageId to continue from (0 for the first page). A group
+     * that fails to load is skipped, not fatal to the whole page.
+     */
+    suspend fun loadLibraryPage(
+        groups: List<GroupItem>,
+        cursors: Map<Long, Long>,
+        limit: Int = 50
+    ): LibraryPage {
+        val all = mutableListOf<VideoItem>()
+        val nextCursors = cursors.toMutableMap()
+        var hasMore = false
+        for (group in groups) {
+            val from = cursors[group.chatId] ?: 0L
+            val page = try {
+                loadVideos(group.chatId, from, limit)
+            } catch (_: Exception) {
+                continue
+            }
+            if (page.videos.isNotEmpty()) {
+                all.addAll(page.videos)
+                nextCursors[group.chatId] = page.videos.last().messageId
+            }
+            if (page.videos.size >= limit) hasMore = true
+        }
+        all.sortByDescending { it.dateEpochSec }
+        return LibraryPage(videos = all, cursors = nextCursors, hasMore = hasMore)
+    }
+
+    /** Outcome of a Home groups refresh: how many re-fetched OK. */
+    data class RefreshResult(val refreshed: Int, val failed: Int)
+
+    /**
+     * v4: re-fetch each saved group's info from Telegram — fresh
+     * title and photo via resolveChat, fresh video count via a
+     * 1-item history load (totalCount is what TDLib actually
+     * returns; nothing is invented). A group that fails is counted
+     * and skipped; the rest still refresh.
+     */
+    suspend fun refreshGroups(groups: List<GroupItem>): RefreshResult {
+        var ok = 0
+        var failed = 0
+        val nowSec = System.currentTimeMillis() / 1000L
+        for (group in groups) {
+            try {
+                val fresh = gateway.resolveChat(group.username)
+                val page = loadVideos(group.chatId, 0L, 1)
+                database.groupDao().upsert(
+                    SavedGroupEntity(
+                        chatId = group.chatId,
+                        username = group.username,
+                        title = fresh.title,
+                        photoLocalPath = fresh.photoLocalPath ?: group.photoLocalPath,
+                        videoCount = if (page.totalCount > 0) page.totalCount else group.videoCount,
+                        lastUpdatedEpochSec = nowSec
+                    )
+                )
+                ok++
+            } catch (_: Exception) {
+                failed++
+            }
+        }
+        return RefreshResult(refreshed = ok, failed = failed)
+    }
 
     /** Delete ExoPlayer / image caches. TDLib's own files are left alone. */
     suspend fun clearCache() {

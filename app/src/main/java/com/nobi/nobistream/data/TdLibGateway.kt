@@ -279,6 +279,32 @@ class TdLibGateway(context: Context) : TelegramGateway {
         return VideoPage(videos = videos, totalCount = result.totalCount)
     }
 
+    /**
+     * v4 server-side search (TDLib 1.8.64): SearchChatMessages with a
+     * SearchMessagesFilterVideo filter, newest first. Uses the message
+     * database (enabled in SetTdlibParameters), so it searches the
+     * chat's full history on Telegram's side — not just what this
+     * phone has loaded. Callers fall back to local filtering when
+     * this throws for a chat.
+     */
+    override suspend fun searchVideos(chatId: Long, query: String, limit: Int): VideoPage {
+        val safeLimit = limit.coerceIn(1, 100)
+        val found = send(
+            TdApi.SearchChatMessages(
+                chatId,
+                null,
+                query,
+                null,
+                0L,
+                0,
+                safeLimit,
+                TdApi.SearchMessagesFilterVideo()
+            )
+        )
+        val videos = found.messages.messages.mapNotNull { mapMessage(it) }
+        return VideoPage(videos = videos, totalCount = found.messages.totalCount)
+    }
+
     private fun mapMessage(message: TdApi.Message): VideoItem? {
         return when (val content = message.content) {
             is TdApi.MessageVideo -> {

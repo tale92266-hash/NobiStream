@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NobiStream</string>
-    <string name="app_version_label">NobiStream v3 (2.0.0)</string>
+    <string name="app_version_label">NobiStream v4 (2.1.0)</string>
 
     <string name="login_title">Sign in with Telegram</string>
     <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
@@ -36,6 +36,25 @@
     <string name="home_videos_count">%1$d videos</string>
     <string name="home_group_updated">Updated %1$s</string>
     <string name="home_open_settings">Settings</string>
+    <string name="home_search">Search videos</string>
+    <string name="home_refresh">Refresh groups</string>
+    <string name="home_refreshing">Refreshing…</string>
+    <string name="home_refreshed">Groups refreshed</string>
+    <string name="home_refresh_partial">Some groups couldn\'t refresh</string>
+    <string name="home_refresh_failed">Couldn\'t refresh groups. Check your connection and try again.</string>
+    <string name="home_see_all">See all</string>
+    <string name="home_library">Your Library</string>
+    <string name="home_library_empty">No videos yet</string>
+    <string name="home_library_empty_body">Videos from all your groups will appear here once they load.</string>
+    <string name="home_library_error_title">Couldn\'t load your library</string>
+    <string name="home_library_error_body">Check your connection and try again.</string>
+    <string name="home_sort">Sort library</string>
+    <string name="home_sort_newest">Newest first</string>
+    <string name="home_sort_oldest">Oldest first</string>
+    <string name="home_sort_title_az">Title A–Z</string>
+    <string name="home_sort_title_za">Title Z–A</string>
+    <string name="home_sort_longest">Longest first</string>
+    <string name="home_sort_largest">Largest file first</string>
     <string name="home_remove_group_title">Remove this group?</string>
     <string name="home_remove_group_body">Remove %1$s from NobiStream? Its videos stay on Telegram.</string>
     <string name="home_remove">Remove</string>
@@ -133,13 +152,32 @@
     <string name="settings_version">Version</string>
     <string name="settings_licences">Open-source licences</string>
     <string name="settings_licences_body">NobiStream is built with open-source libraries:\n\n• TDLib (Telegram Database Library) — Boost Software License 1.0\n• ExoPlayer / Media3 — Apache License 2.0\n• Material Components for Android — Apache License 2.0\n• Room, DataStore, Lifecycle — Apache License 2.0\n• Coil — Apache License 2.0\n• recyclerview-animators — Apache License 2.0\n• EncryptedSharedPreferences (Security Crypto) — Apache License 2.0</string>
-    <string name="settings_about">About NobiStream v3. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+    <string name="settings_about">About NobiStream v4. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
     <string name="settings_privacy">NobiStream sends nothing to any server except Telegram, using your own account. Your groups and watch positions stay on this phone.</string>
 
     <string name="common_retry">Retry</string>
     <string name="common_close">Close</string>
     <string name="common_ok">OK</string>
+    <string name="common_clear">Clear</string>
     <string name="common_no_internet">No internet connection</string>
     <string name="common_error_generic">Something went wrong. Please try again.</string>
     <string name="common_watched">Watched</string>
+
+    <string name="search_title">Search</string>
+    <string name="search_hint">Search videos in all groups</string>
+    <string name="search_start_title">Search all your videos</string>
+    <string name="search_start_body">Search titles and captions across every group you added.</string>
+    <string name="search_no_results">No videos found</string>
+    <string name="search_no_results_body">Try different words, or check the spelling.</string>
+    <string name="search_error_title">Search failed</string>
+    <string name="search_error_body">Check your connection and try again.</string>
+    <string name="search_recent">Recent searches</string>
+    <string name="search_recent_clear">Clear</string>
+    <string name="search_recent_clear_title">Clear recent searches?</string>
+    <string name="search_recent_clear_body">Your recent search history will be deleted from this phone.</string>
+    <string name="search_recent_cleared">Recent searches cleared</string>
+
+    <string name="continue_all_title">Continue Watching</string>
+    <string name="continue_all_empty">Nothing to continue</string>
+    <string name="continue_all_empty_body">Videos you start watching will show up here so you can resume them.</string>
 </resources>
