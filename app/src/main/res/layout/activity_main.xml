@@ -84,14 +84,14 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Unified Continue Watching: featured card = most recent episode. -->
-            <include
-                android:id="@+id/featuredCard"
-                layout="@layout/item_featured_continue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone" />
-
+            <!-- v4-fb2: ONE Continue Watching section. Layout order is
+                 the visual order: the single "Continue Watching"
+                 heading (+ See all) FIRST, then the featured card
+                 (most recent episode), then the row (the rest).
+                 The featured card used to carry its own caps
+                 "CONTINUE WATCHING" overline AND sit above the
+                 heading, so the name showed twice — that is gone:
+                 the heading appears exactly once on Home. -->
             <!-- Continue Watching header: title + "See all" (13sp medium). -->
             <LinearLayout
                 android:id="@+id/continueHeader"
@@ -125,6 +125,14 @@
                     android:textColor="@color/primary"
                     android:textSize="13sp" />
             </LinearLayout>
+
+            <!-- Unified Continue Watching: featured card = most recent episode. -->
+            <include
+                android:id="@+id/featuredCard"
+                layout="@layout/item_featured_continue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/continueRecycler"

@@ -54,20 +54,10 @@
                 android:orientation="vertical">
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/home_continue_watching"
-                    android:textAllCaps="true"
-                    android:textColor="@color/primary"
-                    android:textSize="@dimen/text_overline"
-                    android:textStyle="bold" />
-
-                <TextView
                     android:id="@+id/featuredTitle"
                     style="@style/Text.NobiStream.FeaturedTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_4"
                     android:maxLines="2" />
 
                 <TextView

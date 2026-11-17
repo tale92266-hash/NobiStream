@@ -382,6 +382,11 @@ class TdLibGateway(context: Context) : TelegramGateway {
         return if (path.isNotEmpty() && File(path).exists()) path else null
     }
 
+    override suspend fun getMessageThumbnailFileId(chatId: Long, messageId: Long): Int? {
+        val message = send(TdApi.GetMessage(chatId, messageId))
+        return mapMessage(message)?.thumbFileId
+    }
+
     override suspend fun downloadFileInfo(fileId: Int): VideoFileInfo? {
         fileStates[fileId]?.let { cached ->
             toInfo(cached)?.let { return it }

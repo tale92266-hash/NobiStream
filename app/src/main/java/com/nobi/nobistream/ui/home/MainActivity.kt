@@ -44,11 +44,18 @@ import kotlinx.coroutines.withContext
 
 /**
  * v4 Home: custom 56dp app bar (brand icon + brand text + search,
- * refresh, settings), ONE unified Continue Watching section (featured
- * card + row + "See all" opening the full list), then Your Groups,
- * then Your Library — recent videos from ALL groups merged newest
+ * refresh, settings), ONE Continue Watching section — the single
+ * "Continue Watching" heading, then the featured card (most recent
+ * episode), then the row (the rest; featured = item[0], row =
+ * items.drop(1), so no episode repeats) — then Your Groups, then
+ * Your Library — recent videos from ALL groups merged newest
  * first in the same 2-column VideoCard grid as Channel Detail, with
  * the same quality filter chips and a sort control.
+ *
+ * v4-fb2: the heading used to appear TWICE — the featured card
+ * carried its own caps "CONTINUE WATCHING" overline and sat ABOVE
+ * the section heading. The overline is removed and the heading now
+ * comes first, so the name appears exactly once on Home.
  *
  * Refresh re-fetches each group's title/photo/count from Telegram
  * (only what TDLib returns — no invented statistics) and reloads

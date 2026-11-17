@@ -89,6 +89,15 @@ interface TelegramGateway {
     /** Download a thumbnail file synchronously; returns its local path. */
     suspend fun downloadThumbnail(fileId: Int): String?
 
+    /**
+     * v4-fb2: fresh thumbnail file id for one message in THIS TDLib
+     * session (via GetMessage), or null when the message has no
+     * thumbnail. Local file ids are ephemeral — one client lifetime —
+     * so an id saved in Room before a restart is dead; re-reading
+     * the message is the only way to get a usable one.
+     */
+    suspend fun getMessageThumbnailFileId(chatId: Long, messageId: Long): Int?
+
     /** Info about a video file, starting its download if needed. */
     suspend fun downloadFileInfo(fileId: Int): VideoFileInfo?
 

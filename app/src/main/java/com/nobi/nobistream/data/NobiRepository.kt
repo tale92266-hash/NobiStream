@@ -110,6 +110,25 @@ class NobiRepository(
     suspend fun downloadThumbnail(fileId: Int): String? =
         gateway.downloadThumbnail(fileId)
 
+    /**
+     * v4-fb2: re-resolve a video's thumbnail for THIS TDLib session
+     * and download it; returns the local path, or null when the
+     * message has no thumbnail (e.g. a Document-type video Telegram
+     * never thumbnailed) or the download fails. That null is the
+     * honest "no thumbnail exists" case — the UI then keeps the
+     * graceful placeholder instead of pretending.
+     */
+    suspend fun refreshThumbnail(item: VideoItem): String? {
+        val freshThumbId = gateway.getMessageThumbnailFileId(item.chatId, item.messageId)
+            ?: return null
+        return downloadThumbnail(freshThumbId)
+    }
+
+    /** v4-fb2: persist a downloaded thumbnail path (see PositionDao.updateThumbPath). */
+    suspend fun saveThumbPath(item: VideoItem, path: String) {
+        database.positionDao().updateThumbPath(item.chatId, item.messageId, path)
+    }
+
     suspend fun savePosition(item: VideoItem, positionSec: Long) {
         val watched = item.durationSec > 0 && positionSec >= item.durationSec - 10L
         database.positionDao().upsert(

@@ -82,6 +82,14 @@ interface PositionDao {
     @Query("SELECT * FROM video_positions WHERE chatId = :chatId")
     suspend fun getPositionsForChat(chatId: Long): List<VideoPositionEntity>
 
+    /**
+     * v4-fb2: remember a downloaded thumbnail's local path, so the
+     * next bind loads it from disk with no TDLib call. No schema
+     * change — the column already exists, it was just never written.
+     */
+    @Query("UPDATE video_positions SET thumbLocalPath = :path WHERE chatId = :chatId AND messageId = :messageId")
+    suspend fun updateThumbPath(chatId: Long, messageId: Long, path: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(position: VideoPositionEntity)
 }
