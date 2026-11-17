@@ -133,6 +133,25 @@ interface TelegramGateway {
     suspend fun ensureRange(fileId: Int, offset: Long, length: Long): VideoFileInfo?
 
     /**
+     * v7: the most recent file state TDLib reported for this file
+     * (UpdateFile), WITHOUT starting a download or blocking. Null
+     * when TDLib has reported nothing yet in this session. The data
+     * source polls this (free) while a range download runs, so a
+     * wait loop never issues a blocking DownloadFile per check.
+     */
+    fun getCachedFileState(fileId: Int): VideoFileInfo?
+
+    /**
+     * v7: start downloading [length] bytes from [offset] in the
+     * BACKGROUND (DownloadFile, synchronous = false) and return at
+     * once with the file's current state. The download keeps running
+     * in TDLib; progress arrives via UpdateFile and is visible in
+     * [getCachedFileState]. Used for prefetch: the player starts
+     * from a small proven chunk while the bytes ahead download.
+     */
+    suspend fun startRangeDownload(fileId: Int, offset: Long, length: Long): VideoFileInfo?
+
+    /**
      * v6 subtitles: subtitle sidecar files (.srt/.vtt) attached as
      * documents near the video's message in the same chat. TDLib's
      * MessageVideo has NO subtitle field, so this searches the

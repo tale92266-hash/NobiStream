@@ -488,6 +488,27 @@ class TdLibGateway(context: Context) : TelegramGateway {
         return toInfo(file)
     }
 
+    /**
+     * v7: free, non-blocking read of the last file state TDLib
+     * reported (UpdateFile). The data source polls this while a
+     * range download runs instead of issuing a blocking
+     * DownloadFile per check.
+     */
+    override fun getCachedFileState(fileId: Int): VideoFileInfo? =
+        fileStates[fileId]?.let { toInfo(it) }
+
+    /**
+     * v7: background prefetch — DownloadFile with synchronous =
+     * false returns at once with the file's current state while
+     * TDLib downloads the range in the background. Progress
+     * arrives via UpdateFile into fileStates.
+     */
+    override suspend fun startRangeDownload(fileId: Int, offset: Long, length: Long): VideoFileInfo? {
+        val file = send(TdApi.DownloadFile(fileId, 32, offset, length, false))
+        fileStates[file.id] = file
+        return toInfo(file)
+    }
+
     private fun toInfo(file: TdApi.File): VideoFileInfo? {
         val path = file.local.path
         if (path.isEmpty()) return null
