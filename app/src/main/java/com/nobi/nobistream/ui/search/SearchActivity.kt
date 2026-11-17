@@ -254,6 +254,7 @@ class SearchActivity : AppCompatActivity() {
     private fun openPlayer(item: VideoItem, thumb: ImageView) {
         PlayerPlaylist.items = results
         PlayerPlaylist.chatId = item.chatId
+        PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)

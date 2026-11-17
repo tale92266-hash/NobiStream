@@ -98,6 +98,23 @@ interface TelegramGateway {
      */
     suspend fun getMessageThumbnailFileId(chatId: Long, messageId: Long): Int?
 
+    /**
+     * v4-fb3: resolve a fresh LOCAL file id for a persistent remote
+     * file id in THIS TDLib session (GetRemoteFile, offline). Local
+     * file ids are ephemeral — one client lifetime — so an id saved
+     * in Room before a restart is dead; the remote id is the only
+     * stable handle. Null when the remote reference is gone.
+     */
+    suspend fun resolveFileId(remoteFileId: String): Int?
+
+    /**
+     * v4-fb3: re-read one message in THIS TDLib session and map it
+     * to a fresh VideoItem (fresh local file id + thumbnail id), or
+     * null when the message is gone / not a video. Fallback when
+     * GetRemoteFile cannot resolve the stored remote id.
+     */
+    suspend fun getMessageVideo(chatId: Long, messageId: Long): VideoItem?
+
     /** Info about a video file, starting its download if needed. */
     suspend fun downloadFileInfo(fileId: Int): VideoFileInfo?
 

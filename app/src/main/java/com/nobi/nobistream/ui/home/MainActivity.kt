@@ -45,17 +45,16 @@ import kotlinx.coroutines.withContext
 /**
  * v4 Home: custom 56dp app bar (brand icon + brand text + search,
  * refresh, settings), ONE Continue Watching section — the single
- * "Continue Watching" heading, then the featured card (most recent
- * episode), then the row (the rest; featured = item[0], row =
- * items.drop(1), so no episode repeats) — then Your Groups, then
+ * "Continue Watching" heading, then the small row of in-progress
+ * episodes (all items, newest first) — then Your Groups, then
  * Your Library — recent videos from ALL groups merged newest
  * first in the same 2-column VideoCard grid as Channel Detail, with
  * the same quality filter chips and a sort control.
  *
- * v4-fb2: the heading used to appear TWICE — the featured card
- * carried its own caps "CONTINUE WATCHING" overline and sat ABOVE
- * the section heading. The overline is removed and the heading now
- * comes first, so the name appears exactly once on Home.
+ * Sam's decision (2026-11-17 09:24 IST) supersedes the fb2 merge:
+ * the BIG featured hero card is REMOVED entirely — only the small
+ * Continue Watching row stays. There is no featured card, no
+ * updateFeatured, no featuredItem anywhere in this file.
  *
  * Refresh re-fetches each group's title/photo/count from Telegram
  * (only what TDLib returns — no invented statistics) and reloads
@@ -74,7 +73,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var libraryAdapter: VideoAdapter
     private var continueItems: List<VideoItem> = emptyList()
     private var groups: List<GroupItem> = emptyList()
-    private var featuredItem: VideoItem? = null
     private var redirectDone = false
     private var addSheet: BottomSheetDialog? = null
 
@@ -135,12 +133,6 @@ class MainActivity : AppCompatActivity() {
             LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.continueRecycler.adapter = continueAdapter
         binding.continueRecycler.itemAnimator = FadeInAnimator()
-        binding.featuredCard.featuredResumeButton.setOnClickListener {
-            featuredItem?.let { openContinue(it) }
-        }
-        binding.featuredCard.root.setOnClickListener {
-            featuredItem?.let { openContinue(it) }
-        }
         // ---- Your Library grid (same VideoCard as Channel Detail) ----
         libraryAdapter = VideoAdapter(
             onClick = { item, thumb -> openLibraryPlayer(item, thumb) },
@@ -223,15 +215,16 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.observeContinueWatching().collect { items ->
                     continueItems = items
-                    // Unified section: featured = first item, row = the rest.
-                    continueAdapter.submitList(items.drop(1))
+                    // Small row only — every in-progress episode,
+                    // newest first. No hero card (Sam, 2026-11-17).
+                    continueAdapter.submitList(items)
                     val hasAny = items.isNotEmpty()
-                    val hasRow = items.size > 1
                     binding.continueHeader.visibility = if (hasAny) View.VISIBLE else View.GONE
-                    binding.continueRecycler.visibility = if (hasRow) View.VISIBLE else View.GONE
-                    updateFeatured(items.firstOrNull())
+                    binding.continueRecycler.visibility = if (hasAny) View.VISIBLE else View.GONE
                     // v2: one-time redirect to the last-watched episode.
                     // Only on a fresh start (not rotation / return from player).
+                    // The redirect target is the row's first item — the
+                    // hero card it used to come from is gone.
                     if (!redirectDone && savedInstanceState == null) {
                         redirectDone = true
                         val openLast = repository.settingsStore.openLastEpisode.first()
@@ -465,20 +458,6 @@ class MainActivity : AppCompatActivity() {
         return listOf(groupName, remaining).filter { it.isNotEmpty() }.joinToString(" • ")
     }
 
-    /** Featured card: the most recently watched episode, with remaining time. */
-    private fun updateFeatured(item: VideoItem?) {
-        featuredItem = item
-        if (item == null) {
-            binding.featuredCard.root.visibility = View.GONE
-            return
-        }
-        binding.featuredCard.root.visibility = View.VISIBLE
-        binding.featuredCard.featuredTitle.text = item.title
-        binding.featuredCard.featuredMeta.text = continueMeta(item)
-        binding.featuredCard.featuredProgress.progress = (item.progressFraction * 100).toInt()
-        ThumbLoader.load(lifecycleScope, repository, item, binding.featuredCard.featuredThumb)
-    }
-
     private fun openChannel(group: GroupItem) {
         val intent = Intent(this, ChannelActivity::class.java)
             .putExtra(ChannelActivity.EXTRA_CHAT_ID, group.chatId)
@@ -489,6 +468,9 @@ class MainActivity : AppCompatActivity() {
     private fun openContinue(item: VideoItem) {
         PlayerPlaylist.items = continueItems
         PlayerPlaylist.chatId = item.chatId
+        // v4-fb3: Continue items are a Room-only slice — the player
+        // expands this to the channel's full filtered list.
+        PlayerPlaylist.fromContinue = true
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)
@@ -498,6 +480,7 @@ class MainActivity : AppCompatActivity() {
     private fun openLibraryPlayer(item: VideoItem, thumb: ImageView) {
         PlayerPlaylist.items = displayedLibrary
         PlayerPlaylist.chatId = item.chatId
+        PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)

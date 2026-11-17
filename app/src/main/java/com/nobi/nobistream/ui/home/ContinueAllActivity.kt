@@ -97,6 +97,9 @@ class ContinueAllActivity : AppCompatActivity() {
     private fun openContinue(item: VideoItem) {
         PlayerPlaylist.items = allItems
         PlayerPlaylist.chatId = item.chatId
+        // v4-fb3: Continue items are a Room-only slice — the player
+        // expands this to the channel's full filtered list.
+        PlayerPlaylist.fromContinue = true
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)

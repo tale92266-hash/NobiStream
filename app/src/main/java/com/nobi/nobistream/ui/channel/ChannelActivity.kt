@@ -23,6 +23,7 @@ import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,6 +42,9 @@ class ChannelActivity : AppCompatActivity() {
         const val EXTRA_CHAT_ID = "chat_id"
         const val EXTRA_TITLE = "title"
         private const val PAGE_SIZE = 50
+        /** v4-fb4: first-page retries while TDLib syncs the chat. */
+        private const val MAX_FIRST_PAGE_ATTEMPTS = 3
+        private const val FIRST_PAGE_RETRY_DELAY_MS = 1500L
     }
 
     private lateinit var binding: ActivityChannelBinding
@@ -59,6 +63,8 @@ class ChannelActivity : AppCompatActivity() {
     private var currentFilter = "All"
     private var query = ""
     private var sortNewest = true
+    private var firstPageAttempts = 0
+    private var firstPageRetrying = false
     private var skeletonAnimator: ObjectAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -176,6 +182,8 @@ class ChannelActivity : AppCompatActivity() {
         allVideos.clear()
         fromMessageId = 0L
         hasMore = true
+        firstPageAttempts = 0
+        firstPageRetrying = false
         adapter.submitList(emptyList())
         binding.errorState.visibility = View.GONE
         loadPage()
@@ -191,6 +199,27 @@ class ChannelActivity : AppCompatActivity() {
             try {
                 val page = repository.loadVideos(chatId, fromMessageId, PAGE_SIZE)
                 withContext(Dispatchers.Main) {
+                    // v4-fb4: the FIRST GetChatHistory for a chat whose
+                    // history isn't synced yet can SUCCEED with an empty
+                    // window (rawCount==0) — the old code then showed
+                    // "No videos found" and set hasMore=false, so the
+                    // list looked empty until Refresh was tapped. An
+                    // empty first page is not proof the channel is
+                    // empty: retry a few times, shimmer still showing,
+                    // before concluding anything.
+                    if (firstPage && page.videos.isEmpty() && page.rawCount == 0 &&
+                        firstPageAttempts < MAX_FIRST_PAGE_ATTEMPTS
+                    ) {
+                        firstPageAttempts++
+                        firstPageRetrying = true
+                        loading = false
+                        lifecycleScope.launch {
+                            delay(FIRST_PAGE_RETRY_DELAY_MS)
+                            loadPage()
+                        }
+                        return@withContext
+                    }
+                    firstPageRetrying = false
                     loading = false
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
@@ -211,6 +240,20 @@ class ChannelActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    // v4-fb4: a first-page failure can also just mean
+                    // the chat isn't ready yet — retry before showing
+                    // the error state, same as the empty-window case.
+                    if (firstPage && firstPageAttempts < MAX_FIRST_PAGE_ATTEMPTS) {
+                        firstPageAttempts++
+                        firstPageRetrying = true
+                        loading = false
+                        lifecycleScope.launch {
+                            delay(FIRST_PAGE_RETRY_DELAY_MS)
+                            loadPage()
+                        }
+                        return@withContext
+                    }
+                    firstPageRetrying = false
                     loading = false
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
@@ -286,7 +329,10 @@ class ChannelActivity : AppCompatActivity() {
         displayedVideos = list
         // DiffUtil only — no full reload, scroll position preserved.
         adapter.submitList(list)
-        val empty = list.isEmpty() && !loading
+        // v4-fb4: empty only when a load SUCCEEDED and the list is
+        // genuinely empty — never while loading or while a first-page
+        // retry is still in flight (the shimmer owns that state).
+        val empty = list.isEmpty() && !loading && !firstPageRetrying
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
         binding.videosRecycler.visibility = if (empty) View.GONE else View.VISIBLE
         if (!empty) binding.errorState.visibility = View.GONE
@@ -296,6 +342,7 @@ class ChannelActivity : AppCompatActivity() {
     private fun openPlayer(item: VideoItem, thumb: ImageView) {
         PlayerPlaylist.items = displayedVideos
         PlayerPlaylist.chatId = chatId
+        PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)

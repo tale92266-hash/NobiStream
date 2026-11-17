@@ -126,13 +126,9 @@
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- Unified Continue Watching: featured card = most recent episode. -->
-            <include
-                android:id="@+id/featuredCard"
-                layout="@layout/item_featured_continue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone" />
+            <!-- Continue Watching: small row only. The big featured
+                 hero card was REMOVED (Sam, 2026-11-17 09:24 IST) —
+                 this row is the only Continue Watching section. -->
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/continueRecycler"

@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.Rational
 import android.view.GestureDetector
 import android.view.LayoutInflater
@@ -44,6 +45,7 @@ import com.nobi.nobistream.playback.TdlibDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,6 +105,16 @@ class PlayerActivity : AppCompatActivity() {
     private var pendingSeekTarget = -1L
     private var scrollTotalDx = 0f
 
+    /**
+     * v4-fb3: resume dialog is ARMED here and only SHOWN once the
+     * player reaches STATE_READY (see playerListener). Arming it in
+     * playAt() showed the dialog over the error screen when the
+     * source failed, and on every Next/Previous. Cleared on error
+     * and on every new playAt().
+     */
+    private var pendingResumeSec: Long? = null
+    private var pendingResumeIndex: Int = -1
+
     private var enterTransitionStarted = false
 
     private val feedbackHandler = Handler(Looper.getMainLooper())
@@ -156,7 +168,10 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerError.apply {
             setTitle(getString(R.string.player_error_title))
             setBody(getString(R.string.player_error_body))
-            setRetry { playAt(index) }
+            // v4-fb3: Retry genuinely re-requests — playAt() resolves
+            // a fresh file id and builds a new MediaItem/data source,
+            // and resumes silently (no dialog on a retry).
+            setRetry { playAt(index, askResume = false) }
             setDismiss { finish() }
         }
 
@@ -202,6 +217,10 @@ class PlayerActivity : AppCompatActivity() {
             }
         } else {
             startPlayer()
+            // v4-fb3: Continue Watching opens with a Room-only slice —
+            // widen it to the channel's full filtered list in the
+            // background so Next/Previous walk the whole channel.
+            maybeExpandContinuePlaylist()
         }
     }
 
@@ -218,8 +237,10 @@ class PlayerActivity : AppCompatActivity() {
     private fun wireControllerButtons() {
         val view = binding.playerView
         ctrlPlayPause.setOnClickListener { togglePlayPause() }
-        view.findViewById<View>(R.id.ctrlPrev).setOnClickListener { playAt(index - 1) }
-        view.findViewById<View>(R.id.ctrlNext).setOnClickListener { playAt(index + 1) }
+        // v4-fb3: Next/Previous never ask — silent seek to the saved
+        // position (see playAt's askResume flag).
+        view.findViewById<View>(R.id.ctrlPrev).setOnClickListener { playAt(index - 1, askResume = false) }
+        view.findViewById<View>(R.id.ctrlNext).setOnClickListener { playAt(index + 1, askResume = false) }
         view.findViewById<View>(R.id.ctrlRew).setOnClickListener { seekBy(-10_000L) }
         view.findViewById<View>(R.id.ctrlFfwd).setOnClickListener { seekBy(10_000L) }
         view.findViewById<View>(R.id.ctrlBack).setOnClickListener { onBackPressedDispatcher.onBackPressed() }
@@ -425,11 +446,19 @@ class PlayerActivity : AppCompatActivity() {
                     binding.playerError.visibility = View.GONE
                     startPostponedEnterTransitionOnce()
                     updatePlayPauseIcon()
+                    // v4-fb3: the resume dialog fires ONLY here — once
+                    // the source is actually READY. Showing it in
+                    // playAt() put it over the error screen when the
+                    // download failed, before anything could play.
+                    pendingResumeSec?.let { saved ->
+                        pendingResumeSec = null
+                        if (pendingResumeIndex == index) showResumeDialog(saved)
+                    }
                 }
                 Player.STATE_ENDED -> {
                     binding.bufferingOverlay.visibility = View.GONE
                     savePositionNow()
-                    if (autoplay) playAt(index + 1)
+                    if (autoplay) playAt(index + 1, askResume = false)
                 }
                 else -> Unit
             }
@@ -441,6 +470,15 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            // v4-fb3: a failed source must never get a resume dialog
+            // over the error screen — and log the REAL error (the old
+            // code logged nothing, so the failure was un-diagnosable).
+            pendingResumeSec = null
+            Log.e(
+                "PlayerActivity",
+                "Playback failed for ${playlist.getOrNull(index)?.title}",
+                error
+            )
             binding.bufferingOverlay.visibility = View.GONE
             binding.playerError.visibility = View.VISIBLE
         }
@@ -465,7 +503,21 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun playAt(newIndex: Int, firstLoad: Boolean = false) {
+    /**
+     * v4-fb3: plays playlist[newIndex].
+     *
+     * - The Room item's fileId is re-resolved to a FRESH local id in
+     *   this TDLib session before the MediaItem is built (see
+     *   NobiRepository.resolveVideoItem) — the stored id is dead
+     *   after a restart, which is why open / Retry / Next / Previous
+     *   ALL failed on Ep 361 with 00:00/00:00.
+     * - [askResume] is true ONLY for opening from a list. Next /
+     *   Previous / autoplay / Retry pass false and seek silently to
+     *   the saved position — the dialog never appears there.
+     * - When askResume is true, the dialog is only ARMED here and
+     *   shown on STATE_READY, never over an error screen.
+     */
+    private fun playAt(newIndex: Int, firstLoad: Boolean = false, askResume: Boolean = true) {
         if (newIndex < 0 || newIndex >= playlist.size) {
             if (!firstLoad) {
                 Toast.makeText(
@@ -483,33 +535,108 @@ class PlayerActivity : AppCompatActivity() {
         ctrlTitle.text = item.title
         ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
         binding.playerError.visibility = View.GONE
+        pendingResumeSec = null
         val exo = player ?: return
-        exo.setMediaItem(MediaItem.fromUri("tdlib://${item.fileId}"))
-        exo.prepare()
         lifecycleScope.launch(Dispatchers.IO) {
-            val saved = repository.getPositionSec(item.chatId, item.messageId)
+            val resolved = runCatching { repository.resolveVideoItem(item) }.getOrElse { item }
+            val saved = repository.getPositionSec(resolved.chatId, resolved.messageId)
             withContext(Dispatchers.Main) {
-                if (saved > 5L && item.durationSec > 0 && saved < item.durationSec - 10L) {
-                    AlertDialog.Builder(this@PlayerActivity)
-                        .setMessage(
-                            getString(
-                                R.string.player_resume_from,
-                                FormatUtils.formatDuration(saved.toInt())
-                            )
-                        )
-                        .setPositiveButton(R.string.player_resume) { _, _ ->
-                            exo.seekTo(saved * 1000L)
-                            exo.play()
-                        }
-                        .setNegativeButton(R.string.player_restart) { _, _ ->
-                            exo.seekTo(0L)
-                            exo.play()
-                        }
-                        .setCancelable(false)
-                        .show()
-                } else {
-                    exo.play()
+                // The user may have moved on while resolving — never
+                // hijack the newer episode with the older one.
+                if (index != newIndex || player == null) return@withContext
+                exo.setMediaItem(MediaItem.fromUri("tdlib://${resolved.fileId}"))
+                exo.prepare()
+                val resumable = saved > 5L && resolved.durationSec > 0 &&
+                    saved < resolved.durationSec - 10L
+                when {
+                    !resumable -> exo.play()
+                    askResume -> {
+                        pendingResumeSec = saved
+                        pendingResumeIndex = newIndex
+                    }
+                    else -> {
+                        exo.seekTo(saved * 1000L)
+                        exo.play()
+                    }
                 }
+            }
+        }
+    }
+
+    /** Resume / Restart dialog — only from STATE_READY, only for list opens. */
+    private fun showResumeDialog(savedSec: Long) {
+        val exo = player ?: return
+        AlertDialog.Builder(this)
+            .setMessage(
+                getString(
+                    R.string.player_resume_from,
+                    FormatUtils.formatDuration(savedSec.toInt())
+                )
+            )
+            .setPositiveButton(R.string.player_resume) { _, _ ->
+                exo.seekTo(savedSec * 1000L)
+                exo.play()
+            }
+            .setNegativeButton(R.string.player_restart) { _, _ ->
+                exo.seekTo(0L)
+                exo.play()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    /**
+     * v4-fb3: when opened from Continue Watching, the playlist is
+     * only the Room slice (max 10 — "2 / 2" for Sam). Page the
+     * channel's history in the background (up to 5 pages of 50) with
+     * the channel's last-used filter applied, and swap the playlist
+     * in place once the current episode is found in it — preserving
+     * the index and the counter. Playback starts immediately on the
+     * Continue slice; the swap only widens Next/Previous. If the
+     * current episode is never found (filter excludes it, or deeper
+     * than 250 messages), the original playlist stays — never a
+     * worse state.
+     */
+    private fun maybeExpandContinuePlaylist() {
+        if (!PlayerPlaylist.fromContinue || chatId == 0L) return
+        val currentId = playlist.getOrNull(index)?.messageId ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val lastChat = runCatching { repository.settingsStore.lastChatId.first() }
+                .getOrNull() ?: 0L
+            val filter = if (lastChat == chatId) {
+                runCatching { repository.settingsStore.lastFilter.first() }.getOrNull() ?: "All"
+            } else {
+                "All"
+            }
+            val collected = mutableListOf<VideoItem>()
+            var fromId = 0L
+            var found = false
+            var pages = 0
+            while (!found && pages < 5) {
+                pages++
+                val page = runCatching { repository.loadVideos(chatId, fromId, 50) }
+                    .getOrNull() ?: break
+                val videos = if (filter != "All") {
+                    page.videos.filter { it.quality.label == filter }
+                } else {
+                    page.videos
+                }
+                collected.addAll(videos)
+                if (videos.any { it.messageId == currentId }) found = true
+                if (page.rawCount < 50 || page.lastMessageId <= 0L) break
+                fromId = page.lastMessageId
+            }
+            if (!found) return@launch
+            withContext(Dispatchers.Main) {
+                val newIndex = collected.indexOfFirst { it.messageId == currentId }
+                if (newIndex < 0) return@withContext
+                // Only swap while still on the same episode — if the
+                // user already moved on, the slice stays correct.
+                if (playlist.getOrNull(index)?.messageId != currentId) return@withContext
+                playlist = collected
+                index = newIndex
+                ctrlCounter.text =
+                    if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
             }
         }
     }

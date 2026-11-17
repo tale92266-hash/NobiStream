@@ -104,7 +104,47 @@ class NobiRepository(
                 video
             }
         }
-        return VideoPage(videos = merged, totalCount = page.totalCount)
+        // v4-fb3: preserve the pagination fields — the old code rebuilt
+        // the page with only videos + totalCount, so lastMessageId was
+        // always 0 and rawCount always 0 downstream: ChannelActivity
+        // then set hasMore = (0 >= 50) = false after the FIRST page,
+        // hiding Load more and stopping scroll-load. That is why lists
+        // stopped after one page even though more videos existed.
+        return VideoPage(
+            videos = merged,
+            totalCount = page.totalCount,
+            lastMessageId = page.lastMessageId,
+            rawCount = page.rawCount
+        )
+    }
+
+    /**
+     * v4-fb3: resolve a FRESH local file id for a Room video item in
+     * THIS TDLib session. Local file ids are ephemeral (one client
+     * lifetime — proven by the fb2 thumbnail failure, same mechanism);
+     * an item saved before a restart carries a dead fileId, and the
+     * data source's DownloadFile(staleId) throws → "Video couldn't
+     * play" on every item, including Retry and Next/Previous. The
+     * remote id is persistent, so GetRemoteFile re-resolves it; if
+     * that fails, re-read the message itself. Returns the item
+     * unchanged only when both fail, so the player fails honestly
+     * instead of silently playing a dead id.
+     */
+    suspend fun resolveVideoItem(item: VideoItem): VideoItem {
+        if (item.remoteFileId.isNotEmpty()) {
+            val freshId = runCatching { gateway.resolveFileId(item.remoteFileId) }.getOrNull()
+            if (freshId != null && freshId != item.fileId) {
+                return item.copy(fileId = freshId)
+            }
+            if (freshId != null) return item
+        }
+        val fresh = runCatching {
+            gateway.getMessageVideo(item.chatId, item.messageId)
+        }.getOrNull()
+        if (fresh != null) {
+            return fresh.copy(progressSec = item.progressSec, watched = item.watched)
+        }
+        return item
     }
 
     suspend fun downloadThumbnail(fileId: Int): String? =

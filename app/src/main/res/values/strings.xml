@@ -91,7 +91,7 @@
     <string name="player_buffered_percent">%1$d%% buffered</string>
     <string name="player_error">Could not play this video. Check your connection and try again.</string>
     <string name="player_error_title">Video couldn\'t play</string>
-    <string name="player_error_body">Check your connection and try again. If it keeps failing, the file may no longer be available on Telegram.</string>
+    <string name="player_error_body">Couldn\'t download this video from Telegram. Check your connection and try again.</string>
     <string name="player_downloading">Downloading video…</string>
     <string name="player_close">Close player</string>
     <string name="player_options">Player options</string>
