@@ -37,6 +37,7 @@ import com.google.android.material.chip.Chip
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.FormatUtils
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivityPlayerBinding
 import com.nobi.nobistream.databinding.LayoutBottomSheetPlayerBinding
@@ -219,7 +220,14 @@ class PlayerActivity : AppCompatActivity() {
             lifecycleScope.launch(Dispatchers.IO) {
                 val page = runCatching { repository.loadVideos(chatId, 0L, 50) }.getOrNull()
                 withContext(Dispatchers.Main) {
-                    playlist = page?.videos ?: emptyList()
+                    val videos = page?.videos ?: emptyList()
+                    // v5: the fallback reload is a channel list too —
+                    // dedup it like one, so Next never replays the
+                    // same episode in another quality.
+                    val smart = runCatching {
+                        repository.settingsStore.smartFilter.first()
+                    }.getOrNull() ?: true
+                    playlist = if (smart) SmartFilter.dedup(videos) else videos
                     if (playlist.isEmpty()) {
                         Toast.makeText(
                             this@PlayerActivity,
@@ -708,24 +716,33 @@ class PlayerActivity : AppCompatActivity() {
                 pages++
                 val page = runCatching { repository.loadVideos(chatId, fromId, 50) }
                     .getOrNull() ?: break
-                val videos = if (filter != "All") {
-                    page.videos.filter { it.quality.label == filter }
-                } else {
-                    page.videos
-                }
-                collected.addAll(videos)
-                if (videos.any { it.messageId == currentId }) found = true
+                collected.addAll(page.videos)
+                if (page.videos.any { it.messageId == currentId }) found = true
                 if (page.rawCount < 50 || page.lastMessageId <= 0L) break
                 fromId = page.lastMessageId
             }
             if (!found) return@launch
+            // v5: dedup FIRST (best copy per episode), then the
+            // quality filter — the same order as the channel list,
+            // so the expanded playlist never contains two copies of
+            // one episode and never shows an episode whose best copy
+            // the filter excludes. If the episode being watched is
+            // filtered out by this order, the swap is skipped and
+            // the original slice stays — never a worse state.
+            val smart = runCatching {
+                repository.settingsStore.smartFilter.first()
+            }.getOrNull() ?: true
+            var finalList = if (smart) SmartFilter.dedup(collected) else collected
+            if (filter != "All") {
+                finalList = finalList.filter { it.quality.label == filter }
+            }
+            val newIndex = finalList.indexOfFirst { it.messageId == currentId }
+            if (newIndex < 0) return@launch
             withContext(Dispatchers.Main) {
-                val newIndex = collected.indexOfFirst { it.messageId == currentId }
-                if (newIndex < 0) return@withContext
                 // Only swap while still on the same episode — if the
                 // user already moved on, the slice stays correct.
                 if (playlist.getOrNull(index)?.messageId != currentId) return@withContext
-                playlist = collected
+                playlist = finalList
                 index = newIndex
                 ctrlCounter.text =
                     if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""

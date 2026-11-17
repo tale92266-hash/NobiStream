@@ -17,9 +17,12 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.GroupItem
+import com.nobi.nobistream.core.EpisodeGroup
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivitySearchBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
+import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.channel.GridSpacingItemDecoration
 import com.nobi.nobistream.ui.channel.VideoAdapter
@@ -57,6 +60,9 @@ class SearchActivity : AppCompatActivity() {
 
     private var groups: List<GroupItem> = emptyList()
     private var results: List<VideoItem> = emptyList()
+    /** v5 Smart Filter: grouping behind the displayed results. */
+    private var smartOn = true
+    private var searchGroups: List<EpisodeGroup> = emptyList()
     private var searchJob: Job? = null
     private var skeletonAnimator: ObjectAnimator? = null
 
@@ -71,7 +77,8 @@ class SearchActivity : AppCompatActivity() {
             onClick = { item, thumb -> openPlayer(item, thumb) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
-            }
+            },
+            onCopiesClick = { item, thumb -> showCopies(item, thumb) }
         )
         val spanCount = gridSpanCount()
         binding.resultsRecycler.layoutManager = GridLayoutManager(this, spanCount)
@@ -130,6 +137,9 @@ class SearchActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             groups = repository.observeGroups().first()
+        }
+        lifecycleScope.launch {
+            smartOn = repository.settingsStore.smartFilter.first()
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -191,8 +201,19 @@ class SearchActivity : AppCompatActivity() {
                 val found = repository.searchVideos(query, groups)
                 withContext(Dispatchers.Main) {
                     showSkeleton(false)
-                    results = found
-                    adapter.submitList(found)
+                    // v5 Smart Filter: search results dedup too, so
+                    // one episode appears once even when it was
+                    // posted in four qualities.
+                    if (smartOn) {
+                        searchGroups = SmartFilter.groupEpisodes(found)
+                        results = searchGroups.map {
+                            it.best.copy(hiddenCopies = it.hiddenCount)
+                        }
+                    } else {
+                        searchGroups = emptyList()
+                        results = found
+                    }
+                    adapter.submitList(results)
                     if (found.isEmpty()) {
                         binding.resultsRecycler.visibility = View.GONE
                         binding.emptyState.visibility = View.VISIBLE
@@ -252,7 +273,16 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun openPlayer(item: VideoItem, thumb: ImageView) {
-        PlayerPlaylist.items = results
+        openPlayer(item, thumb, null)
+    }
+
+    /** v5: [playlistOverride] is the copies-picker path (see ChannelActivity). */
+    private fun openPlayer(
+        item: VideoItem,
+        thumb: ImageView,
+        playlistOverride: List<VideoItem>?
+    ) {
+        PlayerPlaylist.items = playlistOverride ?: results
         PlayerPlaylist.chatId = item.chatId
         PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
@@ -262,5 +292,19 @@ class SearchActivity : AppCompatActivity() {
             this, thumb, "video_thumb_${item.messageId}"
         )
         startActivity(intent, options.toBundle())
+    }
+
+    /** v5 Smart Filter: "N copies" badge → pick any copy of the episode. */
+    private fun showCopies(best: VideoItem, thumb: ImageView) {
+        val group = searchGroups.firstOrNull {
+            it.best.chatId == best.chatId && it.best.messageId == best.messageId
+        } ?: return
+        CopiesSheet.show(this, group) { copy ->
+            val playlist = results.map { shown ->
+                if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
+                else shown
+            }
+            openPlayer(copy, thumb, playlist)
+        }
     }
 }

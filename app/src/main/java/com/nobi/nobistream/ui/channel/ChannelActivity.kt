@@ -17,8 +17,11 @@ import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.VideoItem
+import com.nobi.nobistream.core.EpisodeGroup
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.databinding.ActivityChannelBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
+import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
@@ -63,6 +66,15 @@ class ChannelActivity : AppCompatActivity() {
     private var currentFilter = "All"
     private var query = ""
     private var sortNewest = true
+    /**
+     * v5 Smart Filter: ON by default (SettingsStore default). When
+     * ON, applyFilter() dedups allVideos into episodes first and the
+     * quality chip then filters the deduped list. currentGroups is
+     * the grouping behind the displayed list — the copies picker
+     * looks a tapped card up in it.
+     */
+    private var smartOn = true
+    private var currentGroups: List<EpisodeGroup> = emptyList()
     private var firstPageAttempts = 0
     private var firstPageRetrying = false
     private var skeletonAnimator: ObjectAnimator? = null
@@ -80,7 +92,8 @@ class ChannelActivity : AppCompatActivity() {
             onClick = { item, thumb -> openPlayer(item, thumb) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
-            }
+            },
+            onCopiesClick = { item, thumb -> showCopies(item, thumb) }
         )
         val spanCount = gridSpanCount()
         binding.videosRecycler.layoutManager = GridLayoutManager(this, spanCount)
@@ -109,6 +122,16 @@ class ChannelActivity : AppCompatActivity() {
                 R.id.chip1080 -> "1080p"
                 R.id.chip4k -> "4K"
                 else -> "All"
+            }
+            applyFilter()
+        }
+        // v5 Smart Filter toggle — independent of the quality chips
+        // (it is NOT in the single-selection ChipGroup). Persists to
+        // Settings, so the switch there and this chip stay in sync.
+        binding.chipSmart.setOnCheckedChangeListener { _, checked ->
+            smartOn = checked
+            lifecycleScope.launch {
+                repository.settingsStore.setSmartFilter(checked)
             }
             applyFilter()
         }
@@ -142,6 +165,11 @@ class ChannelActivity : AppCompatActivity() {
             setRetry { resetAndLoad() }
         }
         lifecycleScope.launch {
+            val savedSmart = repository.settingsStore.smartFilter.first()
+            if (savedSmart != smartOn) {
+                smartOn = savedSmart
+                binding.chipSmart.isChecked = savedSmart
+            }
             val savedFilter = repository.settingsStore.defaultFilter.first()
             if (savedFilter != currentFilter) {
                 currentFilter = savedFilter
@@ -316,6 +344,19 @@ class ChannelActivity : AppCompatActivity() {
 
     private fun applyFilter() {
         var list = allVideos.toList()
+        // v5 Smart Filter — dedup FIRST, then the quality chip
+        // filters the deduped list. So with the 1080p chip on, only
+        // episodes whose BEST copy is 1080p show; an episode whose
+        // best copy is 4K does not show under 1080p. Grouping runs
+        // over ALL loaded videos (not just this page), and Load More
+        // re-runs it, so a duplicate merged on page 1 never
+        // reappears when page 2 loads.
+        if (smartOn) {
+            currentGroups = SmartFilter.groupEpisodes(list)
+            list = currentGroups.map { it.best.copy(hiddenCopies = it.hiddenCount) }
+        } else {
+            currentGroups = emptyList()
+        }
         if (currentFilter != "All") {
             list = list.filter { it.quality.label == currentFilter }
         }
@@ -340,7 +381,21 @@ class ChannelActivity : AppCompatActivity() {
     }
 
     private fun openPlayer(item: VideoItem, thumb: ImageView) {
-        PlayerPlaylist.items = displayedVideos
+        openPlayer(item, thumb, null)
+    }
+
+    /**
+     * v5: [playlistOverride] is the copies-picker path — the picked
+     * copy replaces its episode's best copy in the playlist, so
+     * Next/Previous keep walking the same (deduped) list and the
+     * counter stays right. Null = play from the displayed list.
+     */
+    private fun openPlayer(
+        item: VideoItem,
+        thumb: ImageView,
+        playlistOverride: List<VideoItem>?
+    ) {
+        PlayerPlaylist.items = playlistOverride ?: displayedVideos
         PlayerPlaylist.chatId = chatId
         PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
@@ -350,5 +405,19 @@ class ChannelActivity : AppCompatActivity() {
             this, thumb, "video_thumb_${item.messageId}"
         )
         startActivity(intent, options.toBundle())
+    }
+
+    /** v5 Smart Filter: "N copies" badge → pick any copy of the episode. */
+    private fun showCopies(best: VideoItem, thumb: ImageView) {
+        val group = currentGroups.firstOrNull {
+            it.best.chatId == best.chatId && it.best.messageId == best.messageId
+        } ?: return
+        CopiesSheet.show(this, group) { copy ->
+            val playlist = displayedVideos.map { shown ->
+                if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
+                else shown
+            }
+            openPlayer(copy, thumb, playlist)
+        }
     }
 }

@@ -213,13 +213,22 @@
                 android:scrollbars="none"
                 android:visibility="gone">
 
+                <!-- v5: same Smart toggle as Channel Detail — beside
+                     the quality ChipGroup, never inside it (see
+                     activity_channel.xml). -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="@dimen/screen_margin"
+                    android:paddingTop="@dimen/spacing_8"
+                    android:paddingEnd="@dimen/screen_margin">
+
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/libraryFilterChips"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingStart="@dimen/screen_margin"
-                    android:paddingTop="@dimen/spacing_8"
-                    android:paddingEnd="@dimen/screen_margin"
                     app:chipSpacingHorizontal="@dimen/chip_gap"
                     app:selectionRequired="true"
                     app:singleSelection="true">
@@ -265,6 +274,17 @@
                         android:checkable="true"
                         android:text="4K" />
                 </com.google.android.material.chip.ChipGroup>
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/libChipSmart"
+                        style="@style/Widget.NobiStream.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/chip_gap"
+                        android:checkable="true"
+                        android:checked="true"
+                        android:text="@string/channel_filter_smart" />
+                </LinearLayout>
             </HorizontalScrollView>
 
             <androidx.recyclerview.widget.RecyclerView

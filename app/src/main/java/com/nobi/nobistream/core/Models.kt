@@ -46,7 +46,13 @@ data class VideoItem(
     val thumbFileId: Int?,
     val thumbLocalPath: String?,
     val progressSec: Long = 0L,
-    val watched: Boolean = false
+    val watched: Boolean = false,
+    /**
+     * v5 Smart Filter: how many duplicate copies of this episode were
+     * hidden behind this best copy (0 = this video is its own group).
+     * Display-only — never persisted, never part of identity.
+     */
+    val hiddenCopies: Int = 0
 ) {
     val progressFraction: Float
         get() = if (durationSec > 0) {

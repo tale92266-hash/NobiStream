@@ -37,6 +37,14 @@ class SettingsStore(context: Context) {
     val openLastEpisode: Flow<Boolean> = dataStore.data.map { it[KEY_OPEN_LAST_EPISODE] ?: false }
 
     /**
+     * v5 Smart Filter: default ON — each episode shows once, in its
+     * best quality. Key absent = ON, so existing installs get it
+     * without any migration. OFF restores the old behaviour (every
+     * copy listed).
+     */
+    val smartFilter: Flow<Boolean> = dataStore.data.map { it[KEY_SMART_FILTER] ?: true }
+
+    /**
      * v4: recent search queries, newest first, capped at 10,
      * de-duplicated (case-insensitive). Query text only — nothing
      * else is stored. Kept as one newline-joined string so the
@@ -61,6 +69,10 @@ class SettingsStore(context: Context) {
 
     suspend fun clearRecentSearches() {
         dataStore.edit { it.remove(KEY_RECENT_SEARCHES) }
+    }
+
+    suspend fun setSmartFilter(value: Boolean) {
+        dataStore.edit { it[KEY_SMART_FILTER] = value }
     }
 
     suspend fun setAutoplay(value: Boolean) {
@@ -97,6 +109,7 @@ class SettingsStore(context: Context) {
         val KEY_LAST_CHAT_ID = longPreferencesKey("last_chat_id")
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")
         val KEY_OPEN_LAST_EPISODE = booleanPreferencesKey("open_last_episode")
+        val KEY_SMART_FILTER = booleanPreferencesKey("smart_filter")
         val KEY_RECENT_SEARCHES = stringPreferencesKey("recent_searches")
         const val MAX_RECENT_SEARCHES = 10
     }

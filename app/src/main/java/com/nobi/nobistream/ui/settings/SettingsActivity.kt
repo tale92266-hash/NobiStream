@@ -83,6 +83,11 @@ class SettingsActivity : AppCompatActivity() {
                 repository.settingsStore.setOpenLastEpisode(checked)
             }
         }
+        binding.smartFilterSwitch.setOnCheckedChangeListener { _, checked ->
+            lifecycleScope.launch {
+                repository.settingsStore.setSmartFilter(checked)
+            }
+        }
         val filterAdapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
@@ -113,6 +118,15 @@ class SettingsActivity : AppCompatActivity() {
                 repository.settingsStore.autoplay.collect { value ->
                     if (binding.autoplaySwitch.isChecked != value) {
                         binding.autoplaySwitch.isChecked = value
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.smartFilter.collect { value ->
+                    if (binding.smartFilterSwitch.isChecked != value) {
+                        binding.smartFilterSwitch.isChecked = value
                     }
                 }
             }

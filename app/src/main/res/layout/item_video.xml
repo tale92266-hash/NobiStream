@@ -63,6 +63,27 @@
                 android:textColor="#FFFFFF"
                 android:textSize="@dimen/text_badge" />
 
+            <!-- v5 Smart Filter: "N copies" badge — top-right, so it
+                 never collides with the quality badge (top-left) or
+                 the duration (bottom-right). Tappable: opens the
+                 copies picker for this episode. -->
+            <TextView
+                android:id="@+id/copiesBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="@dimen/spacing_8"
+                android:background="@drawable/bg_badge_dark"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="@dimen/spacing_8"
+                android:paddingTop="@dimen/spacing_4"
+                android:paddingEnd="@dimen/spacing_8"
+                android:paddingBottom="@dimen/spacing_4"
+                android:textColor="#FFFFFF"
+                android:textSize="@dimen/text_badge"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/watchedBadge"
                 android:layout_width="wrap_content"

@@ -21,12 +21,15 @@ import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.AuthState
+import com.nobi.nobistream.core.EpisodeGroup
 import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.GroupItem
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivityMainBinding
 import com.nobi.nobistream.databinding.LayoutBottomSheetAddChannelBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
+import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.channel.ChannelActivity
 import com.nobi.nobistream.ui.channel.GridSpacingItemDecoration
@@ -81,6 +84,9 @@ class MainActivity : AppCompatActivity() {
     private var displayedLibrary: List<VideoItem> = emptyList()
     private var libraryFilter = "All"
     private var librarySort = LibrarySort.NEWEST
+    /** v5 Smart Filter (same semantics as ChannelActivity). */
+    private var librarySmartOn = true
+    private var libraryGroups: List<EpisodeGroup> = emptyList()
     private var libraryCursors: Map<Long, Long> = emptyMap()
     private var libraryHasMore = true
     private var libraryLoading = false
@@ -138,7 +144,8 @@ class MainActivity : AppCompatActivity() {
             onClick = { item, thumb -> openLibraryPlayer(item, thumb) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
-            }
+            },
+            onCopiesClick = { item, thumb -> showLibraryCopies(item, thumb) }
         )
         val spanCount = gridSpanCount()
         binding.libraryRecycler.layoutManager = GridLayoutManager(this, spanCount)
@@ -158,6 +165,14 @@ class MainActivity : AppCompatActivity() {
                 R.id.libChip1080 -> "1080p"
                 R.id.libChip4k -> "4K"
                 else -> "All"
+            }
+            applyLibraryFilter()
+        }
+        // v5 Smart Filter toggle (see ChannelActivity).
+        binding.libChipSmart.setOnCheckedChangeListener { _, checked ->
+            librarySmartOn = checked
+            lifecycleScope.launch {
+                repository.settingsStore.setSmartFilter(checked)
             }
             applyLibraryFilter()
         }
@@ -235,6 +250,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            val savedSmart = repository.settingsStore.smartFilter.first()
+            if (savedSmart != librarySmartOn) {
+                librarySmartOn = savedSmart
+                binding.libChipSmart.isChecked = savedSmart
+            }
             val savedFilter = repository.settingsStore.defaultFilter.first()
             if (savedFilter != libraryFilter) {
                 libraryFilter = savedFilter
@@ -352,6 +372,15 @@ class MainActivity : AppCompatActivity() {
     private fun applyLibraryFilter() {
         if (libraryFirstPageFailed) return
         var list = allLibrary.toList()
+        // v5 Smart Filter — dedup FIRST, then the quality chip (same
+        // order as ChannelActivity). Load More re-runs this over the
+        // merged list, so duplicates never reappear.
+        if (librarySmartOn) {
+            libraryGroups = SmartFilter.groupEpisodes(list)
+            list = libraryGroups.map { it.best.copy(hiddenCopies = it.hiddenCount) }
+        } else {
+            libraryGroups = emptyList()
+        }
         if (libraryFilter != "All") {
             list = list.filter { it.quality.label == libraryFilter }
         }
@@ -478,7 +507,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openLibraryPlayer(item: VideoItem, thumb: ImageView) {
-        PlayerPlaylist.items = displayedLibrary
+        openLibraryPlayer(item, thumb, null)
+    }
+
+    /** v5: [playlistOverride] is the copies-picker path (see ChannelActivity). */
+    private fun openLibraryPlayer(
+        item: VideoItem,
+        thumb: ImageView,
+        playlistOverride: List<VideoItem>?
+    ) {
+        PlayerPlaylist.items = playlistOverride ?: displayedLibrary
         PlayerPlaylist.chatId = item.chatId
         PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
@@ -488,6 +526,20 @@ class MainActivity : AppCompatActivity() {
             this, thumb, "video_thumb_${item.messageId}"
         )
         startActivity(intent, options.toBundle())
+    }
+
+    /** v5 Smart Filter: "N copies" badge → pick any copy of the episode. */
+    private fun showLibraryCopies(best: VideoItem, thumb: ImageView) {
+        val group = libraryGroups.firstOrNull {
+            it.best.chatId == best.chatId && it.best.messageId == best.messageId
+        } ?: return
+        CopiesSheet.show(this, group) { copy ->
+            val playlist = displayedLibrary.map { shown ->
+                if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
+                else shown
+            }
+            openLibraryPlayer(copy, thumb, playlist)
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.nobi.nobistream.playback
 
 import android.net.Uri
+import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
@@ -24,18 +25,15 @@ import kotlinx.coroutines.runBlocking
  * downloaded ranges are reused from TDLib's file cache in filesDir
  * (useFileDatabase is on), so a seek never re-downloads what is there.
  *
- * v4 stutter/corruption fix — the old ensureDownloaded() gated reads on
- * `downloadedSize`, which the TL scheme documents as progress-only
- * ("some parts of it may contain garbage"). For any seek past the
- * total downloaded sum the gate stayed open, the code burned 3
- * synchronous calls per read (loader stalls = stutter) and then read
- * the region ANYWAY, unverified — garbage bytes in, purple/green
- * macroblocks out. Now: readiness is judged by the contiguous
- * readable prefix (downloadedPrefixSize) plus our own bookkeeping of
- * ranges a synchronous DownloadFile call already completed, and a
- * range that still isn't there after retries throws instead of
- * serving unchecked bytes (ExoPlayer rebuffers/retries instead of
- * decoding garbage).
+ * v5 seek fix — the v4 code threw after 3 immediate attempts when a
+ * range wasn't downloaded yet, so a +10s seek (whose bytes simply
+ * hadn't arrived) showed the playback-error screen instead of
+ * buffering. Now ensureDownloaded() waits patiently (up to 60s) for
+ * the range to arrive, proving coverage from the returned state on
+ * every attempt — a range that still isn't proven after 60s throws,
+ * so the error screen with Retry remains for genuinely stuck
+ * downloads. Garbage is still never served: only proven ranges are
+ * read, and prefetchedUntil is only ever advanced to a proven end.
  */
 @UnstableApi
 class TdlibDataSource(
@@ -53,7 +51,18 @@ class TdlibDataSource(
     companion object {
         /** One range download covers at least this much lookahead. */
         private const val LOOKAHEAD_BYTES = 8L * 1024L * 1024L
-        private const val MAX_ENSURE_ATTEMPTS = 3
+
+        /**
+         * v5 seek fix: how long a read may WAIT for its bytes to
+         * arrive before it is allowed to fail. A +10s seek lands on
+         * a range that is simply not downloaded yet — that is
+         * buffering, not failure, and the player shows its buffering
+         * overlay while this loop waits. The old code gave up after
+         * 3 immediate attempts and threw, so a seek showed the
+         * playback-error screen instead of buffering.
+         */
+        private const val MAX_ENSURE_WAIT_MS = 60_000L
+        private const val ENSURE_RETRY_DELAY_MS = 500L
     }
 
     /**
@@ -78,10 +87,33 @@ class TdlibDataSource(
         fileId = newFileId
         val info = runBlocking {
             var found: VideoFileInfo? = null
-            for (attempt in 0 until 60) {
-                found = gateway.downloadFileInfo(fileId)
-                if (found != null) break
-                delay(500L)
+            // v5 seek fix: a seek open needs bytes AT the seek
+            // position, not at offset 0. The old code only started a
+            // from-the-start download here and then threw after 30s
+            // when the local path still wasn't ready — exactly the
+            // +10s seek error. Synchronously fetch the target range
+            // first; only fall back to the from-start download when
+            // that cannot produce a readable file yet.
+            if (dataSpec.position > 0) {
+                found = runCatching {
+                    gateway.ensureRange(fileId, dataSpec.position, LOOKAHEAD_BYTES)
+                }.getOrNull()?.takeIf { range ->
+                    range.localPath.isNotEmpty() && File(range.localPath).exists()
+                }
+            }
+            if (found == null) {
+                for (attempt in 0 until 60) {
+                    val candidate = gateway.downloadFileInfo(fileId)
+                    // A path can be assigned before the file exists
+                    // on disk — opening it would throw
+                    // FileNotFoundException straight into the error
+                    // screen, so wait for the real file.
+                    if (candidate != null && File(candidate.localPath).exists()) {
+                        found = candidate
+                        break
+                    }
+                    delay(500L)
+                }
             }
             found
         } ?: throw java.io.IOException("Could not start download of video $fileId")
@@ -128,27 +160,32 @@ class TdlibDataSource(
      * parts. An IOException here makes ExoPlayer rebuffer and retry
      * the load instead of decoding corrupt frames.
      *
+     * v5 seek fix: "not here yet" is BUFFERING, not failure. A +10s
+     * seek lands on a range the download has not reached, and the
+     * old code threw after 3 immediate attempts — so the seek showed
+     * the playback-error screen instead of the buffering spinner.
+     * This loop now waits patiently (up to 60s, 500ms between
+     * attempts) for the range to arrive, proving coverage from the
+     * returned state on EVERY attempt. A synchronous DownloadFile
+     * that returns early (superseded / failed download) proves
+     * nothing and is retried, never trusted. Only a genuinely stuck
+     * download — nothing proven after 60s — still throws, so the
+     * error screen with Retry remains for real failures.
+     *
      * How a range is proven downloaded (in order):
      *  1. the whole file is complete, or
-     *  2. the contiguous readable prefix (downloadedPrefixSize, from
-     *     downloadOffset) already covers it, or
-     *  3. our own bookkeeping: a synchronous DownloadFile call for
-     *     this file already completed a range covering it, or
-     *  4. one synchronous DownloadFile call for [position, +lookahead)
-     *     returns without error — TDLib's documented contract is
-     *     that a synchronous call returns only after that part is
-     *     downloaded (or failed/cancelled/superseded, which surface
-     *     as an exception or a null file state, never as success).
-     * A null file state is retried; after 3 attempts it throws.
+     *  2. the contiguous readable prefix (downloadedPrefixSize,
+     *     starting at downloadOffset) covers it, or
+     *  3. our own bookkeeping: a range already proven in this
+     *     session covers it.
+     * A null file state is retried like any other unproven state.
      */
     private fun ensureDownloaded(position: Long, length: Long) {
         val info = fileInfo ?: return
         if (info.isComplete) return
         if (position + length <= prefetchedUntil) return
-        if (info.downloadOffset == 0L &&
-            info.downloadedPrefixSize >= position + length
-        ) {
-            prefetchedUntil = maxOf(prefetchedUntil, position + length)
+        if (covers(info, position, length)) {
+            prefetchedUntil = maxOf(prefetchedUntil, provenEnd(info))
             return
         }
         // One range download covers at least 8 MB ahead, so the
@@ -160,21 +197,55 @@ class TdlibDataSource(
             Long.MAX_VALUE
         }
         val want = minOf(maxOf(length, LOOKAHEAD_BYTES), remaining.coerceAtLeast(length))
+        val deadline = SystemClock.elapsedRealtime() + MAX_ENSURE_WAIT_MS
         var attempts = 0
-        var last: VideoFileInfo? = null
-        while (attempts < MAX_ENSURE_ATTEMPTS) {
+        while (true) {
+            // The player is tearing down — stop waiting at once.
+            if (!opened) {
+                throw java.io.IOException("Download interrupted (file $fileId)")
+            }
             attempts++
-            last = runBlocking {
+            val downloaded = runBlocking {
                 runCatching { gateway.ensureRange(fileId, position, want) }.getOrNull()
             }
-            if (last != null) break
+            if (downloaded != null) {
+                fileInfo = downloaded
+                if (covers(downloaded, position, length)) {
+                    prefetchedUntil = maxOf(prefetchedUntil, provenEnd(downloaded))
+                    return
+                }
+            }
+            if (SystemClock.elapsedRealtime() >= deadline) {
+                throw java.io.IOException(
+                    "Could not download video bytes at $position " +
+                        "(file $fileId) after $attempts attempts"
+                )
+            }
+            runBlocking { delay(ENSURE_RETRY_DELAY_MS) }
         }
-        val downloaded = last
-            ?: throw java.io.IOException(
-                "Could not download video bytes at $position (file $fileId)"
-            )
-        fileInfo = downloaded
-        prefetchedUntil = maxOf(prefetchedUntil, position + want)
+    }
+
+    /**
+     * True when [info] PROVES the bytes [position, position+length)
+     * are readable: the whole file is complete, or the contiguous
+     * downloaded prefix (which starts at downloadOffset, not
+     * always at 0 — a range download reports its own offset) covers
+     * the range. downloadedSize is progress-only and is never used
+     * here — bytes beyond the prefix may be garbage.
+     */
+    private fun covers(info: VideoFileInfo, position: Long, length: Long): Boolean {
+        if (info.isComplete) return true
+        val prefixStart = info.downloadOffset
+        val prefixEnd = prefixStart + info.downloadedPrefixSize
+        return prefixStart <= position && prefixEnd >= position + length
+    }
+
+    /** Furthest byte proven downloaded by [info] (Long.MAX_VALUE when complete). */
+    private fun provenEnd(info: VideoFileInfo): Long {
+        if (info.isComplete) {
+            return if (info.sizeBytes > 0L) info.sizeBytes else Long.MAX_VALUE
+        }
+        return info.downloadOffset + info.downloadedPrefixSize
     }
 
     override fun close() {

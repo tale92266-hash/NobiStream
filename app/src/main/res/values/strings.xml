@@ -65,6 +65,11 @@
     <string name="home_left">%1$s left</string>
 
     <string name="channel_filter_all">All</string>
+    <string name="channel_filter_smart">Smart</string>
+    <!-- v5 Smart Filter: copies picker -->
+    <string name="smart_copies_badge">%1$d copies</string>
+    <string name="smart_copies_title">%1$s • %2$d copies</string>
+    <string name="smart_copies_best">Best</string>
     <string name="channel_search_hint">Search by title or episode</string>
     <string name="channel_sort_newest">Newest first</string>
     <string name="channel_sort_oldest">Oldest first</string>
@@ -138,6 +143,8 @@
     <string name="settings_playback_section">Playback</string>
     <string name="settings_autoplay">Autoplay next video</string>
     <string name="settings_autoplay_desc">Play the next video automatically when one ends.</string>
+    <string name="settings_smart_filter">Smart Filter</string>
+    <string name="settings_smart_filter_desc">Show each episode once, in its best quality. Turn off to see every copy.</string>
     <string name="settings_open_last_episode">Open last episode on start</string>
     <string name="settings_open_last_episode_desc">Jump straight to the episode you were watching when the app opens.</string>
     <string name="settings_default_filter">Default quality filter</string>

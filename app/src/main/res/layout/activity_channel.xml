@@ -22,13 +22,23 @@
         android:layout_height="wrap_content"
         android:scrollbars="none">
 
+        <!-- v5: the Smart chip sits BESIDE the quality ChipGroup, not
+             inside it — it is an independent on/off toggle, and the
+             ChipGroup's singleSelection would otherwise uncheck the
+             quality chip when Smart is toggled. -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/screen_margin"
+            android:paddingTop="@dimen/spacing_8"
+            android:paddingEnd="@dimen/screen_margin">
+
         <com.google.android.material.chip.ChipGroup
             android:id="@+id/filterChips"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="@dimen/screen_margin"
-            android:paddingTop="@dimen/spacing_8"
-            android:paddingEnd="@dimen/screen_margin"
             app:chipSpacingHorizontal="@dimen/chip_gap"
             app:selectionRequired="true"
             app:singleSelection="true">
@@ -74,6 +84,21 @@
                 android:checkable="true"
                 android:text="4K" />
         </com.google.android.material.chip.ChipGroup>
+
+            <!-- v5 Smart Filter toggle (default ON). One episode, one
+                 card, in its best quality. Independent of the quality
+                 chips: dedup runs first, the quality chip then filters
+                 the deduped list. -->
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipSmart"
+                style="@style/Widget.NobiStream.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/chip_gap"
+                android:checkable="true"
+                android:checked="true"
+                android:text="@string/channel_filter_smart" />
+        </LinearLayout>
     </HorizontalScrollView>
 
     <LinearLayout
