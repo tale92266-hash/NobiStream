@@ -1,17 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Custom Media3 controller (v3). PlayerView only manages the ids it knows:
-  exo_position / exo_duration / exo_progress (DefaultTimeBar). Every other
-  button has a custom id and is wired by PlayerActivity, so ALL icons are
-  the Material Symbols drawables (24dp, #E3E3E3) — no Media3 stock icons.
+  Custom Media3 controller (v3, Netflix-style polish v4). PlayerView only
+  manages the ids it knows: exo_position / exo_duration / exo_progress
+  (DefaultTimeBar, buffered progress + time labels). Every other button
+  has a custom id and is wired by PlayerActivity, so ALL icons are the
+  Material Symbols drawables (24dp, #E3E3E3) — no Media3 stock icons.
 
-  Hierarchy: top bar (close, title, options) / centre transport /
-  time + seek bar / bottom row (fullscreen, aspect, PiP, lock, episode
-  counter, speed). Speed + autoplay + aspect also live in the options
-  bottom sheet; the speed label here is a shortcut into it.
+  Hierarchy (Netflix-style, clean + minimal): top bar (back, title,
+  settings) / centre transport (Prev, -10s, big Play/Pause, +10s, Next)
+  / time labels + seek bar / bottom row (fullscreen, aspect, PiP, lock,
+  episode counter, speed). Speed + autoplay + aspect also live in the
+  options bottom sheet; the speed label here is a shortcut into it.
+
+  The root has an id (playerControllerRoot) so PlayerActivity can fade
+  it in/out — visibility is driven ONLY by its isControlsVisible
+  boolean, never by PlayerView's internal state.
 -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/playerControllerRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/player_controller_scrim">

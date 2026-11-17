@@ -69,6 +69,8 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_MESSAGE_ID = "message_id"
 
         private const val CONTROLLER_TIMEOUT_MS = 3000
+        /** Netflix-style fade for the controls (spec: 200–300ms). */
+        private const val CONTROLLER_FADE_MS = 250L
 
         private const val SCROLL_NONE = 0
         private const val SCROLL_VERTICAL = 1
@@ -117,6 +119,20 @@ class PlayerActivity : AppCompatActivity() {
 
     private var enterTransitionStarted = false
 
+    /**
+     * v4-player-UX: THE single source of truth for whether the
+     * controls are open or hidden. Every tap flips this boolean and
+     * every UI change goes through setControlsVisible() — nothing
+     * reads PlayerView's internal controller state
+     * (isControllerFullyVisible) any more, so the app can never
+     * drift out of sync with what the user sees. Starts visible.
+     */
+    private var isControlsVisible = true
+    private val hideControlsHandler = Handler(Looper.getMainLooper())
+    private val hideControlsRunnable = Runnable {
+        if (player?.isPlaying == true) setControlsVisible(false)
+    }
+
     private val feedbackHandler = Handler(Looper.getMainLooper())
     private val hideFeedback = Runnable { binding.gestureFeedback.visibility = View.GONE }
     private val bufferHandler = Handler(Looper.getMainLooper())
@@ -157,12 +173,15 @@ class PlayerActivity : AppCompatActivity() {
         // Controller views first: setFullscreen() touches the fullscreen icon.
         findControllerViews()
         setFullscreen(true)
-        binding.playerView.setControllerShowTimeoutMs(CONTROLLER_TIMEOUT_MS)
-        // v4: PlayerView's own tap-to-toggle is OFF — our GestureDetector
-        // below is the ONLY tap handler (see setupGestures). With both
-        // active, one tap toggled the controller twice (show then hide)
-        // and the tap looked dead. The 3s auto-hide timeout still applies.
+        // v4-player-UX: PlayerView NEVER drives visibility on its own
+        // any more — no auto-show on play/pause, no own timeout, no
+        // tap-toggle. isControlsVisible + setControlsVisible() are
+        // the only driver (see below). The 3s auto-hide while playing
+        // is our own Handler, not PlayerView's timeout.
+        binding.playerView.setControllerAutoShow(false)
+        binding.playerView.setControllerShowTimeoutMs(0)
         binding.playerView.setControllerHideOnTouch(false)
+        setControlsVisible(true, animate = false)
         wireControllerButtons()
         binding.lockOverlayButton.setOnClickListener { setLocked(false) }
         binding.playerError.apply {
@@ -272,14 +291,16 @@ class PlayerActivity : AppCompatActivity() {
     private fun setLocked(value: Boolean) {
         locked = value
         if (value) {
-            binding.playerView.hideController()
+            // Locking hides the controls through the single source of
+            // truth — never PlayerView directly.
+            setControlsVisible(false)
             binding.lockOverlayButton.visibility = View.VISIBLE
             ctrlLock.setImageResource(R.drawable.ic_lock)
             Toast.makeText(this, getString(R.string.player_locked), Toast.LENGTH_SHORT).show()
         } else {
             binding.lockOverlayButton.visibility = View.GONE
             ctrlLock.setImageResource(R.drawable.ic_lock_open)
-            binding.playerView.showController()
+            setControlsVisible(true)
             Toast.makeText(this, getString(R.string.player_unlocked), Toast.LENGTH_SHORT).show()
         }
     }
@@ -319,21 +340,24 @@ class PlayerActivity : AppCompatActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
-            binding.playerView.hideController()
+            // PiP hides the controls through the single source of
+            // truth (no fade — the window is already shrinking).
+            setControlsVisible(false, animate = false)
             binding.bufferingOverlay.visibility = View.GONE
             binding.gestureFeedback.visibility = View.GONE
             binding.playerError.visibility = View.GONE
             binding.lockOverlayButton.visibility = View.GONE
         } else if (locked) {
             binding.lockOverlayButton.visibility = View.VISIBLE
+        } else {
+            setControlsVisible(true, animate = false)
         }
     }
 
     /**
      * Player options bottom sheet (pixel spec §07): rows 56dp, speed chips,
      * autoplay switch, aspect chips. While the sheet is open the controls
-     * must NOT auto-hide (timeout 0 = shown indefinitely); the 3s timeout
-     * is restored when the sheet dismisses.
+     * must NOT auto-hide; the 3s timer is restored when the sheet dismisses.
      */
     private fun showOptionsSheet() {
         if (optionsSheet?.isShowing == true) return
@@ -375,13 +399,15 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        binding.playerView.setControllerShowTimeoutMs(0)
-        binding.playerView.showController()
+        // While the sheet is open the controls must NOT auto-hide;
+        // the 3s timer is ours, so just cancel it, and restore the
+        // controls (with a fresh timer) when the sheet dismisses.
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        setControlsVisible(true)
         dialog.setContentView(sheetBinding.root)
         dialog.setOnDismissListener {
             if (optionsSheet == dialog) optionsSheet = null
-            binding.playerView.setControllerShowTimeoutMs(CONTROLLER_TIMEOUT_MS)
-            binding.playerView.showController()
+            setControlsVisible(true)
         }
         dialog.show()
     }
@@ -392,6 +418,58 @@ class PlayerActivity : AppCompatActivity() {
         player?.playbackParameters = PlaybackParameters(speed)
         ctrlSpeedLabel.text = "${speed}x"
         showFeedback(R.drawable.ic_speed, "Speed ${speed}x")
+    }
+
+    /**
+     * v4-player-UX: the ONLY place controller visibility changes.
+     * Flips [isControlsVisible] and drives PlayerView from it — the
+     * app never asks PlayerView what it thinks. Showing fades the
+     * controller in (250ms) and (re)arms the 3s auto-hide while
+     * playing; hiding fades it out and only then sets it GONE, so
+     * the tools never blink away mid-tap. While locked, showing is
+     * refused outright — the lock overlay is the only UI.
+     */
+    private fun setControlsVisible(visible: Boolean, animate: Boolean = true) {
+        if (visible && locked) return
+        val wasVisible = isControlsVisible
+        isControlsVisible = visible
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        val view = binding.playerView
+        val controller = view.findViewById<View>(R.id.playerControllerRoot)
+        if (visible) {
+            if (!wasVisible) {
+                view.showController()
+                if (controller != null) {
+                    controller.animate().cancel()
+                    controller.alpha = if (animate) 0f else 1f
+                    if (animate) {
+                        controller.animate().alpha(1f)
+                            .setDuration(CONTROLLER_FADE_MS).start()
+                    }
+                }
+            }
+            scheduleAutoHide()
+        } else {
+            if (wasVisible) {
+                if (animate && controller != null) {
+                    controller.animate().cancel()
+                    controller.animate().alpha(0f)
+                        .setDuration(CONTROLLER_FADE_MS)
+                        .withEndAction { view.hideController() }
+                        .start()
+                } else {
+                    view.hideController()
+                }
+            }
+        }
+    }
+
+    /** 3s auto-hide, only while actually playing. */
+    private fun scheduleAutoHide() {
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        if (player?.isPlaying == true) {
+            hideControlsHandler.postDelayed(hideControlsRunnable, CONTROLLER_TIMEOUT_MS.toLong())
+        }
     }
 
     private fun togglePlayPause() {
@@ -466,7 +544,21 @@ class PlayerActivity : AppCompatActivity() {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updatePlayPauseIcon()
-            if (isPlaying) startSaveTicker() else stopSaveTicker()
+            if (isPlaying) {
+                startSaveTicker()
+                // Playing again: the 3s auto-hide resumes.
+                scheduleAutoHide()
+            } else {
+                stopSaveTicker()
+                // Paused: controls STAY visible (spec). But only when
+                // actually paused (playWhenReady false) — during a
+                // rebuffer playWhenReady is still true and the
+                // controls must not pop back in on their own.
+                if (player?.playWhenReady == false) {
+                    hideControlsHandler.removeCallbacks(hideControlsRunnable)
+                    setControlsVisible(true)
+                }
+            }
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -675,8 +767,12 @@ class PlayerActivity : AppCompatActivity() {
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                     if (locked) return true
-                    val view = binding.playerView
-                    if (view.isControllerFullyVisible) view.hideController() else view.showController()
+                    // v4-player-UX: ONE tap flips the single source of
+                    // truth — every tool hides, next tap shows them
+                    // all again. onSingleTapConfirmed (not onDown /
+                    // onSingleTapUp) so a double-tap seek never also
+                    // toggles, and swipes never reach here as taps.
+                    setControlsVisible(!isControlsVisible)
                     return true
                 }
 
@@ -806,6 +902,7 @@ class PlayerActivity : AppCompatActivity() {
         optionsSheet = null
         bufferHandler.removeCallbacks(bufferUpdater)
         feedbackHandler.removeCallbacks(hideFeedback)
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
         savePositionNow()
         stopSaveTicker()
         player?.release()
