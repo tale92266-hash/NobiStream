@@ -89,9 +89,6 @@
     <string name="player_autoplay">Autoplay next</string>
     <string name="player_autoplay_desc">Play the next video automatically when this one ends.</string>
     <string name="player_speed">Speed</string>
-    <string name="player_resume_from">Resume from %1$s?</string>
-    <string name="player_resume">Resume</string>
-    <string name="player_restart">Restart</string>
     <string name="player_buffering">Buffering…</string>
     <!-- v6 Rule 2: shown under the spinner after 10s of continuous
          stall (OUR deliberate choice, not a YouTube number). -->

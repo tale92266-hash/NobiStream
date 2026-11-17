@@ -83,8 +83,12 @@ import kotlinx.coroutines.withContext
  * between (Rule 5); subtitles come from .srt/.vtt sidecars discovered
  * near the video message, with a CC button only when a track exists
  * (Rule 6); and the resume path is race-free (setMediaItem at the
- * saved position + stall-classified resume errors) so tapping Resume
+ * saved position + stall-classified resume errors) so opening a video
  * can no longer show the error screen for a far, unbuffered range.
+ * v6 also removes the resume dialog entirely (Sam, 2026-11-17): every
+ * open auto-resumes SILENTLY from the saved position, YouTube-style —
+ * no prompt, no Restart button; a near-complete video (saved within
+ * 10s of the end) restarts from 0 instead.
  */
 class PlayerActivity : AppCompatActivity() {
 
@@ -145,16 +149,6 @@ class PlayerActivity : AppCompatActivity() {
     private var scrollStartPosition = 0L
     private var pendingSeekTarget = -1L
     private var scrollTotalDx = 0f
-
-    /**
-     * v4-fb3: resume dialog is ARMED here and only SHOWN once the
-     * player reaches STATE_READY (see playerListener). Arming it in
-     * playAt() showed the dialog over the error screen when the
-     * source failed, and on every Next/Previous. Cleared on error
-     * and on every new playAt().
-     */
-    private var pendingResumeSec: Long? = null
-    private var pendingResumeIndex: Int = -1
 
     /**
      * v6 Rule 1/2 — stall handling. A load/IO failure while playing
@@ -255,12 +249,13 @@ class PlayerActivity : AppCompatActivity() {
             setTitle(getString(R.string.player_error_title))
             setBody(getString(R.string.player_error_body))
             // v4-fb3: Retry genuinely re-requests — playAt() resolves
-            // a fresh file id and builds a new MediaItem/data source,
-            // and resumes silently (no dialog on a retry).
+            // a fresh file id and builds a new MediaItem/data source.
+            // v6: Retry resumes silently from the saved position
+            // (no dialog exists any more).
             // v6 Rule 7: Retry also resets the stall-retry counter
             // (playAt does that) so a fresh attempt gets the full
             // retry budget.
-            setRetry { playAt(index, askResume = false) }
+            setRetry { playAt(index) }
             setDismiss { finish() }
         }
 
@@ -337,10 +332,10 @@ class PlayerActivity : AppCompatActivity() {
     private fun wireControllerButtons() {
         val view = binding.playerView
         ctrlPlayPause.setOnClickListener { togglePlayPause() }
-        // v4-fb3: Next/Previous never ask — silent seek to the saved
-        // position (see playAt's askResume flag).
-        view.findViewById<View>(R.id.ctrlPrev).setOnClickListener { playAt(index - 1, askResume = false) }
-        view.findViewById<View>(R.id.ctrlNext).setOnClickListener { playAt(index + 1, askResume = false) }
+        // v6: Next/Previous auto-resume silently from the saved
+        // position, like every other open (no dialog any more).
+        view.findViewById<View>(R.id.ctrlPrev).setOnClickListener { playAt(index - 1) }
+        view.findViewById<View>(R.id.ctrlNext).setOnClickListener { playAt(index + 1) }
         view.findViewById<View>(R.id.ctrlRew).setOnClickListener { seekBy(-10_000L) }
         view.findViewById<View>(R.id.ctrlFfwd).setOnClickListener { seekBy(10_000L) }
         view.findViewById<View>(R.id.ctrlBack).setOnClickListener { onBackPressedDispatcher.onBackPressed() }
@@ -636,20 +631,12 @@ class PlayerActivity : AppCompatActivity() {
                     resumeSeekPending = false
                     startPostponedEnterTransitionOnce()
                     updatePlayPauseIcon()
-                    // v4-fb3: the resume dialog fires ONLY here — once
-                    // the source is actually READY. Showing it in
-                    // playAt() put it over the error screen when the
-                    // download failed, before anything could play.
-                    pendingResumeSec?.let { saved ->
-                        pendingResumeSec = null
-                        if (pendingResumeIndex == index) showResumeDialog(saved)
-                    }
                 }
                 Player.STATE_ENDED -> {
                     binding.bufferingOverlay.visibility = View.GONE
                     cancelOfflineTimer()
                     savePositionNow()
-                    if (autoplay) playAt(index + 1, askResume = false)
+                    if (autoplay) playAt(index + 1)
                 }
                 else -> Unit
             }
@@ -675,6 +662,17 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            // v6: a seek is a position change worth persisting NOW,
+            // not at the next 5s tick — so a seek-then-exit still
+            // resumes from the seek target.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) savePositionNow()
+        }
+
         override fun onPlayerError(error: PlaybackException) {
             // v4-fb3: log the REAL error (the old code logged
             // nothing, so the failure was un-diagnosable).
@@ -686,10 +684,9 @@ class PlayerActivity : AppCompatActivity() {
             if (!currentItemUnresolvable && isStallError(error)) {
                 // v6 Rule 1: a load/IO failure is a STALL, not a
                 // fatal error. Keep the spinner, keep downloading in
-                // the background, retry with backoff. The resume
-                // dialog (if armed) is NOT cleared — it can still
-                // fire once the stall recovers and the player
-                // reaches READY.
+                // the background, retry with backoff. A resume seek
+                // in flight is not disturbed — recovery still lands
+                // on STATE_READY at the saved position.
                 stallRetryCount++
                 if (stallRetryCount >= MAX_STALL_RETRIES) {
                     // Retries exhausted: the download is genuinely
@@ -761,9 +758,7 @@ class PlayerActivity : AppCompatActivity() {
      * retries were exhausted vs the video file itself failed.
      */
     private fun showFatalError(networkFailure: Boolean) {
-        // v4-fb3: a failed source must never get a resume dialog over
-        // the error screen.
-        pendingResumeSec = null
+        // A failed source must never leave a stale resume behind.
         resumeSeekPending = false
         cancelOfflineTimer()
         stallHandler.removeCallbacks(stallRetryRunnable)
@@ -851,16 +846,23 @@ class PlayerActivity : AppCompatActivity() {
      *
      * - The Room item's fileId is re-resolved to a FRESH local id in
      *   this TDLib session before the MediaItem is built (see
-     *   NobiRepository.resolveVideoItem) — the stored id is dead
-     *   after a restart, which is why open / Retry / Next / Previous
-     *   ALL failed on Ep 361 with 00:00/00:00.
-     * - [askResume] is true ONLY for opening from a list. Next /
-     *   Previous / autoplay / Retry pass false and seek silently to
-     *   the saved position — the dialog never appears there.
-     * - When askResume is true, the dialog is only ARMED here and
-     *   shown on STATE_READY, never over an error screen.
+     *   NobiRepository.resolveVideoItemDetailed) — the stored id is
+     *   dead after a restart, which is why open / Retry / Next /
+     *   Previous ALL failed on Ep 361 with 00:00/00:00.
+     * - v6 SILENT AUTO-RESUME (Sam, 2026-11-17): there is NO resume
+     *   dialog any more — every open resumes silently from the saved
+     *   position, YouTube-style. The media item is set WITH its start
+     *   position in ONE call and prepared once (the race-free resume
+     *   API: setMediaItem(item, startPositionMs) + playWhenReady +
+     *   a single prepare(); no separate seekTo before prepare()).
+     *   The old flow — prepare at 0, wait for STATE_READY, then seek
+     *   — is exactly what caused the resume bug, and none of it
+     *   remains. A saved position within 10s of the end counts as
+     *   finished and restarts from 0 (the only restart case now).
+     * - Any load error on the resume path is classified as a STALL
+     *   (spinner + background retry, Rule 1), never an error screen.
      */
-    private fun playAt(newIndex: Int, firstLoad: Boolean = false, askResume: Boolean = true) {
+    private fun playAt(newIndex: Int, firstLoad: Boolean = false) {
         if (newIndex < 0 || newIndex >= playlist.size) {
             if (!firstLoad) {
                 Toast.makeText(
@@ -878,7 +880,6 @@ class PlayerActivity : AppCompatActivity() {
         ctrlTitle.text = item.title
         ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
         binding.playerError.visibility = View.GONE
-        pendingResumeSec = null
         // v6: a new video cancels any pending stall retry / offline
         // timer and resets the stall budget; it also drops the
         // previous video's subtitle tracks and discovery job.
@@ -907,101 +908,34 @@ class PlayerActivity : AppCompatActivity() {
                 currentMediaItem = buildMediaItem(resolved, emptyList())
                 val resumable = saved > 5L && resolved.durationSec > 0 &&
                     saved < resolved.durationSec - 10L
-                when {
-                    !resumable -> {
-                        exo.setMediaItem(currentMediaItem!!, 0L)
-                        exo.prepare()
-                        exo.play()
-                    }
-                    askResume -> {
-                        // v6 resume fix: while the dialog is pending
-                        // the player is PAUSED (playWhenReady false).
-                        // A list-open that reached playAt with
-                        // playWhenReady still true would play from 0
-                        // behind the dialog while the 5s save ticker
-                        // overwrote the saved position in Room. The
-                        // dialog still only fires on STATE_READY
-                        // (v4 rule, kept).
-                        exo.playWhenReady = false
-                        exo.setMediaItem(currentMediaItem!!, 0L)
-                        exo.prepare()
-                        pendingResumeSec = saved
-                        pendingResumeIndex = newIndex
-                    }
-                    else -> {
-                        // Silent resume (Next / Previous / autoplay /
-                        // Retry): race-free — ONE prepare() directly
-                        // at the saved position, so ExoPlayer opens
-                        // the source there instead of loading from 0
-                        // first and then seeking (see the v6 resume
-                        // note in showResumeDialog).
-                        resumeSeekPending = true
-                        val targetMs = clampResumeTarget(saved * 1000L, resolved.durationSec)
-                        exo.setMediaItem(currentMediaItem!!, targetMs)
-                        exo.prepare()
-                        exo.play()
-                    }
+                // Silent resume: ONE setMediaItem(item, startPosition)
+                // + prepare() directly at the saved position, so
+                // ExoPlayer opens the source there instead of loading
+                // from 0 first and then seeking. ROOT CAUSE of the v5
+                // resume bug (verified in the v5 code): a cold-start
+                // resume did prepare() at position 0 (starting a
+                // from-0 download) and then seekTo()'d into a far,
+                // unbuffered range (e.g. Ep 361, saved 22:28 of
+                // 23:06). TDLib's sequential download could not prove
+                // that far range inside the data source's 60s
+                // ensureDownloaded window, so the IOException surfaced
+                // as the fatal "Video couldn't play" screen. Not
+                // resumable (never watched, or finished) starts at 0.
+                val targetMs = if (resumable) {
+                    resumeSeekPending = true
+                    clampResumeTarget(saved * 1000L, resolved.durationSec)
+                } else {
+                    0L
                 }
+                exo.setMediaItem(currentMediaItem!!, targetMs)
+                exo.prepare()
+                exo.play()
                 // v6 Rule 6: subtitle discovery runs async and NEVER
                 // blocks playback — the video starts now, the CC
                 // button appears when (and if) a sidecar is found.
                 startSubtitleDiscovery(resolved)
             }
         }
-    }
-
-    /** Resume / Restart dialog — only from STATE_READY, only for list opens. */
-    private fun showResumeDialog(savedSec: Long) {
-        val exo = player ?: return
-        AlertDialog.Builder(this)
-            .setMessage(
-                getString(
-                    R.string.player_resume_from,
-                    FormatUtils.formatDuration(savedSec.toInt())
-                )
-            )
-            .setPositiveButton(R.string.player_resume) { _, _ ->
-                // v6 resume fix — ROOT CAUSE (verified in the v5
-                // code): a cold-start resume did prepare() at
-                // position 0 (starting a from-0 download) and then
-                // seekTo()'d into a far, unbuffered range (e.g. Ep
-                // 361, saved 22:28 of 23:06). TDLib's sequential
-                // download could not prove that far range inside the
-                // data source's 60s ensureDownloaded window, so the
-                // IOException surfaced as the fatal "Video couldn't
-                // play" screen. The fix: a resume IS a seek — it goes
-                // through ONE setMediaItem(item, startPositionMs) +
-                // prepare(), so ExoPlayer opens the source DIRECTLY
-                // at the saved position (no competing from-0 load),
-                // and any load error on the way is classified as a
-                // STALL (spinner + background retry, Rule 1) instead
-                // of an error screen.
-                resumeSeekPending = true
-                val targetMs = clampResumeTarget(
-                    savedSec * 1000L,
-                    playlist.getOrNull(index)?.durationSec ?: 0
-                )
-                val mediaItem = currentMediaItem
-                if (mediaItem != null) {
-                    exo.setMediaItem(mediaItem, targetMs)
-                    exo.prepare()
-                } else {
-                    exo.seekTo(targetMs)
-                }
-                exo.play()
-            }
-            .setNegativeButton(R.string.player_restart) { _, _ ->
-                val mediaItem = currentMediaItem
-                if (mediaItem != null) {
-                    exo.setMediaItem(mediaItem, 0L)
-                    exo.prepare()
-                } else {
-                    exo.seekTo(0L)
-                }
-                exo.play()
-            }
-            .setCancelable(false)
-            .show()
     }
 
     /**
