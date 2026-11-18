@@ -6,6 +6,8 @@ import com.nobi.nobistream.core.GroupItem
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.core.VideoQuality
 import com.nobi.nobistream.data.db.AppDatabase
+import com.nobi.nobistream.data.db.BookmarkedVideoEntity
+import com.nobi.nobistream.data.db.FillerMarkEntity
 import com.nobi.nobistream.data.db.SavedGroupEntity
 import com.nobi.nobistream.data.db.VideoPositionEntity
 import java.io.File
@@ -246,6 +248,129 @@ class NobiRepository(
 
     suspend fun getPositionSec(chatId: Long, messageId: Long): Long =
         database.positionDao().getPosition(chatId, messageId)?.positionSec ?: 0L
+
+    /**
+     * v2.6.0: manual watched toggle (Detail watched check). When a
+     * position row already exists only the flag is updated, so the
+     * resume position survives; otherwise a fresh row is upserted
+     * with positionSec = 0, so un-marking later restores resume.
+     */
+    suspend fun setWatched(item: VideoItem, watched: Boolean) {
+        val existing = database.positionDao().getPosition(item.chatId, item.messageId)
+        if (existing != null) {
+            database.positionDao().updateWatched(item.chatId, item.messageId, watched)
+        } else {
+            database.positionDao().upsert(
+                VideoPositionEntity(
+                    chatId = item.chatId,
+                    messageId = item.messageId,
+                    title = item.title,
+                    caption = item.caption,
+                    qualityLabel = item.quality.label,
+                    durationSec = item.durationSec,
+                    sizeBytes = item.sizeBytes,
+                    dateEpochSec = item.dateEpochSec,
+                    thumbFileId = item.thumbFileId,
+                    thumbLocalPath = item.thumbLocalPath,
+                    fileId = item.fileId,
+                    remoteFileId = item.remoteFileId,
+                    positionSec = 0L,
+                    watched = watched,
+                    updatedAtEpochSec = System.currentTimeMillis() / 1000L
+                )
+            )
+        }
+    }
+
+    /** v2.6.0: bookmarked videos, newest first (Library Watchlist tab). */
+    fun observeBookmarks(): Flow<List<VideoItem>> =
+        database.bookmarkDao().observeBookmarks().map { rows ->
+            rows.map { row ->
+                VideoItem(
+                    messageId = row.messageId,
+                    chatId = row.chatId,
+                    fileId = 0,
+                    remoteFileId = row.remoteFileId,
+                    title = row.title,
+                    caption = row.caption,
+                    quality = VideoQuality.fromLabel(row.qualityLabel),
+                    durationSec = row.durationSec,
+                    sizeBytes = row.sizeBytes,
+                    dateEpochSec = row.dateEpochSec,
+                    thumbFileId = row.thumbFileId,
+                    thumbLocalPath = row.thumbLocalPath,
+                    progressSec = 0L,
+                    watched = false
+                )
+            }
+        }
+
+    /** v2.6.0: is this video bookmarked? */
+    fun isBookmarked(chatId: Long, messageId: Long): Flow<Boolean> =
+        database.bookmarkDao().isBookmarked(chatId, messageId)
+
+    /**
+     * v2.6.0: toggle a bookmark. Returns true when the video is now
+     * bookmarked, false when it was just removed.
+     */
+    suspend fun toggleBookmark(item: VideoItem): Boolean {
+        val existing = database.bookmarkDao().getBookmark(item.chatId, item.messageId)
+        if (existing != null) {
+            database.bookmarkDao().delete(item.chatId, item.messageId)
+            return false
+        }
+        database.bookmarkDao().upsert(
+            BookmarkedVideoEntity(
+                chatId = item.chatId,
+                messageId = item.messageId,
+                title = item.title,
+                caption = item.caption,
+                qualityLabel = item.quality.label,
+                durationSec = item.durationSec,
+                sizeBytes = item.sizeBytes,
+                dateEpochSec = item.dateEpochSec,
+                thumbFileId = item.thumbFileId,
+                thumbLocalPath = item.thumbLocalPath,
+                remoteFileId = item.remoteFileId,
+                bookmarkedAtEpochSec = System.currentTimeMillis() / 1000L
+            )
+        )
+        return true
+    }
+
+    /** v2.6.0: all user-marked filler episodes, as (chatId, messageId) pairs. */
+    fun observeFillerMarks(): Flow<Set<Pair<Long, Long>>> =
+        database.fillerMarkDao().observeMarks().map { rows ->
+            rows.map { it.chatId to it.messageId }.toSet()
+        }
+
+    /**
+     * v2.6.0: toggle a manual filler mark. Returns true when the
+     * episode is now marked filler, false when it was just unmarked.
+     */
+    suspend fun toggleFillerMark(item: VideoItem): Boolean {
+        val existing = database.fillerMarkDao().getMark(item.chatId, item.messageId)
+        if (existing != null) {
+            database.fillerMarkDao().delete(item.chatId, item.messageId)
+            return false
+        }
+        database.fillerMarkDao().upsert(
+            FillerMarkEntity(
+                chatId = item.chatId,
+                messageId = item.messageId,
+                markedAtEpochSec = System.currentTimeMillis() / 1000L
+            )
+        )
+        return true
+    }
+
+    /** v2.6.0: how many videos are marked watched (Control stats). */
+    fun observeWatchedCount(): Flow<Int> =
+        database.positionDao().observeWatchedCount()
+
+    /** v2.6.0: how many videos are bookmarked (Control stats). */
+    fun observeBookmarkCount(): Flow<Int> =
+        database.bookmarkDao().observeCount()
 
     /** The most recently watched unfinished video, or null when there is none. */
     suspend fun getLastWatched(): VideoItem? {

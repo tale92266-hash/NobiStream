@@ -160,6 +160,21 @@ interface TelegramGateway {
     suspend fun startRangeDownload(fileId: Int, offset: Long, length: Long): VideoFileInfo?
 
     /**
+     * v2.6.0 downloads: start downloading the WHOLE file in the
+     * background (DownloadFile, offset = 0, limit = 0, synchronous
+     * = false) and return at once with the file's current state.
+     * Progress arrives via UpdateFile and is visible in
+     * [getCachedFileState].
+     */
+    suspend fun startWholeFileDownload(fileId: Int): VideoFileInfo?
+
+    /**
+     * v2.6.0 downloads: delete the local file (frees the space).
+     * False when the delete request fails; never throws.
+     */
+    suspend fun deleteFile(fileId: Int): Boolean
+
+    /**
      * v6 subtitles: subtitle sidecar files (.srt/.vtt) attached as
      * documents near the video's message in the same chat. TDLib's
      * MessageVideo has NO subtitle field, so this searches the

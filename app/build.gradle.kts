@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
 
@@ -12,10 +13,11 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v9.9: 2.5.9 / code 21 — locked title, Preferred quality,
-        // Settings hub + sub-screens, app UI alignment (§5 audit).
-        versionCode = 21
-        versionName = "2.5.9"
+        // v2.6.0: 2.6.0 / code 22 — real Compose redesign (Revision 2
+        // spec): new violet/cyan theme, Compose UI layer, real
+        // download manager, Control screen. Base = v9.9 HEAD.
+        versionCode = 22
+        versionName = "2.6.0"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the
@@ -88,6 +90,8 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
+        // v2.6.0: Compose UI layer (Home/Library/Channel/Search/Control).
+        compose = true
     }
 
     packaging {
@@ -140,6 +144,22 @@ dependencies {
     implementation(libs.recyclerview.animators)
 
     implementation(libs.kotlinx.coroutines.android)
+
+    // v2.6.0: Compose UI layer — BOM platform + Material3 + icons +
+    // animation + activity-compose + lifecycle-compose + coil-compose.
+    // No navigation-compose (the app navigates with intents + tab
+    // state, as the mock does), no accompanist (Material3
+    // PullToRefreshBox instead).
+    implementation(platform(libs.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.coil.compose)
 
     // TDLib (MTProto) prebuilt AARs from Maven Central.
     // TDLib 1.8.64, all 4 ABIs, 16KB page-size ready. No local NDK build needed.

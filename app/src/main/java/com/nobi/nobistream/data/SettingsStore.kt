@@ -65,6 +65,16 @@ class SettingsStore(context: Context) {
     val preferredQuality: Flow<String> =
         dataStore.data.map { it[KEY_PREFERRED_QUALITY] ?: "Highest available" }
 
+    /**
+     * v2.6.0 theme: "System" (default — follows the system dark
+     * setting) / "Dark" / "Light".
+     */
+    val themeMode: Flow<String> =
+        dataStore.data.map { it[KEY_THEME_MODE] ?: "System" }
+
+    /** v2.6.0 AMOLED: pure-black backgrounds, only when the effective theme is dark. */
+    val amoled: Flow<Boolean> = dataStore.data.map { it[KEY_AMOLED] ?: false }
+
     /** "White" / "Yellow" / "Cyan". */
     val subtitleColor: Flow<String> =
         dataStore.data.map { it[KEY_SUBTITLE_COLOR] ?: "White" }
@@ -182,6 +192,14 @@ class SettingsStore(context: Context) {
         dataStore.edit { it[KEY_PREFERRED_QUALITY] = value }
     }
 
+    suspend fun setThemeMode(value: String) {
+        dataStore.edit { it[KEY_THEME_MODE] = value }
+    }
+
+    suspend fun setAmoled(value: Boolean) {
+        dataStore.edit { it[KEY_AMOLED] = value }
+    }
+
     suspend fun setCacheSizeMb(value: Int) {
         dataStore.edit { it[KEY_CACHE_SIZE_MB] = value }
     }
@@ -201,6 +219,8 @@ class SettingsStore(context: Context) {
         val KEY_AUTOPLAY = booleanPreferencesKey("autoplay")
         val KEY_DEFAULT_FILTER = stringPreferencesKey("default_filter")
         val KEY_PREFERRED_QUALITY = stringPreferencesKey("preferred_quality")
+        val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+        val KEY_AMOLED = booleanPreferencesKey("amoled")
         val KEY_CACHE_SIZE_MB = intPreferencesKey("cache_size_mb")
         val KEY_LAST_CHAT_ID = longPreferencesKey("last_chat_id")
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")

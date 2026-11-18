@@ -513,6 +513,21 @@ class TdLibGateway(context: Context) : TelegramGateway {
         return toInfo(file)
     }
 
+    /**
+     * v2.6.0 downloads: whole-file background download — same call
+     * as the range download, with priority 1 and offset/limit 0
+     * (the whole file), synchronous = false.
+     */
+    override suspend fun startWholeFileDownload(fileId: Int): VideoFileInfo? {
+        val file = send(TdApi.DownloadFile(fileId, 1, 0, 0, false))
+        fileStates[file.id] = file
+        return toInfo(file)
+    }
+
+    /** v2.6.0 downloads: delete a completed download's local file. Never throws. */
+    override suspend fun deleteFile(fileId: Int): Boolean =
+        runCatching { send(TdApi.DeleteFile(fileId)); true }.getOrDefault(false)
+
     private fun toInfo(file: TdApi.File): VideoFileInfo? {
         val path = file.local.path
         if (path.isEmpty()) return null
