@@ -149,6 +149,15 @@ class PlayerActivity : AppCompatActivity() {
     private var audioManager: AudioManager? = null
 
     private var isFullscreen = true
+    /**
+     * v8.3: true while a fullscreen orientation request is HELD.
+     * v8 treated fullscreen as a nudge and released it in
+     * applyOrientation() — a phone held in portrait then snapped
+     * straight back to the 16:9 portrait player the moment the user
+     * tapped fullscreen ("auto fit normal screen"). The hold is only
+     * released after an exit to portrait (see applyOrientation).
+     */
+    private var fullscreenHeld = false
     private var locked = false
     private var aspectIndex = 0
     private val aspectModes = intArrayOf(
@@ -407,14 +416,19 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * v8 §4.4: fullscreen is now an orientation NUDGE, not a lock.
-     * The manifest is fullSensor, so the user can rotate freely;
-     * this only asks the system to rotate, and the resulting
-     * onConfigurationChanged releases the request again (see
-     * applyOrientation) so the sensor governs afterwards. System
+     * v8.3: fullscreen is a HOLD, not a nudge. v8 asked the system to
+     * rotate (SENSOR_LANDSCAPE) and then released the request in
+     * applyOrientation() — with the phone held in portrait the
+     * sensor immediately rotated the activity back to portrait, so
+     * tapping fullscreen "auto-fit" back to the normal screen. Now
+     * entering fullscreen HOLDS sensor-landscape until the user exits
+     * (fullscreen button or Back — the Back handler already exits
+     * fullscreen first); exiting requests PORTRAIT, and the release
+     * back to the sensor happens in applyOrientation(). System
      * bars, the icon and the layout all live in applyOrientation.
      */
     private fun setFullscreen(fullscreen: Boolean) {
+        fullscreenHeld = fullscreen
         requestedOrientation = if (fullscreen) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
@@ -471,9 +485,17 @@ class PlayerActivity : AppCompatActivity() {
             refreshDetailsPanel()
         }
         binding.playerView.layoutParams = lp
-        // Release the orientation nudge: from here the sensor governs,
-        // so rotating the device rotates the player back.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        // v8.3: release the orientation request ONLY after an exit to
+        // portrait — from here the sensor governs again, so rotating
+        // the device rotates the player. NEVER release while a
+        // fullscreen hold is active: releasing on the landscape
+        // transition is what snapped a portrait-held phone straight
+        // back to the 16:9 player (the v8 fullscreen bug). In
+        // landscape the request stays held; the Back handler and the
+        // fullscreen button are the only exits.
+        if (!landscape && !fullscreenHeld) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

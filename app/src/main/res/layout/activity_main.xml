@@ -36,6 +36,8 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/spacing_12"
             android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:text="@string/home_title" />
 
         <com.google.android.material.button.MaterialButton
@@ -43,7 +45,7 @@
             style="@style/Widget.NobiStream.Button.Secondary"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/button_height_small"
-            android:text="@string/home_add_group"
+            android:text="@string/home_add_group_short"
             app:icon="@drawable/ic_add" />
 
         <ImageButton
