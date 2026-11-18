@@ -6,7 +6,7 @@
     android:layout_height="wrap_content"
     android:background="?attr/selectableItemBackground"
     android:gravity="center_vertical"
-    android:minHeight="@dimen/icon_button_size"
+    android:minHeight="@dimen/settings_row_min_height"
     android:orientation="horizontal"
     android:paddingStart="@dimen/screen_margin"
     android:paddingTop="@dimen/spacing_8"
@@ -14,8 +14,8 @@
     android:paddingBottom="@dimen/spacing_8">
 
     <ImageView
-        android:layout_width="@dimen/icon_size_small"
-        android:layout_height="@dimen/icon_size_small"
+        android:layout_width="@dimen/icon_size"
+        android:layout_height="@dimen/icon_size"
         android:contentDescription="@string/search_recent"
         android:src="@drawable/ic_history" />
 
@@ -23,7 +23,7 @@
         android:id="@+id/recentQuery"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_12"
+        android:layout_marginStart="@dimen/spacing_16"
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"

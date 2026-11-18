@@ -55,6 +55,16 @@ class SettingsStore(context: Context) {
     /** "Small" / "Medium" / "Large" — fractional text size on the video. */
     val subtitleSize: Flow<String> =
         dataStore.data.map { it[KEY_SUBTITLE_SIZE] ?: "Medium" }
+    /**
+     * v9.9 Preferred quality: "Highest available" (default — today's
+     * behaviour) / "4K" / "1080p" / "720p" / "480p". Caps the copy
+     * Smart Filter picks (see SmartFilter.maxRankFor); never blocks
+     * a video — direct copy picks ignore it. Key absent = default,
+     * so existing installs need no migration.
+     */
+    val preferredQuality: Flow<String> =
+        dataStore.data.map { it[KEY_PREFERRED_QUALITY] ?: "Highest available" }
+
     /** "White" / "Yellow" / "Cyan". */
     val subtitleColor: Flow<String> =
         dataStore.data.map { it[KEY_SUBTITLE_COLOR] ?: "White" }
@@ -168,6 +178,10 @@ class SettingsStore(context: Context) {
         dataStore.edit { it[KEY_DEFAULT_FILTER] = value }
     }
 
+    suspend fun setPreferredQuality(value: String) {
+        dataStore.edit { it[KEY_PREFERRED_QUALITY] = value }
+    }
+
     suspend fun setCacheSizeMb(value: Int) {
         dataStore.edit { it[KEY_CACHE_SIZE_MB] = value }
     }
@@ -186,6 +200,7 @@ class SettingsStore(context: Context) {
     companion object {
         val KEY_AUTOPLAY = booleanPreferencesKey("autoplay")
         val KEY_DEFAULT_FILTER = stringPreferencesKey("default_filter")
+        val KEY_PREFERRED_QUALITY = stringPreferencesKey("preferred_quality")
         val KEY_CACHE_SIZE_MB = intPreferencesKey("cache_size_mb")
         val KEY_LAST_CHAT_ID = longPreferencesKey("last_chat_id")
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")

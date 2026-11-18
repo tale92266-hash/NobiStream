@@ -22,7 +22,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="@dimen/screen_margin"
-        android:paddingEnd="@dimen/spacing_8">
+        android:paddingEnd="@dimen/screen_margin">
 
         <ImageView
             android:layout_width="@dimen/icon_size_large"
@@ -149,7 +149,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:clipToOutline="true"
-                        app:cardCornerRadius="24dp">
+                        app:cardCornerRadius="@dimen/corner_medium">
 
                         <androidx.constraintlayout.widget.ConstraintLayout
                             android:layout_width="match_parent"
@@ -295,13 +295,13 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:paddingStart="@dimen/screen_margin"
-                    android:paddingTop="@dimen/spacing_16"
-                    android:paddingEnd="@dimen/spacing_8"
+                    android:paddingTop="@dimen/section_spacing"
+                    android:paddingEnd="@dimen/screen_margin"
                     android:visibility="gone">
 
                     <TextView
                         android:id="@+id/continueTitle"
-                        style="@style/Text.NobiStream.Section"
+                        style="@style/Text.NobiStream.SectionHeader"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -341,14 +341,14 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_16"
+                    android:layout_marginTop="@dimen/section_spacing"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingStart="@dimen/screen_margin"
                     android:paddingEnd="@dimen/screen_margin">
 
                     <TextView
-                        style="@style/Text.NobiStream.Section"
+                        style="@style/Text.NobiStream.SectionHeader"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -415,7 +415,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/button_height_small"
                         android:layout_marginTop="@dimen/spacing_16"
-                        android:text="@string/home_add_group_short" />
+                        android:text="@string/home_add_group_short"
+                        app:icon="@drawable/ic_add" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
@@ -431,7 +432,7 @@
             android:id="@+id/libraryContainer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fillViewport="false"
+            android:fillViewport="true"
             android:visibility="gone">
 
             <LinearLayout
@@ -473,15 +474,15 @@
                     android:id="@+id/libraryHeader"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_16"
+                    android:layout_marginTop="@dimen/section_spacing"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingStart="@dimen/screen_margin"
-                    android:paddingEnd="@dimen/spacing_8"
+                    android:paddingEnd="@dimen/screen_margin"
                     android:visibility="gone">
 
                     <TextView
-                        style="@style/Text.NobiStream.Section"
+                        style="@style/Text.NobiStream.SectionHeader"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -633,7 +634,8 @@
                 <com.nobi.nobistream.ui.components.EmptyStateView
                     android:id="@+id/libraryEmptyState"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:paddingTop="@dimen/spacing_24"
                     android:paddingBottom="@dimen/spacing_24"
                     android:visibility="gone" />
@@ -641,7 +643,8 @@
                 <com.nobi.nobistream.ui.components.ErrorStateView
                     android:id="@+id/libraryErrorState"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:paddingTop="@dimen/spacing_24"
                     android:paddingBottom="@dimen/spacing_24"
                     android:visibility="gone" />
@@ -663,6 +666,11 @@
             android:focusable="false"
             android:visibility="gone" />
     </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/divider_height"
+        android:background="@color/divider" />
 
     <include
         android:id="@+id/bottomNav"

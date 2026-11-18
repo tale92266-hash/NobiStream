@@ -19,8 +19,8 @@ import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.AuthState
 import com.nobi.nobistream.databinding.ActivityLoginBinding
+import android.widget.Toast
 import com.nobi.nobistream.ui.home.MainActivity
-import com.nobi.nobistream.ui.settings.SettingsActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,15 +63,10 @@ class LoginActivity : AppCompatActivity() {
         enableEdgeToEdge()
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        binding.openSettingsButton.setOnClickListener {
-            // v8: opened standalone from Login (no signed-in session)
-            // — Settings hides the bottom nav and shows its back
-            // button instead of the tab bar.
-            startActivity(
-                Intent(this, SettingsActivity::class.java)
-                    .putExtra(SettingsActivity.EXTRA_STANDALONE, true)
-            )
-        }
+        // v9.9 (§4.3): no Settings button on Login any more — when
+        // no credentials exist at all, the api_id / api_hash fields
+        // inside the apiNeededCard above are the first step.
+        binding.saveApiButton.setOnClickListener { saveApi() }
         binding.continueButton.setOnClickListener { sendPhone() }
         binding.verifyButton.setOnClickListener { sendCode() }
         binding.passwordButton.setOnClickListener { sendPassword() }
@@ -108,7 +103,13 @@ class LoginActivity : AppCompatActivity() {
     private fun maybeStart() {
         if (starting) return
         if (!locator.credentialsStore.hasCredentials()) {
+            // v9.9: no credentials at all — the API entry card is the
+            // first step; the phone step stays hidden until the
+            // credentials are saved (sending a phone number with no
+            // TDLib client would only error).
             binding.apiNeededCard.visibility = View.VISIBLE
+            binding.phoneLayout.visibility = View.GONE
+            binding.continueButton.visibility = View.GONE
             return
         }
         binding.apiNeededCard.visibility = View.GONE
@@ -141,7 +142,11 @@ class LoginActivity : AppCompatActivity() {
                 if (resendSecondsLeft <= 0) startResendCountdown()
             }
             AuthState.NEED_PASSWORD -> showStep(phone = false, code = false, password = true)
-            AuthState.NEED_API_KEYS, AuthState.LOGGED_OUT ->
+            AuthState.NEED_API_KEYS ->
+                // No credentials at all: the API entry card is the
+                // first step, not the phone step.
+                maybeStart()
+            AuthState.LOGGED_OUT ->
                 showStep(phone = true, code = false, password = false)
             AuthState.UNKNOWN -> Unit
         }
@@ -317,6 +322,25 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** v9.9 (§4.3): save the API credentials entered in the login
+     * flow — same validation as the old Settings save, same
+     * encrypted store. No credential value is ever displayed or
+     * logged; the fields are cleared right after saving. */
+    private fun saveApi() {
+        val idText = binding.apiIdEdit.text?.toString()?.trim().orEmpty()
+        val hash = binding.apiHashEdit.text?.toString()?.trim().orEmpty()
+        val id = idText.toIntOrNull()
+        if (id == null || id == 0 || hash.length < 10) {
+            Toast.makeText(this, R.string.common_error_generic, Toast.LENGTH_LONG).show()
+            return
+        }
+        locator.credentialsStore.save(id, hash)
+        binding.apiIdEdit.text?.clear()
+        binding.apiHashEdit.text?.clear()
+        Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show()
+        maybeStart()
     }
 
     private fun sendPhone() {

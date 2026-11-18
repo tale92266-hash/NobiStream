@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v3 Settings: app bar 56dp (back + title 20sp), grouped rows
-     (Playback / Startup / Telegram / Storage / Application). Rows are
-     min 64dp, icon 24dp (@dimen/icon_size), icon-text gap 16dp, text 14sp medium, desc 12sp,
-     switch right. Section headings 12sp medium, section spacing 28dp.
-     No setting removed, no fake setting invented — there is no Appearance
-     section because the theme is fixed dark (see report). -->
+<!-- v9.9 Settings hub: NOT a list of controls any more. Account card
+     on top, then three 64dp navigation rows (General / Video Settings /
+     Audio Settings) — 24dp icon, 16dp icon-text gap, title 14sp medium
+     + description 12sp secondary, chevron pinned to the end. Tapping
+     a row opens its own screen (own 56dp toolbar + back, no bottom
+     nav). No API field anywhere on the hub (or anywhere in Settings).
+     Bottom nav visible in tab mode; standalone-from-Login hides it
+     and shows the toolbar back button (dormant — Login no longer
+     opens Settings). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -37,18 +40,72 @@
             android:paddingEnd="@dimen/screen_margin"
             android:paddingBottom="@dimen/spacing_24">
 
-            <!-- Playback -->
-            <TextView
-                style="@style/Text.NobiStream.SectionHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:text="@string/settings_section_playback" />
-
-            <LinearLayout
+            <!-- Account card: letter avatar + display name + phone • @username. -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_8"
+                style="@style/Widget.NobiStream.Card.Outlined">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/spacing_16">
+
+                    <FrameLayout
+                        android:layout_width="@dimen/group_icon_size"
+                        android:layout_height="@dimen/group_icon_size"
+                        android:background="@drawable/bg_letter_avatar">
+
+                        <TextView
+                            android:id="@+id/accountLetter"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/spacing_16"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/accountName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/settings_account_not_signed_in"
+                            android:textColor="@color/text_primary"
+                            android:textSize="@dimen/text_subhead" />
+
+                        <TextView
+                            android:id="@+id/accountStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/spacing_4"
+                            android:text="@string/settings_account_offline"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_caption" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- General -->
+            <LinearLayout
+                android:id="@+id/generalRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_16"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:minHeight="@dimen/settings_row_min_height"
                 android:orientation="horizontal">
@@ -57,7 +114,7 @@
                     android:layout_width="@dimen/icon_size"
                     android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
-                    android:src="@drawable/ic_play" />
+                    android:src="@drawable/ic_settings" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -71,22 +128,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="@string/settings_autoplay" />
+                        android:text="@string/settings_hub_general" />
 
                     <TextView
                         style="@style/Text.NobiStream.Caption"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_4"
-                        android:text="@string/settings_autoplay_desc" />
+                        android:text="@string/settings_hub_general_desc" />
                 </LinearLayout>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/autoplaySwitch"
-                    style="@style/Widget.NobiStream.Switch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true" />
+                <ImageView
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_chevron_right"
+                    android:tint="@color/text_secondary" />
             </LinearLayout>
 
             <View
@@ -94,10 +151,14 @@
                 android:layout_height="@dimen/divider_height"
                 android:background="@color/divider" />
 
-            <!-- v5 Smart Filter: one episode, one card, best quality. -->
+            <!-- Video Settings -->
             <LinearLayout
+                android:id="@+id/videoRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:minHeight="@dimen/settings_row_min_height"
                 android:orientation="horizontal">
@@ -106,7 +167,7 @@
                     android:layout_width="@dimen/icon_size"
                     android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
-                    android:src="@drawable/ic_sort" />
+                    android:src="@drawable/ic_movie" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -120,22 +181,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="@string/settings_smart_filter" />
+                        android:text="@string/settings_hub_video" />
 
                     <TextView
                         style="@style/Text.NobiStream.Caption"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_4"
-                        android:text="@string/settings_smart_filter_desc" />
+                        android:text="@string/settings_hub_video_desc" />
                 </LinearLayout>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/smartFilterSwitch"
-                    style="@style/Widget.NobiStream.Switch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true" />
+                <ImageView
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_chevron_right"
+                    android:tint="@color/text_secondary" />
             </LinearLayout>
 
             <View
@@ -143,48 +204,14 @@
                 android:layout_height="@dimen/divider_height"
                 android:background="@color/divider" />
 
-            <!-- v9: real M3 exposed dropdown — filled graphite box,
-                 floating label, value as the field text, chevron. -->
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/defaultFilterLayout"
-                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:hint="@string/settings_default_filter">
-
-                <AutoCompleteTextView
-                    android:popupBackground="@color/surface_variant"
-                    android:id="@+id/defaultFilterInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textColor="@color/text_primary" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_default_filter_desc" />
-
-            <!-- v6 Subtitles: always-show default + caption style
-                 (size / colour / background, persisted in SettingsStore).
-                 The note states the two honest limits: no sidecar file
-                 means no CC button, and text burned into the video
-                 itself can never be turned off. -->
-            <TextView
-                style="@style/Text.NobiStream.SectionHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/section_spacing"
-                android:text="@string/settings_section_subtitles" />
-
+            <!-- Audio Settings -->
             <LinearLayout
+                android:id="@+id/audioRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:minHeight="@dimen/settings_row_min_height"
                 android:orientation="horizontal">
@@ -193,7 +220,7 @@
                     android:layout_width="@dimen/icon_size"
                     android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
-                    android:src="@drawable/ic_closed_caption" />
+                    android:src="@drawable/ic_volume" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -207,414 +234,34 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="@string/settings_subtitles_always" />
+                        android:text="@string/settings_hub_audio" />
 
                     <TextView
                         style="@style/Text.NobiStream.Caption"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_4"
-                        android:text="@string/settings_subtitles_always_desc" />
+                        android:text="@string/settings_hub_audio_desc" />
                 </LinearLayout>
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/subtitleAlwaysShowSwitch"
-                    style="@style/Widget.NobiStream.Switch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="false" />
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height"
-                android:background="@color/divider" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/subtitleSizeLayout"
-                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:hint="@string/settings_subtitles_size">
-
-                <AutoCompleteTextView
-                    android:popupBackground="@color/surface_variant"
-                    android:id="@+id/subtitleSizeInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textColor="@color/text_primary" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_subtitles_size_desc" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/subtitleColorLayout"
-                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:hint="@string/settings_subtitles_color">
-
-                <AutoCompleteTextView
-                    android:popupBackground="@color/surface_variant"
-                    android:id="@+id/subtitleColorInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textColor="@color/text_primary" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_subtitles_color_desc" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/subtitleBackgroundLayout"
-                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:hint="@string/settings_subtitles_background">
-
-                <AutoCompleteTextView
-                    android:popupBackground="@color/surface_variant"
-                    android:id="@+id/subtitleBackgroundInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textColor="@color/text_primary" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_subtitles_background_desc" />
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:text="@string/settings_subtitles_burned_in_note" />
-
-            <!-- Startup -->
-            <TextView
-                style="@style/Text.NobiStream.SectionHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/section_spacing"
-                android:text="@string/settings_section_startup" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:gravity="center_vertical"
-                android:minHeight="@dimen/settings_row_min_height"
-                android:orientation="horizontal">
 
                 <ImageView
                     android:layout_width="@dimen/icon_size"
                     android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
-                    android:src="@drawable/ic_history" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_16"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/Text.NobiStream.Body"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
-                        android:text="@string/settings_open_last_episode" />
-
-                    <TextView
-                        style="@style/Text.NobiStream.Caption"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_4"
-                        android:text="@string/settings_open_last_episode_desc" />
-                </LinearLayout>
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/openLastEpisodeSwitch"
-                    style="@style/Widget.NobiStream.Switch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="false" />
+                    android:src="@drawable/ic_chevron_right"
+                    android:tint="@color/text_secondary" />
             </LinearLayout>
-
-            <!-- Telegram -->
-            <TextView
-                style="@style/Text.NobiStream.SectionHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/section_spacing"
-                android:text="@string/settings_section_telegram" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:gravity="center_vertical"
-                android:minHeight="@dimen/settings_row_min_height"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="@dimen/icon_size"
-                    android:layout_height="@dimen/icon_size"
-                    android:contentDescription="@null"
-                    android:src="@drawable/ic_account_circle" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_16"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/accountName"
-                        style="@style/Text.NobiStream.Body"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
-                        android:text="@string/settings_account_not_signed_in" />
-
-                    <TextView
-                        android:id="@+id/accountStatus"
-                        style="@style/Text.NobiStream.Caption"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_4"
-                        android:text="@string/settings_account_offline" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height"
-                android:background="@color/divider" />
-
-            <TextView
-                style="@style/Text.NobiStream.Body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/settings_api_section" />
-
-            <TextView
-                android:id="@+id/apiStatus"
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:text="@string/settings_status_missing" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/apiIdLayout"
-                style="@style/Widget.NobiStream.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
-                android:hint="@string/settings_api_id">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/apiIdEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/apiHashLayout"
-                style="@style/Widget.NobiStream.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
-                android:hint="@string/settings_api_hash"
-                app:endIconMode="password_toggle">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/apiHashEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPassword" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:text="@string/settings_api_hint" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/saveApiButton"
-                style="@style/Widget.NobiStream.Button.Primary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
-                android:text="@string/settings_save" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/clearSavedButton"
-                style="@style/Widget.NobiStream.Button.Text"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/settings_clear_saved"
-                android:visibility="gone" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/logoutButton"
-                style="@style/Widget.NobiStream.Button.Danger"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
-                android:text="@string/settings_logout" />
-
-            <!-- Storage -->
-            <TextView
-                style="@style/Text.NobiStream.SectionHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/section_spacing"
-                android:text="@string/settings_section_cache" />
-
-            <TextView
-                style="@style/Text.NobiStream.Body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/settings_cache_size" />
-
-            <com.google.android.material.button.MaterialButtonToggleGroup
-                android:id="@+id/cacheSizeGroup"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                app:checkedButton="@id/cache500"
-                app:selectionRequired="true"
-                app:singleSelection="true">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/cache500"
-                    style="?attr/materialButtonOutlinedStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/settings_cache_500" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/cache1gb"
-                    style="?attr/materialButtonOutlinedStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/settings_cache_1gb" />
-            </com.google.android.material.button.MaterialButtonToggleGroup>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/clearCacheButton"
-                style="@style/Widget.NobiStream.Button.Secondary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
-                android:text="@string/settings_clear_cache" />
-
-            <!-- v9.1 #11: cache-used bar — bytes used vs the selected
-                 limit, refreshed in onResume + after clearing. -->
-            <com.google.android.material.progressindicator.LinearProgressIndicator
-                android:id="@+id/cacheUsedBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:indeterminate="false"
-                android:max="100"
-                app:indicatorColor="@color/primary"
-                app:trackColor="@color/surface_variant" />
-
-            <TextView
-                android:id="@+id/cacheUsedText"
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4" />
-
-            <!-- Application -->
-            <TextView
-                style="@style/Text.NobiStream.SectionHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/section_spacing"
-                android:text="@string/settings_section_app" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:gravity="center_vertical"
-                android:minHeight="@dimen/settings_row_min_height"
-                android:orientation="horizontal">
-
-                <TextView
-                    style="@style/Text.NobiStream.Body"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:fontFamily="sans-serif-medium"
-                    android:text="@string/settings_version" />
-
-                <TextView
-                    android:id="@+id/versionText"
-                    style="@style/Text.NobiStream.BodySecondary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:text="@string/settings_about" />
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:text="@string/settings_privacy" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/licencesButton"
-                style="@style/Widget.NobiStream.Button.Text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:text="@string/settings_licences" />
         </LinearLayout>
     </ScrollView>
 
+    <!-- v9.9 (§5 audit #24): hairline divider above the bottom nav. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/divider_height"
+        android:background="@color/divider" />
+
     <!-- v8 bottom navigation (Settings is a top-level tab; hidden
-         when opened standalone from Login — see SettingsActivity). -->
+         when opened standalone — see SettingsActivity). -->
     <include
         android:id="@+id/bottomNav"
         layout="@layout/layout_bottom_nav"

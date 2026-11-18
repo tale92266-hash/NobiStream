@@ -17,9 +17,7 @@
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textColor="@color/text_primary"
-        android:textSize="@dimen/text_subhead"
-        android:textStyle="bold" />
+        style="@style/Text.NobiStream.SectionHeader" />
 
     <TextView
         android:id="@+id/libraryHeaderCount"

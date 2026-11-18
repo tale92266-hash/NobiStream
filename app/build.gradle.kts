@@ -12,14 +12,14 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v9.8: 2.5.8 / code 20 — lock-state dim (lockDimOverlay reuses
-        // the controller scrim; no other behaviour change).
-        versionCode = 20
-        versionName = "2.5.8"
+        // v9.9: 2.5.9 / code 21 — locked title, Preferred quality,
+        // Settings hub + sub-screens, app UI alignment (§5 audit).
+        versionCode = 21
+        versionName = "2.5.9"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the
-        // user enters the credentials in the app's Settings screen instead.
+        // user enters the credentials in the login screen instead.
         val telegramApiId = System.getenv("NOBISTREAM_API_ID")?.toIntOrNull() ?: 0
         val telegramApiHash = System.getenv("NOBISTREAM_API_HASH") ?: ""
         buildConfigField("int", "TELEGRAM_API_ID", telegramApiId.toString())

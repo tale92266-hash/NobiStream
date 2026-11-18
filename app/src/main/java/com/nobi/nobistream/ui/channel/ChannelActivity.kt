@@ -88,6 +88,8 @@ class ChannelActivity : AppCompatActivity() {
      * looks a tapped card up in it.
      */
     private var smartOn = true
+    /** v9.9 Preferred quality cap, as a quality rank (Int.MAX_VALUE = no cap). */
+    private var preferredMaxRank = Int.MAX_VALUE
     private var currentGroups: List<EpisodeGroup> = emptyList()
     private var firstPageAttempts = 0
     private var firstPageRetrying = false
@@ -234,6 +236,10 @@ class ChannelActivity : AppCompatActivity() {
                 smartOn = savedSmart
                 binding.chipSmart.isChecked = savedSmart
             }
+            // v9.9: Preferred quality cap for the best-copy choice.
+            preferredMaxRank = SmartFilter.maxRankFor(
+                repository.settingsStore.preferredQuality.first()
+            )
             val savedFilter = repository.settingsStore.defaultFilter.first()
             if (savedFilter != currentFilter) {
                 currentFilter = savedFilter
@@ -512,6 +518,24 @@ class ChannelActivity : AppCompatActivity() {
         shimmerAnimator = null
     }
 
+    override fun onResume() {
+        super.onResume()
+        // v9.9: the preference can change while this screen is under
+        // Settings (Video Settings → back). Re-read it and re-group
+        // when it moved, so the card that is tapped is already the
+        // preferred copy — otherwise the tap would play the old best
+        // copy and the setting would only apply to the NEXT video.
+        lifecycleScope.launch {
+            val rank = SmartFilter.maxRankFor(
+                repository.settingsStore.preferredQuality.first()
+            )
+            if (rank != preferredMaxRank) {
+                preferredMaxRank = rank
+                applyFilter()
+            }
+        }
+    }
+
     private fun applyFilter() {
         var list = allVideos.toList()
         // v5 Smart Filter — dedup FIRST, then the quality chip
@@ -522,7 +546,7 @@ class ChannelActivity : AppCompatActivity() {
         // pages re-run it, so a duplicate merged on page 1 never
         // reappears when page 2 loads.
         if (smartOn) {
-            currentGroups = SmartFilter.groupEpisodes(list)
+            currentGroups = SmartFilter.groupEpisodes(list, preferredMaxRank)
             list = currentGroups.map { it.best.copy(hiddenCopies = it.hiddenCount) }
         } else {
             currentGroups = emptyList()

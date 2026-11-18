@@ -58,6 +58,23 @@
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- v9.9 Settings sub-screens: hub rows open these; each has
+             its own toolbar + back, no bottom nav. -->
+        <activity
+            android:name=".ui.settings.SettingsGeneralActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.settings.SettingsVideoActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.settings.SettingsAudioActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".ui.search.SearchActivity"
             android:exported="false"

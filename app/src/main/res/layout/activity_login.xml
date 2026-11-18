@@ -183,13 +183,57 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/text_body" />
 
+                <!-- v9.9 (§4.3): API entry lives INSIDE the login flow
+                     as the first step — the Login screen's Settings
+                     button is gone. Shown only when NO credentials
+                     exist at all (see LoginActivity.maybeStart). The
+                     values are saved to the encrypted store and never
+                     displayed or logged anywhere. -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/apiIdLayout"
+                    style="@style/Widget.NobiStream.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_12"
+                    android:hint="@string/settings_api_id">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/apiIdEdit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/apiHashLayout"
+                    style="@style/Widget.NobiStream.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_12"
+                    android:hint="@string/settings_api_hash"
+                    app:endIconMode="password_toggle">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/apiHashEdit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <TextView
+                    style="@style/Text.NobiStream.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_8"
+                    android:text="@string/settings_api_hint" />
+
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/openSettingsButton"
+                    android:id="@+id/saveApiButton"
                     style="@style/Widget.NobiStream.Button.Primary"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_12"
-                    android:text="@string/home_open_settings" />
+                    android:text="@string/settings_save" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

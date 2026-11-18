@@ -123,6 +123,8 @@ class MainActivity : AppCompatActivity() {
     private var librarySort = LibrarySort.NEWEST
     /** v5 Smart Filter (same semantics as ChannelActivity). */
     private var librarySmartOn = true
+    /** v9.9 Preferred quality cap, as a quality rank (Int.MAX_VALUE = no cap). */
+    private var preferredMaxRank = Int.MAX_VALUE
     private var libraryGroups: List<EpisodeGroup> = emptyList()
     private var libraryCursors: Map<Long, Long> = emptyMap()
     private var libraryHasMore = true
@@ -371,6 +373,10 @@ class MainActivity : AppCompatActivity() {
                 librarySmartOn = savedSmart
                 binding.libChipSmart.isChecked = savedSmart
             }
+            // v9.9: Preferred quality cap for the best-copy choice.
+            preferredMaxRank = SmartFilter.maxRankFor(
+                repository.settingsStore.preferredQuality.first()
+            )
             val savedFilter = repository.settingsStore.defaultFilter.first()
             if (savedFilter != libraryFilter) {
                 libraryFilter = savedFilter
@@ -758,6 +764,22 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateLibraryLoadMoreButton() = Unit
 
+    override fun onResume() {
+        super.onResume()
+        // v9.9: same return-from-Settings refresh as ChannelActivity
+        // — the Library grid must re-group under the new preference
+        // before the next tap, or the tap plays the old best copy.
+        lifecycleScope.launch {
+            val rank = SmartFilter.maxRankFor(
+                repository.settingsStore.preferredQuality.first()
+            )
+            if (rank != preferredMaxRank) {
+                preferredMaxRank = rank
+                applyLibraryFilter()
+            }
+        }
+    }
+
     /** Filter + sort only — DiffUtil, no full reload, scroll preserved. */
     private fun applyLibraryFilter() {
         if (libraryFirstPageFailed) return
@@ -766,7 +788,7 @@ class MainActivity : AppCompatActivity() {
         // order as ChannelActivity). Load More re-runs this over the
         // merged list, so duplicates never reappear.
         if (librarySmartOn) {
-            libraryGroups = SmartFilter.groupEpisodes(list)
+            libraryGroups = SmartFilter.groupEpisodes(list, preferredMaxRank)
             list = libraryGroups.map { it.best.copy(hiddenCopies = it.hiddenCount) }
         } else {
             libraryGroups = emptyList()

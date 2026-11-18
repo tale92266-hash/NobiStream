@@ -226,6 +226,11 @@
         android:visibility="gone" />
 
     <!-- v8 bottom navigation (Search is a top-level tab). -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/divider_height"
+        android:background="@color/divider" />
+
     <include
         android:id="@+id/bottomNav"
         layout="@layout/layout_bottom_nav"

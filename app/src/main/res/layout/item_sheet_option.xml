@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v8 sheet option row: RadioButton + label, 56dp min height. -->
+<!-- v8 sheet option row: icon + label + check, 56dp min height.
+     v9.9 (§5 audit #11): the leading element is the option ICON and
+     the selection check (RadioButton) sits in ONE end column on
+     every sheet — the old layout had the radio leading and the icon
+     trailing. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -8,35 +12,32 @@
     android:gravity="center_vertical"
     android:minHeight="56dp"
     android:orientation="horizontal"
-    android:paddingStart="@dimen/spacing_16"
-    android:paddingEnd="@dimen/spacing_16">
+    android:paddingStart="@dimen/spacing_20"
+    android:paddingEnd="@dimen/spacing_20">
 
-    <RadioButton
-        android:id="@+id/optionRadio"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:clickable="false"
-        android:focusable="false"
-        app:buttonTint="@color/primary" />
+    <ImageView
+        android:id="@+id/optionIcon"
+        android:layout_width="@dimen/icon_size"
+        android:layout_height="@dimen/icon_size"
+        android:contentDescription="@null"
+        android:tint="@color/text_secondary"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/optionLabel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_12"
+        android:layout_marginStart="@dimen/spacing_16"
         android:layout_weight="1"
         android:textColor="@color/text_primary"
         android:textSize="@dimen/text_body" />
 
-    <!-- v9.1 #12: option icon (sort options) — at the row's end,
-         after the label; the radio marks selection, the icon names
-         the sort. -->
-    <ImageView
-        android:id="@+id/optionIcon"
-        android:layout_width="@dimen/icon_size"
-        android:layout_height="@dimen/icon_size"
+    <RadioButton
+        android:id="@+id/optionRadio"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/spacing_12"
-        android:contentDescription="@null"
-        android:tint="@color/text_secondary"
-        android:visibility="gone" />
+        android:clickable="false"
+        android:focusable="false"
+        app:buttonTint="@color/primary" />
 </LinearLayout>

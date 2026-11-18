@@ -441,7 +441,14 @@ class PlayerActivity : AppCompatActivity() {
                     val smart = runCatching {
                         repository.settingsStore.smartFilter.first()
                     }.getOrNull() ?: true
-                    playlist = if (smart) SmartFilter.dedup(videos) else videos
+                    // v9.9: Preferred quality cap, read fresh — the
+                    // choice applies to the next video opened.
+                    val maxRank = runCatching {
+                        SmartFilter.maxRankFor(
+                            repository.settingsStore.preferredQuality.first()
+                        )
+                    }.getOrNull() ?: Int.MAX_VALUE
+                    playlist = if (smart) SmartFilter.dedup(videos, maxRank) else videos
                     if (playlist.isEmpty()) {
                         Toast.makeText(
                             this@PlayerActivity,
@@ -732,11 +739,14 @@ class PlayerActivity : AppCompatActivity() {
      * v9.8: the lock dim (lockDimOverlay, the same scrim the
      * controller uses when open) shows TOGETHER with the button +
      * seekbar, on this same call and the same 3s timer.
+     * v9.9: the locked title (lockTitle) is the fourth member of
+     * the cluster — same call, same timer, no exceptions.
      */
     private fun showLockCluster() {
         applyLockedControls()
         binding.lockDimOverlay.visibility = View.VISIBLE
         binding.lockCornerButton.visibility = View.VISIBLE
+        binding.lockTitle.visibility = View.VISIBLE
         setLockedSeekbarVisible(true)
         lockHideHandler.removeCallbacks(lockHideRunnable)
         lockHideHandler.postDelayed(lockHideRunnable, CONTROLLER_TIMEOUT_MS.toLong())
@@ -756,6 +766,7 @@ class PlayerActivity : AppCompatActivity() {
         lockHideHandler.removeCallbacks(lockHideRunnable)
         binding.lockDimOverlay.visibility = View.GONE
         binding.lockCornerButton.visibility = View.GONE
+        binding.lockTitle.visibility = View.GONE
         setLockedSeekbarVisible(false)
     }
 
@@ -892,6 +903,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerError.visibility = View.GONE
             binding.lockCornerButton.visibility = View.GONE
             binding.lockDimOverlay.visibility = View.GONE
+            binding.lockTitle.visibility = View.GONE
             binding.audioNotice.visibility = View.GONE
             // v8 §4.4: every floating overlay goes away in PiP too.
             hideUpNextCard()
@@ -1484,6 +1496,10 @@ class PlayerActivity : AppCompatActivity() {
         index = newIndex
         val item = playlist[index]
         ctrlTitle.text = item.title
+        // v9.9: the locked title mirrors ctrlTitle — same string,
+        // same place, so Next/Previous and playlist switches update
+        // both together.
+        binding.lockTitle.text = item.title
         ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
         refreshDetailsPanel()
         binding.playerError.visibility = View.GONE
@@ -1609,7 +1625,12 @@ class PlayerActivity : AppCompatActivity() {
             val smart = runCatching {
                 repository.settingsStore.smartFilter.first()
             }.getOrNull() ?: true
-            var finalList = if (smart) SmartFilter.dedup(collected) else collected
+            val maxRank = runCatching {
+                SmartFilter.maxRankFor(
+                    repository.settingsStore.preferredQuality.first()
+                )
+            }.getOrNull() ?: Int.MAX_VALUE
+            var finalList = if (smart) SmartFilter.dedup(collected, maxRank) else collected
             if (filter != "All") {
                 finalList = finalList.filter { it.quality.label == filter }
             }

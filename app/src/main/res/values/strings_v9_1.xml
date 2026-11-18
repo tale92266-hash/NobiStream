@@ -16,6 +16,7 @@
     <string name="smart_best_quality">Best • Highest quality</string>
     <string name="smart_best_size">Best • Largest file</string>
     <string name="smart_best_newest">Best • Newest</string>
+    <string name="smart_best_preferred">Best • Your preferred quality</string>
     <!-- #16 Search: result count + Paste hint. -->
     <string name="search_results_count">%1$d results</string>
     <string name="search_paste_hint">Copy a Telegram link first, then tap Paste</string>

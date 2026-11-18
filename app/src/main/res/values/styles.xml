@@ -341,7 +341,9 @@
     <!-- v9.1 #11: section headers grow 11sp → 13sp so Settings /
          sheet / recent sections read as headers, not captions. -->
     <style name="Text.NobiStream.SectionHeader" parent="TextAppearance.Material3.LabelLarge">
-        <item name="android:textSize">@dimen/text_action</item>
+        <!-- v9.9 (§5 audit #17): 12sp per the §5.1 token scale — the
+             old 13sp (text_action) is not a token size. -->
+        <item name="android:textSize">@dimen/text_caption</item>
         <item name="android:textColor">@color/text_secondary</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:letterSpacing">0.08</item>

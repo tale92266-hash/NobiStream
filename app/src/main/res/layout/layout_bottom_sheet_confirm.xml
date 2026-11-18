@@ -19,18 +19,18 @@
         style="@style/Text.NobiStream.Title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="@dimen/spacing_16"
+        android:paddingStart="@dimen/spacing_20"
         android:paddingTop="@dimen/spacing_16"
-        android:paddingEnd="@dimen/spacing_16" />
+        android:paddingEnd="@dimen/spacing_20" />
 
     <TextView
         android:id="@+id/confirmBody"
         style="@style/Text.NobiStream.BodySecondary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="@dimen/spacing_16"
+        android:paddingStart="@dimen/spacing_20"
         android:paddingTop="@dimen/spacing_8"
-        android:paddingEnd="@dimen/spacing_16" />
+        android:paddingEnd="@dimen/spacing_20" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -38,8 +38,8 @@
         android:layout_marginTop="@dimen/spacing_16"
         android:gravity="end"
         android:orientation="horizontal"
-        android:paddingStart="@dimen/spacing_16"
-        android:paddingEnd="@dimen/spacing_16">
+        android:paddingStart="@dimen/spacing_20"
+        android:paddingEnd="@dimen/spacing_20">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/confirmCancelButton"

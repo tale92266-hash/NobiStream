@@ -80,6 +80,12 @@ class SearchActivity : AppCompatActivity() {
     private var results: List<VideoItem> = emptyList()
     /** v5 Smart Filter: grouping behind the displayed results. */
     private var smartOn = true
+    /** v9.9 Preferred quality cap, as a quality rank (Int.MAX_VALUE = no cap). */
+    private var preferredMaxRank = Int.MAX_VALUE
+    /** v9.9: the last search's raw results, kept so a preference
+     * change on return from Settings can re-group them without a
+     * fresh TDLib search. */
+    private var lastFound: List<VideoItem> = emptyList()
     private var searchGroups: List<EpisodeGroup> = emptyList()
     private var searchJob: Job? = null
     /** v9.2: the in-flight search, so the timeout can cancel a hung
@@ -211,6 +217,9 @@ class SearchActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             smartOn = repository.settingsStore.smartFilter.first()
+            preferredMaxRank = SmartFilter.maxRankFor(
+                repository.settingsStore.preferredQuality.first()
+            )
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -236,6 +245,24 @@ class SearchActivity : AppCompatActivity() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.showSoftInput(binding.searchEdit, InputMethodManager.SHOW_IMPLICIT)
         updatePasteChip()
+        // v9.9: return-from-Settings refresh — re-group the shown
+        // results under the new preference (same reason as the
+        // Channel/Library onResume refresh).
+        lifecycleScope.launch {
+            val rank = SmartFilter.maxRankFor(
+                repository.settingsStore.preferredQuality.first()
+            )
+            if (rank != preferredMaxRank) {
+                preferredMaxRank = rank
+                if (smartOn && lastFound.isNotEmpty()) {
+                    searchGroups = SmartFilter.groupEpisodes(lastFound, preferredMaxRank)
+                    results = searchGroups.map {
+                        it.best.copy(hiddenCopies = it.hiddenCount)
+                    }
+                    adapter.submitVideos(results)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -350,11 +377,12 @@ class SearchActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     searchTimeoutJob?.cancel()
                     showSkeleton(false)
+                    lastFound = found
                     // v5 Smart Filter: search results dedup too, so
                     // one episode appears once even when it was
                     // posted in four qualities.
                     if (smartOn) {
-                        searchGroups = SmartFilter.groupEpisodes(found)
+                        searchGroups = SmartFilter.groupEpisodes(found, preferredMaxRank)
                         results = searchGroups.map {
                             it.best.copy(hiddenCopies = it.hiddenCount)
                         }

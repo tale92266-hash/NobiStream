@@ -9,9 +9,9 @@
     android:gravity="center_vertical"
     android:minHeight="@dimen/settings_row_min_height"
     android:orientation="horizontal"
-    android:paddingStart="@dimen/spacing_16"
+    android:paddingStart="@dimen/spacing_20"
     android:paddingTop="@dimen/spacing_12"
-    android:paddingEnd="@dimen/spacing_16"
+    android:paddingEnd="@dimen/spacing_20"
     android:paddingBottom="@dimen/spacing_12">
 
     <TextView
@@ -31,7 +31,7 @@
         android:id="@+id/copyMeta"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_12"
+        android:layout_marginStart="@dimen/spacing_16"
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"
@@ -42,7 +42,7 @@
         android:id="@+id/copyBest"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_8"
+        android:layout_marginStart="@dimen/spacing_16"
         android:background="@drawable/bg_badge_quality"
         android:paddingStart="@dimen/spacing_8"
         android:paddingTop="@dimen/spacing_4"
@@ -58,7 +58,7 @@
         android:id="@+id/copyCheck"
         android:layout_width="@dimen/icon_size"
         android:layout_height="@dimen/icon_size"
-        android:layout_marginStart="@dimen/spacing_8"
+        android:layout_marginStart="@dimen/spacing_16"
         android:contentDescription="@string/smart_copies_best"
         android:src="@drawable/ic_check"
         android:tint="@color/primary"

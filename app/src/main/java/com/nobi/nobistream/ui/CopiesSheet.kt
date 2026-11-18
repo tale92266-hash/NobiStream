@@ -55,6 +55,7 @@ object CopiesSheet {
                 SmartFilter.BestReason.QUALITY -> R.string.smart_best_quality
                 SmartFilter.BestReason.SIZE -> R.string.smart_best_size
                 SmartFilter.BestReason.NEWEST -> R.string.smart_best_newest
+                SmartFilter.BestReason.PREFERRED -> R.string.smart_best_preferred
             }
         )
         group.copies.forEach { copy ->

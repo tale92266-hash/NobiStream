@@ -6,7 +6,7 @@
     <string name="login_title">Sign in with Telegram</string>
     <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
     <string name="login_api_needed_title">API credentials needed</string>
-    <string name="login_api_needed_body">Open Settings and enter the free api_id and api_hash from my.telegram.org first. They are stored only on this phone.</string>
+    <string name="login_api_needed_body">Enter the free api_id and api_hash from my.telegram.org below. They are stored only on this phone.</string>
     <string name="login_phone_label">Phone number</string>
     <string name="login_phone_hint">9876543210</string>
     <string name="login_country_code">+91</string>
@@ -203,8 +203,25 @@
     <string name="settings_logout">Log out of Telegram</string>
     <string name="settings_logout_confirm">Log out? Your saved groups stay, but you will need to sign in again to watch videos.</string>
     <string name="settings_version">Version</string>
+    <string name="settings_hub_general">General</string>
+    <string name="settings_hub_general_desc">Account, startup, storage, about</string>
+    <string name="settings_hub_video">Video Settings</string>
+    <string name="settings_hub_video_desc">Playback, quality, subtitles</string>
+    <string name="settings_hub_audio">Audio Settings</string>
+    <string name="settings_hub_audio_desc">Supported audio formats</string>
+    <string name="settings_general_title">General</string>
+    <string name="settings_video_title">Video Settings</string>
+    <string name="settings_audio_title">Audio Settings</string>
+    <string name="settings_preferred_quality">Preferred quality</string>
+    <string name="settings_preferred_quality_desc">The copy Smart Filter plays when an episode has several. Direct copy picks always play the copy you chose.</string>
+    <string name="settings_audio_supported_title">Supported audio</string>
+    <string name="settings_audio_decoded">Decoded in the app</string>
+    <string name="settings_audio_downmix">Surround tracks play downmixed to stereo on this phone\'s speaker and headphones. No external receiver output.</string>
+    <string name="settings_reset_credentials">Reset saved credentials</string>
+    <string name="settings_reset_credentials_title">Reset saved credentials?</string>
+    <string name="settings_reset_credentials_body">The API credentials saved on this phone will be removed. The credentials built into this install will be used instead.</string>
     <string name="settings_licences">Open-source licences</string>
-    <string name="settings_licences_body">NobiStream is built with open-source libraries:\n\n• TDLib (Telegram Database Library) — Boost Software License 1.0\n• ExoPlayer / Media3 — Apache License 2.0\n• Material Components for Android — Apache License 2.0\n• Room, DataStore, Lifecycle — Apache License 2.0\n• Coil — Apache License 2.0\n• recyclerview-animators — Apache License 2.0\n• EncryptedSharedPreferences (Security Crypto) — Apache License 2.0</string>
+    <string name="settings_licences_body">NobiStream is built with open-source libraries:\n\n• TDLib (Telegram Database Library) — Boost Software License 1.0\n• ExoPlayer / Media3 — Apache License 2.0\n• Material Components for Android — Apache License 2.0\n• Room, DataStore, Lifecycle — Apache License 2.0\n• Coil — Apache License 2.0\n• recyclerview-animators — Apache License 2.0\n• EncryptedSharedPreferences (Security Crypto) — Apache License 2.0\n• NextLib (FFmpeg extension for Media3) — GNU General Public License v3.0</string>
     <string name="settings_about">About NobiStream v8. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
     <string name="settings_privacy">NobiStream sends nothing to any server except Telegram, using your own account. Your groups and watch positions stay on this phone.</string>
 

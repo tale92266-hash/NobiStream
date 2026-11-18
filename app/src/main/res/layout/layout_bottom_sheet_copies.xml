@@ -20,9 +20,9 @@
         style="@style/Text.NobiStream.Title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="@dimen/spacing_16"
+        android:paddingStart="@dimen/spacing_20"
         android:paddingTop="@dimen/spacing_16"
-        android:paddingEnd="@dimen/spacing_16" />
+        android:paddingEnd="@dimen/spacing_20" />
 
     <LinearLayout
         android:id="@+id/copiesRowsContainer"

@@ -23,7 +23,7 @@
     <dimen name="screen_margin_compact">12dp</dimen>
 
     <!-- Section spacing -->
-    <dimen name="section_spacing">24dp</dimen>
+    <dimen name="section_spacing">28dp</dimen>
     <dimen name="section_spacing_large">40dp</dimen>
 
     <!-- Corners: card 16dp, small 12dp, featured 20dp, dialog/sheet 28dp (v9 M3 Expressive) -->
