@@ -219,6 +219,17 @@ class PlayerActivity : AppCompatActivity() {
         if (player?.isPlaying == true) setControlsVisible(false)
     }
 
+    // v9.4 Bug L: the lock cluster gets the SAME 3s auto-hide as the
+    // normal controls — it never had one, so the lock button, the
+    // "Tap to unlock" pill and its thin progress bar sat on screen
+    // forever after locking. The runnable hides the cluster only
+    // while still locked; a tap anywhere brings it back (see
+    // onSingleTapConfirmed).
+    private val lockHideHandler = Handler(Looper.getMainLooper())
+    private val lockHideRunnable = Runnable {
+        if (locked) binding.lockOverlayContainer.visibility = View.GONE
+    }
+
     private val feedbackHandler = Handler(Looper.getMainLooper())
     private val hideFeedback = Runnable { binding.gestureFeedback.visibility = View.GONE }
     private val bufferHandler = Handler(Looper.getMainLooper())
@@ -637,24 +648,45 @@ class PlayerActivity : AppCompatActivity() {
         cancelHoldPending()
         if (holdSpeedActive) endHold2x()
         if (value) {
-            // Locking hides the controls through the single source of
-            // truth — never PlayerView directly.
-            setControlsVisible(false)
+            // v9.4 Bug L: hide the controls SYNCHRONOUSLY — the old
+            // call used the 250ms fade whose withEndAction did the
+            // actual hideController(), so the seekbar could linger on
+            // screen after locking. With animate=false the controller
+            // (seekbar included) is gone at once.
+            setControlsVisible(false, animate = false)
             // v9.1: the whole corner cluster shows/hides as one —
             // never the button/pill individually (that split is what
             // the old centre overlay did).
-            binding.lockOverlayContainer.visibility = View.VISIBLE
+            // v9.4 Bug L: the cluster shows on lock and auto-hides
+            // after 3s like the normal controls (it never had a
+            // timer — that is why the lock button, the "Tap to
+            // unlock" pill and its progress bar never left the
+            // screen). A tap anywhere brings it back for 3s.
+            showLockCluster()
             ctrlLock.setImageResource(R.drawable.ic_lock)
             updateLockTime()
             Toast.makeText(this, getString(R.string.player_locked), Toast.LENGTH_SHORT).show()
         } else {
-            binding.lockOverlayContainer.visibility = View.GONE
+            hideLockCluster()
             ctrlLock.setImageResource(R.drawable.ic_lock_open)
             setControlsVisible(true)
             // v9.1 #20: unlock haptic through the shared helper.
             Haptics.tap(binding.playerView)
             Toast.makeText(this, getString(R.string.player_unlocked), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** v9.4 Bug L: show the lock cluster and arm its 3s auto-hide. */
+    private fun showLockCluster() {
+        binding.lockOverlayContainer.visibility = View.VISIBLE
+        lockHideHandler.removeCallbacks(lockHideRunnable)
+        lockHideHandler.postDelayed(lockHideRunnable, CONTROLLER_TIMEOUT_MS.toLong())
+    }
+
+    /** v9.4 Bug L: hide the lock cluster now and disarm its timer. */
+    private fun hideLockCluster() {
+        lockHideHandler.removeCallbacks(lockHideRunnable)
+        binding.lockOverlayContainer.visibility = View.GONE
     }
 
     /**
@@ -732,7 +764,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.doubleTapPill.visibility = View.GONE
             binding.detailsPanel.visibility = View.GONE
         } else if (locked) {
-            binding.lockOverlayContainer.visibility = View.VISIBLE
+            showLockCluster()
         } else {
             // Leaving PiP: restore the layout for the current
             // orientation (details panel included), then the controls.
@@ -1836,8 +1868,19 @@ class PlayerActivity : AppCompatActivity() {
                         // and this detector is the one place that tap
                         // is guaranteed to be seen (the PlayerView
                         // listener consumes every surface touch).
-                        // Taps elsewhere while locked stay swallowed.
-                        if (isTapOnLockCluster(e)) setLocked(false)
+                        // v9.4 Bug L: a tap OUTSIDE the cluster
+                        // toggles the cluster itself (Netflix-style):
+                        // hidden -> show for 3s; visible -> hide now.
+                        // The old code swallowed these taps, so the
+                        // cluster could neither be hidden nor brought
+                        // back by tapping.
+                        if (isTapOnLockCluster(e)) {
+                            setLocked(false)
+                        } else if (binding.lockOverlayContainer.visibility == View.VISIBLE) {
+                            hideLockCluster()
+                        } else {
+                            showLockCluster()
+                        }
                         return true
                     }
                     // v4-player-UX: ONE tap flips the single source of
@@ -2156,6 +2199,7 @@ class PlayerActivity : AppCompatActivity() {
         bufferHandler.removeCallbacks(bufferUpdater)
         feedbackHandler.removeCallbacks(hideFeedback)
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        lockHideHandler.removeCallbacks(lockHideRunnable)
         // v6: cancel the stall retry + offline timer + subtitle
         // discovery so nothing fires after the activity is gone.
         cancelStallRetry()

@@ -58,6 +58,10 @@ class ChannelActivity : AppCompatActivity() {
          * seconds on a slow network; 60s matches the app's existing
          * 60s LauncherActivity auth wait. */
         private const val FIRST_PAGE_TIMEOUT_MS = 60_000L
+        /** v9.4 Bug C: cap for the empty-window retry backoff
+         * (1.5s -> 3s -> 5s). The retry itself is UNCAPPED in count
+         * — the 60s first-page timeout is the only bound. */
+        private const val FIRST_PAGE_RETRY_MAX_DELAY_MS = 5_000L
     }
 
     private lateinit var binding: ActivityChannelBinding
@@ -87,6 +91,8 @@ class ChannelActivity : AppCompatActivity() {
     private var currentGroups: List<EpisodeGroup> = emptyList()
     private var firstPageAttempts = 0
     private var firstPageRetrying = false
+    /** v9.4 Bug C: current empty-window retry delay (backoff). */
+    private var firstPageRetryDelayMs = FIRST_PAGE_RETRY_DELAY_MS
     /** v9.2: the in-flight page load, so the first-page timeout can
      * cancel a hung TDLib call. */
     private var loadJob: Job? = null
@@ -216,6 +222,12 @@ class ChannelActivity : AppCompatActivity() {
             setBody(getString(R.string.channel_load_error_body))
             setRetry { resetAndLoad() }
         }
+        // v9.4 Bug C: start the load IMMEDIATELY — the old code waited
+        // for two DataStore .first() calls before resetAndLoad(), so
+        // a slow settings read delayed the load (and its 60s timeout
+        // job) with no error state at all. The saved settings still
+        // apply when they arrive (chips + applyFilter below).
+        resetAndLoad()
         lifecycleScope.launch {
             val savedSmart = repository.settingsStore.smartFilter.first()
             if (savedSmart != smartOn) {
@@ -234,7 +246,7 @@ class ChannelActivity : AppCompatActivity() {
                 }
                 binding.filterChips.check(chipId)
             }
-            resetAndLoad()
+            applyFilter()
         }
         // v8 toolbar subtitle: the group's last-updated time, from
         // the stored groups (never invented — 0 means "unknown", and
@@ -318,6 +330,7 @@ class ChannelActivity : AppCompatActivity() {
         hasMore = true
         firstPageAttempts = 0
         firstPageRetrying = false
+        firstPageRetryDelayMs = FIRST_PAGE_RETRY_DELAY_MS
         adapter.submitVideos(emptyList())
         binding.errorState.visibility = View.GONE
         // v9.2: the first page has no timeout anywhere else — see
@@ -341,22 +354,27 @@ class ChannelActivity : AppCompatActivity() {
             try {
                 val page = repository.loadVideos(chatId, fromMessageId, PAGE_SIZE)
                 withContext(Dispatchers.Main) {
-                    // v4-fb4: the FIRST GetChatHistory for a chat whose
-                    // history isn't synced yet can SUCCEED with an empty
-                    // window (rawCount==0) — the old code then showed
-                    // "No videos found" and set hasMore=false, so the
-                    // list looked empty until Refresh was tapped. An
-                    // empty first page is not proof the channel is
-                    // empty: retry a few times, shimmer still showing,
-                    // before concluding anything.
-                    if (firstPage && page.videos.isEmpty() && page.rawCount == 0 &&
-                        firstPageAttempts < MAX_FIRST_PAGE_ATTEMPTS
-                    ) {
-                        firstPageAttempts++
+                    // v9.4 Bug C: an empty first-page window means
+                    // TDLib has not synced this chat's history yet —
+                    // NOT that the channel is empty. The old code
+                    // gave up after 3 x 1.5s and showed a permanent
+                    // "No videos found" (hasMore=false, no
+                    // auto-recovery): on a slow network the sync
+                    // takes longer than ~5s, so a channel WITH videos
+                    // looked empty. Now the retry is uncapped in
+                    // count with backoff (1.5s -> 3s -> 5s) and the
+                    // 60s first-page timeout is the only bound — it
+                    // shows the error state + Retry. The empty state
+                    // can now only come from a load that actually SAW
+                    // messages (rawCount > 0) with no videos in them.
+                    if (firstPage && page.videos.isEmpty() && page.rawCount == 0) {
                         firstPageRetrying = true
                         loading = false
+                        val delayMs = firstPageRetryDelayMs
+                        firstPageRetryDelayMs =
+                            (firstPageRetryDelayMs * 2).coerceAtMost(FIRST_PAGE_RETRY_MAX_DELAY_MS)
                         lifecycleScope.launch {
-                            delay(FIRST_PAGE_RETRY_DELAY_MS)
+                            delay(delayMs)
                             loadPage()
                         }
                         return@withContext

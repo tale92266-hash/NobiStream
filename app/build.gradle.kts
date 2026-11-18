@@ -13,8 +13,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // v9.2: 2.5.2 / code 14 — tap regression fix (skeleton timeouts).
-        versionCode = 15
-        versionName = "2.5.3"
+        versionCode = 16
+        versionName = "2.5.4"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the
