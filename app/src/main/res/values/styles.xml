@@ -190,6 +190,24 @@
         <item name="cornerSize">@dimen/corner_medium</item>
     </style>
 
+    <!-- v8: fully circular shape for the 56dp group avatar (Material 1.13
+         has no ShapeAppearance.Material3.CornerFull style). -->
+    <style name="Shape.NobiStream.Circle" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <!-- v8: bottom-nav active-indicator pill (Material 1.13 has no
+         itemActiveIndicatorColor XML attribute — the colour lives in the
+         NavigationBarActiveIndicator style). 64x32dp is the Material 3
+         default indicator size; colour is accent at 20% alpha. -->
+    <style name="Widget.NobiStream.BottomNav.ActiveIndicator" parent="">
+        <item name="android:color">@color/nav_indicator</item>
+        <item name="android:width">64dp</item>
+        <item name="android:height">32dp</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Material3.NavigationBarView.ActiveIndicator</item>
+    </style>
+
     <!-- ============ Text appearances (native typography) ============ -->
 
     <style name="Text.NobiStream.Display" parent="TextAppearance.Material3.HeadlineMedium">

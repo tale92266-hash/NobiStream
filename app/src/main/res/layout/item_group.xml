@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- v8 group row (spec §4.2): NO card/box — a clean edge-to-edge list
-     row. Left 56dp CIRCULAR avatar (ShapeableImageView, built-in
-     CornerFull shape — no styles.xml change), title 16sp Subhead,
+     row. Left 56dp CIRCULAR avatar (ShapeableImageView with the local
+     Shape.NobiStream.Circle 50% shape), title 16sp Subhead,
      subtitle 12sp ("N videos • Updated 12 Nov"), right chevron
      24dp #9AA8BC. 1dp inset divider (#24334A) starts after the
      avatar (16dp screen margin + 56dp avatar + 12dp gap = 84dp). -->
@@ -29,7 +29,7 @@
             android:contentDescription="@string/home_title"
             android:scaleType="centerCrop"
             android:src="@drawable/ic_video_placeholder"
-            app:shapeAppearance="@style/ShapeAppearance.Material3.CornerFull" />
+            app:shapeAppearance="@style/Shape.NobiStream.Circle" />
 
         <LinearLayout
             android:layout_width="0dp"

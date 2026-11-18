@@ -10,7 +10,7 @@
     android:layout_height="@dimen/nav_bar_height"
     android:background="@color/surface"
     android:fitsSystemWindows="true"
-    app:itemActiveIndicatorColor="@color/nav_indicator"
+    app:itemActiveIndicatorStyle="@style/Widget.NobiStream.BottomNav.ActiveIndicator"
     app:itemIconTint="@color/nav_icon_tint"
     app:itemTextColor="@color/nav_label_tint"
     app:labelVisibilityMode="labeled"
