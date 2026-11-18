@@ -7,8 +7,10 @@
      v8 used the abstract NavigationBarView tag — LayoutInflater
      needs a public (Context, AttributeSet) ctor, which the abstract
      class does not have, so MainActivity crashed on inflate
-     (NoSuchMethodException, Sam's v8.1 crash log). -->
-<com.google.android.material.navigation.BottomNavigationView xmlns:android="http://schemas.android.com/apk/res/android"
+     (NoSuchMethodException, Sam's v8.1 crash log). NOTE the package:
+     BottomNavigationView lives in material.bottomnavigation, NOT
+     material.navigation — the navigation package has no such class. -->
+<com.google.android.material.bottomnavigation.BottomNavigationView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/bottomNav"
     android:layout_width="match_parent"
