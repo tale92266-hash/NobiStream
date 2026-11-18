@@ -1,5 +1,6 @@
 package com.nobi.nobistream.ui.compose.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,7 @@ import com.nobi.nobistream.data.NobiRepository
 import com.nobi.nobistream.data.SettingsStore
 import com.nobi.nobistream.data.db.DownloadEntity
 import com.nobi.nobistream.playback.PlayerPlaylist
+import com.nobi.nobistream.ui.compose.components.LibrarySkeleton
 import com.nobi.nobistream.ui.compose.components.QualityFilterChips
 import com.nobi.nobistream.ui.compose.components.QualityPillBadge
 import com.nobi.nobistream.ui.compose.components.VideoThumb
@@ -102,7 +104,9 @@ fun LibraryScreen(
     downloadManager: DownloadManager,
     settingsStore: SettingsStore,
     onPlayVideo: (VideoItem) -> Unit,
-    onOpenChannel: (Long, String) -> Unit,
+    // v2.6.1: third param is the deep-scroll target episode
+    // (messageId), or null for a plain open at the top.
+    onOpenChannel: (Long, String, Long?) -> Unit,
     onShowMessage: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
@@ -185,7 +189,12 @@ fun LibraryScreen(
         onPlayVideo(item)
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            // v2.6.1: root background in theme colours.
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = MaterialTheme.colorScheme.background,
@@ -217,12 +226,8 @@ fun LibraryScreen(
 
         if (selectedTab == 0) {
             if (!bookmarksLoaded) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                // v2.6.1: shimmer skeleton, not a bare spinner.
+                LibrarySkeleton()
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Quality chips + Smart chip + sort, as today.
@@ -327,7 +332,7 @@ fun LibraryScreen(
                                     repository = repository,
                                     groupName = groupNameOf(item.chatId),
                                     onClick = { playWatchlist(item) },
-                                    onOpenChannel = { onOpenChannel(item.chatId, groupNameOf(item.chatId)) },
+                                    onOpenChannel = { onOpenChannel(item.chatId, groupNameOf(item.chatId), null) },
                                     onRemove = {
                                         scope.launch { repository.toggleBookmark(item) }
                                     }

@@ -51,11 +51,23 @@ object SmartFilter {
 
     private val seasonRegex =
         Regex("""(?i)(?:\bS(\d{1,2})\b|\bSeason\s+(\d{1,2})\b)""")
+    // v2.6.1: an optional separator ([-:#], with optional spaces)
+    // between the episode marker and the number — the admin's real
+    // format is "EPISODE - 360" / "Ep-360" / "Episode: 360", which
+    // the old `\s*(\d+)` required digits IMMEDIATELY after the
+    // marker and so matched NOTHING (each quality copy stayed a
+    // standalone row). "S17E13" still parses via the compact branch.
     private val episodeRegex =
-        Regex("""(?i)(?:\b(?:Ep\.?|Episode|E)\s*(\d{1,4})\b|S\d{1,2}E(\d{1,4})\b)""")
+        Regex("""(?i)(?:\b(?:Ep\.?|Episode|E)\s*[-:#]?\s*(\d{1,4})\b|S\d{1,2}E(\d{1,4})\b)""")
     private val compactSeasonEpisodeRegex =
         Regex("""(?i)\bS(\d{1,2})E(\d{1,4})\b""")
     private val partRegex = Regex("""(?i)\bPart\s*(\d{1,2})\b""")
+    // v2.6.1: non-episode posts (news / announcements / trailers /
+    // promos ...) have no episode number, so they used to appear as
+    // standalone episode rows. Only applies when parseKey is null —
+    // a real episode whose caption says "update" is never moved.
+    private val nonEpisodeRegex =
+        Regex("""(?i)\b(news|announcement|trailer|promo|teaser|update|coming[ -]soon|behind the scenes|making of)\b""")
 
     /** Best copy first: quality rank, then file size, then newest. */
     private val bestFirst = compareByDescending<VideoItem> { it.quality.rank }
@@ -180,4 +192,50 @@ object SmartFilter {
         groupEpisodes(items, maxRank).map { group ->
             group.best.copy(hiddenCopies = group.hiddenCount)
         }
+
+    /**
+     * v2.6.1: is this video a non-episode post (news / announcement
+     * / trailer / promo / teaser / update / coming-soon / behind the
+     * scenes / making of)? True ONLY when the video has no episode
+     * number at all — a real episode is never classified as "other".
+     * The channel list shows these in a separate "Other videos"
+     * section at the bottom; they stay playable, never deleted.
+     */
+    fun isNonEpisode(item: VideoItem): Boolean {
+        if (parseKey(item) != null) return false
+        val text = "${item.title}\n${item.caption}"
+        return nonEpisodeRegex.containsMatchIn(text)
+    }
+
+    /**
+     * v2.6.1: dedup a Continue Watching list by episode identity —
+     * the same episode watched in 2 qualities is 2 position rows,
+     * and the list showed it twice. Keeps the FIRST row per episode
+     * (the list is newest-first, so that is the most recently
+     * watched copy); standalone items keep their own identity.
+     */
+    fun dedupContinue(items: List<VideoItem>): List<VideoItem> {
+        val seen = HashSet<Any>(items.size)
+        val out = ArrayList<VideoItem>(items.size)
+        for (item in items) {
+            val key: Any = parseKey(item)
+                ?: "standalone:${item.chatId}:${item.messageId}"
+            if (seen.add(key)) out.add(item)
+        }
+        return out
+    }
+
+    /**
+     * v2.6.1 regression guard: true when two groups share one
+     * episode key (must never happen — groupEpisodes keys the map
+     * by it). Callers can assert on this after every Load More.
+     */
+    fun hasDuplicateEpisodeKeys(groups: List<EpisodeGroup>): Boolean {
+        val seen = HashSet<EpisodeKey>(groups.size)
+        for (group in groups) {
+            val key = group.key ?: continue
+            if (!seen.add(key)) return true
+        }
+        return false
+    }
 }

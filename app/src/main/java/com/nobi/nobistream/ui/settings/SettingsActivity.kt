@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
 import com.nobi.nobistream.ui.compose.screens.ControlScreen
+import com.nobi.nobistream.ui.compose.theme.NobiThemeHost
 import com.nobi.nobistream.ui.login.LoginActivity
 import kotlinx.coroutines.launch
 
@@ -55,20 +56,25 @@ class SettingsActivity : AppCompatActivity() {
         enableEdgeToEdge()
         val showBack = intent.getBooleanExtra(EXTRA_STANDALONE, false)
         setContent {
-            ControlScreen(
-                repository = repository,
-                downloadManager = downloadManager,
-                settingsStore = settingsStore,
-                showBack = showBack,
-                onBack = { finish() },
-                onLogoutDone = {
-                    startActivity(Intent(this, LoginActivity::class.java))
-                    finish()
-                },
-                onShowMessage = { message ->
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                }
-            )
+            // v2.6.1: NobiThemeHost (see ChannelActivity) — the
+            // 2.6.0 standalone host had no theme wrapper at all, so
+            // Control stayed on the default LIGHT theme in every mode.
+            NobiThemeHost(settingsStore = settingsStore) {
+                ControlScreen(
+                    repository = repository,
+                    downloadManager = downloadManager,
+                    settingsStore = settingsStore,
+                    showBack = showBack,
+                    onBack = { finish() },
+                    onLogoutDone = {
+                        startActivity(Intent(this, LoginActivity::class.java))
+                        finish()
+                    },
+                    onShowMessage = { message ->
+                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
         }
         // Downloads resume (same as MainActivity; guarded — the
         // pump needs TDLib READY, which only holds after login).

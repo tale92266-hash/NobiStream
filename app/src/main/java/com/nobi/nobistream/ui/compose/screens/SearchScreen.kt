@@ -2,6 +2,7 @@ package com.nobi.nobistream.ui.compose.screens
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ import com.nobi.nobistream.data.NobiRepository
 import com.nobi.nobistream.data.SettingsStore
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.ui.compose.components.QualityFilterChips
+import com.nobi.nobistream.ui.compose.components.SearchSkeleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -89,7 +91,9 @@ fun SearchScreen(
     downloadManager: DownloadManager,
     settingsStore: SettingsStore,
     onPlayVideo: (VideoItem) -> Unit,
-    onOpenChannel: (Long, String) -> Unit,
+    // v2.6.1: third param is the deep-scroll target episode
+    // (messageId), or null for a plain open at the top.
+    onOpenChannel: (Long, String, Long?) -> Unit,
     onAddGroupLink: (String) -> Unit,
     onShowMessage: (String) -> Unit = {}
 ) {
@@ -187,6 +191,8 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // v2.6.1: root background in theme colours.
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -377,14 +383,8 @@ fun SearchScreen(
                 }
             }
         } else if (searching) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            // v2.6.1: shimmer skeleton, not a bare spinner.
+            SearchSkeleton()
         } else if (displayedResults.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -431,7 +431,8 @@ fun SearchScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         onSubtitleClick = {
-                            onOpenChannel(item.chatId, groupNameOf(item))
+                            // v2.6.1 deep scroll: land on this episode.
+                            onOpenChannel(item.chatId, groupNameOf(item), item.messageId)
                         }
                     )
                 }

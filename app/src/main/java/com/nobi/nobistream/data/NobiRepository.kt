@@ -11,6 +11,7 @@ import com.nobi.nobistream.data.db.FillerMarkEntity
 import com.nobi.nobistream.data.db.SavedGroupEntity
 import com.nobi.nobistream.data.db.VideoPositionEntity
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -30,6 +31,48 @@ class NobiRepository(
     val authState: Flow<AuthState> = gateway.authState
 
     val currentUser = gateway.currentUser
+
+    /**
+     * v2.6.1 session caches (in-memory only, never persisted).
+     * [thumbPathCache]: downloaded thumbnail paths, keyed by
+     * (chatId, messageId) — VideoThumb re-resolves on every scroll
+     * re-entry today because its remember() state dies when the
+     * item leaves composition; the cache makes rebinds free.
+     * [firstPageCache]: first page per channel (~5 min TTL) — a
+     * re-opened channel shows instantly, then refreshes in the
+     * background.
+     */
+    private val thumbPathCache = ConcurrentHashMap<Pair<Long, Long>, String>()
+    private data class CachedFirstPage(val page: VideoPage, val atMs: Long)
+    private val firstPageCache = ConcurrentHashMap<Long, CachedFirstPage>()
+
+    /** v2.6.1: thumbnail path remembered this session, if any. */
+    fun cachedThumbPath(chatId: Long, messageId: Long): String? =
+        thumbPathCache[chatId to messageId]?.takeIf { File(it).exists() }
+
+    private fun withCachedThumb(item: VideoItem): VideoItem {
+        if (!item.thumbLocalPath.isNullOrBlank()) return item
+        val cached = cachedThumbPath(item.chatId, item.messageId) ?: return item
+        return item.copy(thumbLocalPath = cached)
+    }
+
+    /**
+     * v2.6.1: first page of a channel, cached for ~5 min. Null when
+     * never loaded or stale. The caller shows this instantly and
+     * still refreshes in the background.
+     */
+    fun peekFirstPage(chatId: Long): VideoPage? {
+        val cached = firstPageCache[chatId] ?: return null
+        if (System.currentTimeMillis() - cached.atMs > FIRST_PAGE_CACHE_TTL_MS) {
+            firstPageCache.remove(chatId)
+            return null
+        }
+        return cached.page.copy(videos = cached.page.videos.map { withCachedThumb(it) })
+    }
+
+    private fun cacheFirstPage(chatId: Long, page: VideoPage) {
+        firstPageCache[chatId] = CachedFirstPage(page, System.currentTimeMillis())
+    }
 
     /** Start the Telegram client if credentials exist. False when none exist. */
     suspend fun ensureStarted(): Boolean {
@@ -125,11 +168,16 @@ class NobiRepository(
             .associateBy { it.messageId }
         val merged = page.videos.map { video ->
             val saved = positions[video.messageId]
-            if (saved != null) {
+            val withPosition = if (saved != null) {
                 video.copy(progressSec = saved.positionSec, watched = saved.watched)
             } else {
                 video
             }
+            // v2.6.1: a persisted thumb path (or this session's
+            // cache) rides along, so VideoThumb binds from disk.
+            val thumbPath = saved?.thumbLocalPath?.takeIf { File(it).exists() }
+                ?: withCachedThumb(video).thumbLocalPath
+            if (thumbPath != null) withPosition.copy(thumbLocalPath = thumbPath) else withPosition
         }
         // v4-fb3: preserve the pagination fields — the old code rebuilt
         // the page with only videos + totalCount, so lastMessageId was
@@ -137,12 +185,15 @@ class NobiRepository(
         // then set hasMore = (0 >= 50) = false after the FIRST page,
         // hiding Load more and stopping scroll-load. That is why lists
         // stopped after one page even though more videos existed.
-        return VideoPage(
+        val result = VideoPage(
             videos = merged,
             totalCount = page.totalCount,
             lastMessageId = page.lastMessageId,
             rawCount = page.rawCount
         )
+        // v2.6.1: cache the first page so a re-open shows instantly.
+        if (fromMessageId == 0L) cacheFirstPage(chatId, result)
+        return result
     }
 
     /**
@@ -220,7 +271,37 @@ class NobiRepository(
 
     /** v4-fb2: persist a downloaded thumbnail path (see PositionDao.updateThumbPath). */
     suspend fun saveThumbPath(item: VideoItem, path: String) {
-        database.positionDao().updateThumbPath(item.chatId, item.messageId, path)
+        // v2.6.1: remember it for this session first — scroll
+        // rebinds then need no Room read at all.
+        thumbPathCache[item.chatId to item.messageId] = path
+        val updated = database.positionDao()
+            .updateThumbPath(item.chatId, item.messageId, path)
+        if (updated == 0) {
+            // No position row yet (video never watched) — the old
+            // UPDATE was a silent no-op, so channel-list videos
+            // NEVER got a persisted path. Upsert a minimal row
+            // (positionSec = 0 keeps it out of Continue Watching,
+            // whose query needs positionSec > 0). No schema change.
+            database.positionDao().upsert(
+                VideoPositionEntity(
+                    chatId = item.chatId,
+                    messageId = item.messageId,
+                    title = item.title,
+                    caption = item.caption,
+                    qualityLabel = item.quality.label,
+                    durationSec = item.durationSec,
+                    sizeBytes = item.sizeBytes,
+                    dateEpochSec = item.dateEpochSec,
+                    thumbFileId = item.thumbFileId,
+                    thumbLocalPath = path,
+                    fileId = item.fileId,
+                    remoteFileId = item.remoteFileId,
+                    positionSec = 0L,
+                    watched = false,
+                    updatedAtEpochSec = System.currentTimeMillis() / 1000L
+                )
+            )
+        }
     }
 
     suspend fun savePosition(item: VideoItem, positionSec: Long) {
@@ -286,21 +367,23 @@ class NobiRepository(
     fun observeBookmarks(): Flow<List<VideoItem>> =
         database.bookmarkDao().observeBookmarks().map { rows ->
             rows.map { row ->
-                VideoItem(
-                    messageId = row.messageId,
-                    chatId = row.chatId,
-                    fileId = 0,
-                    remoteFileId = row.remoteFileId,
-                    title = row.title,
-                    caption = row.caption,
-                    quality = VideoQuality.fromLabel(row.qualityLabel),
-                    durationSec = row.durationSec,
-                    sizeBytes = row.sizeBytes,
-                    dateEpochSec = row.dateEpochSec,
-                    thumbFileId = row.thumbFileId,
-                    thumbLocalPath = row.thumbLocalPath,
-                    progressSec = 0L,
-                    watched = false
+                withCachedThumb(
+                    VideoItem(
+                        messageId = row.messageId,
+                        chatId = row.chatId,
+                        fileId = 0,
+                        remoteFileId = row.remoteFileId,
+                        title = row.title,
+                        caption = row.caption,
+                        quality = VideoQuality.fromLabel(row.qualityLabel),
+                        durationSec = row.durationSec,
+                        sizeBytes = row.sizeBytes,
+                        dateEpochSec = row.dateEpochSec,
+                        thumbFileId = row.thumbFileId,
+                        thumbLocalPath = row.thumbLocalPath,
+                        progressSec = 0L,
+                        watched = false
+                    )
                 )
             }
         }
@@ -375,21 +458,23 @@ class NobiRepository(
     /** The most recently watched unfinished video, or null when there is none. */
     suspend fun getLastWatched(): VideoItem? {
         val row = database.positionDao().getMostRecent() ?: return null
-        return VideoItem(
-            messageId = row.messageId,
-            chatId = row.chatId,
-            fileId = row.fileId,
-            remoteFileId = row.remoteFileId,
-            title = row.title,
-            caption = row.caption,
-            quality = VideoQuality.fromLabel(row.qualityLabel),
-            durationSec = row.durationSec,
-            sizeBytes = row.sizeBytes,
-            dateEpochSec = row.dateEpochSec,
-            thumbFileId = row.thumbFileId,
-            thumbLocalPath = row.thumbLocalPath,
-            progressSec = row.positionSec,
-            watched = row.watched
+        return withCachedThumb(
+            VideoItem(
+                messageId = row.messageId,
+                chatId = row.chatId,
+                fileId = row.fileId,
+                remoteFileId = row.remoteFileId,
+                title = row.title,
+                caption = row.caption,
+                quality = VideoQuality.fromLabel(row.qualityLabel),
+                durationSec = row.durationSec,
+                sizeBytes = row.sizeBytes,
+                dateEpochSec = row.dateEpochSec,
+                thumbFileId = row.thumbFileId,
+                thumbLocalPath = row.thumbLocalPath,
+                progressSec = row.positionSec,
+                watched = row.watched
+            )
         )
     }
 
@@ -405,21 +490,23 @@ class NobiRepository(
         }
 
     private fun rowToVideo(row: VideoPositionEntity): VideoItem =
-        VideoItem(
-            messageId = row.messageId,
-            chatId = row.chatId,
-            fileId = row.fileId,
-            remoteFileId = row.remoteFileId,
-            title = row.title,
-            caption = row.caption,
-            quality = VideoQuality.fromLabel(row.qualityLabel),
-            durationSec = row.durationSec,
-            sizeBytes = row.sizeBytes,
-            dateEpochSec = row.dateEpochSec,
-            thumbFileId = row.thumbFileId,
-            thumbLocalPath = row.thumbLocalPath,
-            progressSec = row.positionSec,
-            watched = row.watched
+        withCachedThumb(
+            VideoItem(
+                messageId = row.messageId,
+                chatId = row.chatId,
+                fileId = row.fileId,
+                remoteFileId = row.remoteFileId,
+                title = row.title,
+                caption = row.caption,
+                quality = VideoQuality.fromLabel(row.qualityLabel),
+                durationSec = row.durationSec,
+                sizeBytes = row.sizeBytes,
+                dateEpochSec = row.dateEpochSec,
+                thumbFileId = row.thumbFileId,
+                thumbLocalPath = row.thumbLocalPath,
+                progressSec = row.positionSec,
+                watched = row.watched
+            )
         )
 
     /**
@@ -457,11 +544,15 @@ class NobiRepository(
         val merged = found.map { video ->
             val saved = database.positionDao()
                 .getPosition(video.chatId, video.messageId)
-            if (saved != null) {
+            val withPosition = if (saved != null) {
                 video.copy(progressSec = saved.positionSec, watched = saved.watched)
             } else {
                 video
             }
+            // v2.6.1: persisted / session thumb path rides along.
+            val thumbPath = saved?.thumbLocalPath?.takeIf { File(it).exists() }
+                ?: withCachedThumb(video).thumbLocalPath
+            if (thumbPath != null) withPosition.copy(thumbLocalPath = thumbPath) else withPosition
         }
         val seen = HashSet<Pair<Long, Long>>()
         return merged
@@ -572,5 +663,10 @@ class NobiRepository(
             }
         }
         return total
+    }
+
+    companion object {
+        /** v2.6.1: first-page session cache TTL (~5 min). */
+        const val FIRST_PAGE_CACHE_TTL_MS = 5 * 60 * 1000L
     }
 }

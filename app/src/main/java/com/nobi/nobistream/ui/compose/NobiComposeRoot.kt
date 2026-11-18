@@ -2,6 +2,7 @@ package com.nobi.nobistream.ui.compose
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -105,7 +106,9 @@ fun NobiComposeRoot(
     settingsStore: SettingsStore,
     startTab: String,
     startAddGroupLink: String?,
-    onOpenChannel: (Long, String) -> Unit,
+    // v2.6.1: third param is the deep-scroll target episode
+    // (messageId), or null for a plain open at the top.
+    onOpenChannel: (Long, String, Long?) -> Unit,
     onPlayVideo: (VideoItem) -> Unit,
     onOpenContinueAll: () -> Unit,
     onOpenLogin: () -> Unit,
@@ -155,7 +158,9 @@ private fun NobiComposeRootContent(
     startTab: String,
     startAddGroupLink: String?,
     darkTheme: Boolean,
-    onOpenChannel: (Long, String) -> Unit,
+    // v2.6.1: third param is the deep-scroll target episode
+    // (messageId), or null for a plain open at the top.
+    onOpenChannel: (Long, String, Long?) -> Unit,
     onPlayVideo: (VideoItem) -> Unit,
     onOpenContinueAll: () -> Unit,
     onFinish: () -> Unit
@@ -266,6 +271,9 @@ private fun NobiComposeRootContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // v2.6.1: root background painted in theme colours
+                // on every screen — no bare window behind content.
+                .background(MaterialTheme.colorScheme.background)
                 .padding(innerPadding)
         ) {
             Crossfade(targetState = currentTab, label = "mainTabCrossfade") { tab ->

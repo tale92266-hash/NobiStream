@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v2.6.1 (#5): circular background for the five player centre
+  transport buttons (ctrlPrev / ctrlRew / ctrlPlayPause / ctrlFfwd /
+  ctrlNext) — a semi-transparent black circle with the press ripple
+  on top. Touch sizes are unchanged (64dp play, 48dp others).
+  Nothing else in the player changes.
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/colorControlHighlight">
+    <item android:drawable="@drawable/bg_player_center_button_circle" />
+</ripple>

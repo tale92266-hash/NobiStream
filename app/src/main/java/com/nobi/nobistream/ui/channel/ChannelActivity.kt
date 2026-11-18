@@ -11,6 +11,7 @@ import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.ui.compose.screens.ChannelScreen
+import com.nobi.nobistream.ui.compose.theme.NobiThemeHost
 import com.nobi.nobistream.ui.player.PlayerActivity
 import kotlinx.coroutines.launch
 
@@ -33,6 +34,11 @@ class ChannelActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_CHAT_ID = "chat_id"
         const val EXTRA_TITLE = "title"
+        /**
+         * v2.6.1 deep scroll: messageId of the episode to land on
+         * after the first load (0 / absent = top, as before).
+         */
+        const val EXTRA_TARGET_MESSAGE_ID = "target_message_id"
     }
 
     private val locator get() = (application as NobiStreamApplication).serviceLocator
@@ -45,23 +51,31 @@ class ChannelActivity : AppCompatActivity() {
         enableEdgeToEdge()
         val chatId = intent.getLongExtra(EXTRA_CHAT_ID, 0L)
         val title = intent.getStringExtra(EXTRA_TITLE).orEmpty()
+        val targetMessageId = intent.getLongExtra(EXTRA_TARGET_MESSAGE_ID, 0L)
+            .takeIf { it != 0L }
         if (chatId == 0L) {
             finish()
             return
         }
         setContent {
-            ChannelScreen(
-                repository = repository,
-                downloadManager = downloadManager,
-                settingsStore = settingsStore,
-                chatId = chatId,
-                title = title,
-                onBack = { finish() },
-                onPlayVideo = { item -> openPlayer(item) },
-                onShowMessage = { message ->
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                }
-            )
+            // v2.6.1: every standalone Compose host wraps in
+            // NobiThemeHost — without it Compose falls back to the
+            // default LIGHT theme on this dark window (2.6.0 bug).
+            NobiThemeHost(settingsStore = settingsStore) {
+                ChannelScreen(
+                    repository = repository,
+                    downloadManager = downloadManager,
+                    settingsStore = settingsStore,
+                    chatId = chatId,
+                    title = title,
+                    targetMessageId = targetMessageId,
+                    onBack = { finish() },
+                    onPlayVideo = { item -> openPlayer(item) },
+                    onShowMessage = { message ->
+                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
         }
         // Downloads resume (same as MainActivity; guarded — the
         // pump needs TDLib READY, which only holds after login).

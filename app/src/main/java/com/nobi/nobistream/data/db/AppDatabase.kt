@@ -150,9 +150,14 @@ interface PositionDao {
      * v4-fb2: remember a downloaded thumbnail's local path, so the
      * next bind loads it from disk with no TDLib call. No schema
      * change — the column already exists, it was just never written.
+     * v2.6.1: returns the rows updated (0 when no position row
+     * exists yet) — the repository upserts a minimal row then, so
+     * thumb paths are persisted for ALL videos, not only watched
+     * ones (the old no-op UPDATE left channel-list videos without
+     * a persisted path forever).
      */
     @Query("UPDATE video_positions SET thumbLocalPath = :path WHERE chatId = :chatId AND messageId = :messageId")
-    suspend fun updateThumbPath(chatId: Long, messageId: Long, path: String)
+    suspend fun updateThumbPath(chatId: Long, messageId: Long, path: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(position: VideoPositionEntity)
@@ -197,6 +202,16 @@ interface DownloadDao {
     /** Total bytes of completed downloads (Control "Downloads use X" row). */
     @Query("SELECT COALESCE(SUM(sizeBytes), 0) FROM downloads WHERE status = 'COMPLETED'")
     fun observeCompletedBytes(): Flow<Long>
+
+    /**
+     * v2.6.1: status of ONE download row, as a Flow. A channel row
+     * collects only its own status, so a progress tick recomposes
+     * that row alone instead of the whole channel list (the old
+     * whole-list downloads Flow recomposed every row per tick).
+     * Emits null when the video has no download row.
+     */
+    @Query("SELECT status FROM downloads WHERE chatId = :chatId AND messageId = :messageId LIMIT 1")
+    fun observeDownloadStatus(chatId: Long, messageId: Long): Flow<String?>
 }
 
 @Dao

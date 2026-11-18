@@ -1,5 +1,6 @@
 package com.nobi.nobistream.ui.compose.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
@@ -137,6 +138,8 @@ fun ControlScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            // v2.6.1: root background in theme colours.
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -221,16 +224,39 @@ fun ControlScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    SwitchRow(
-                        title = "Dark Theme",
-                        desc = "Dark colours, or follow the system when off",
-                        checked = themeMode == "Dark",
-                        onCheckedChange = { checked ->
-                            scope.launch {
-                                settingsStore.setThemeMode(if (checked) "Dark" else "System")
-                            }
-                        }
+                    // v2.6.1 (#3): a real 3-way theme selector. The
+                    // old Dark Theme switch was Dark <-> System — OFF
+                    // wrote "System", which follows the phone, and
+                    // Sam's phone is dark, so Light was unreachable.
+                    // System / Dark / Light all write themeMode
+                    // directly. The top-bar toggle still flips
+                    // Dark <-> Light.
+                    Text(
+                        text = "Theme",
+                        fontWeight = FontWeight.Bold
                     )
+                    Text(
+                        text = "System follows this phone's dark setting",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("System", "Dark", "Light").forEach { option ->
+                            androidx.compose.material3.FilterChip(
+                                selected = themeMode == option,
+                                onClick = {
+                                    scope.launch {
+                                        settingsStore.setThemeMode(option)
+                                    }
+                                },
+                                label = { Text(option) }
+                            )
+                        }
+                    }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                     SwitchRow(
                         title = "Pitch-Black AMOLED Mode",
@@ -482,7 +508,7 @@ fun ControlScreen(
                     ) {
                         Text("Version", fontWeight = FontWeight.Bold)
                         Text(
-                            text = "2.6.0 (22)",
+                            text = "2.6.1 (23)",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -490,7 +516,7 @@ fun ControlScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                     TextButton(
                         onClick = {
-                            infoDialog = "About NobiStream 2.6.0. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere."
+                            infoDialog = "About NobiStream 2.6.1. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere."
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {

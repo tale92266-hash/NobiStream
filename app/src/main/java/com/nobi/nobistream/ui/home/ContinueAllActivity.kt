@@ -13,6 +13,7 @@ import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.GroupItem
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ActivityContinueAllBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
@@ -71,9 +72,12 @@ class ContinueAllActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.observeContinueWatchingAll().collect { items ->
-                    allItems = items
-                    adapter.submitList(items)
-                    val empty = items.isEmpty()
+                    // v2.6.1: one row per episode — the same episode
+                    // watched in 2 qualities is 2 position rows.
+                    // Keeps the most recently watched copy per episode.
+                    allItems = SmartFilter.dedupContinue(items)
+                    adapter.submitList(allItems)
+                    val empty = allItems.isEmpty()
                     binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
                     binding.continueAllRecycler.visibility =
                         if (empty) View.GONE else View.VISIBLE

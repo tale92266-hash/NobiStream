@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.ui.channel.ChannelActivity
@@ -70,7 +71,9 @@ class MainActivity : AppCompatActivity() {
                 settingsStore = settingsStore,
                 startTab = startTab,
                 startAddGroupLink = startAddGroupLink,
-                onOpenChannel = { chatId, title -> openChannel(chatId, title) },
+                onOpenChannel = { chatId, title, targetMessageId ->
+                    openChannel(chatId, title, targetMessageId)
+                },
                 onPlayVideo = { item -> openPlayer(item) },
                 onOpenContinueAll = {
                     startActivity(Intent(this, ContinueAllActivity::class.java))
@@ -94,7 +97,11 @@ class MainActivity : AppCompatActivity() {
         // recreate from onNewIntent) — same guard as v9.9.
         if (savedInstanceState == null) {
             lifecycleScope.launch {
-                val items = repository.observeContinueWatching().first()
+                // v2.6.1: dedup by episode — the same episode in 2
+                // qualities must not open as two "last" entries.
+                val items = SmartFilter.dedupContinue(
+                    repository.observeContinueWatching().first()
+                )
                 val openLast = settingsStore.openLastEpisode.first()
                 val last = items.firstOrNull()
                 if (openLast && last != null) {
@@ -135,10 +142,14 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun openChannel(chatId: Long, title: String) {
+    private fun openChannel(chatId: Long, title: String, targetMessageId: Long? = null) {
         val intent = Intent(this, ChannelActivity::class.java)
             .putExtra(ChannelActivity.EXTRA_CHAT_ID, chatId)
             .putExtra(ChannelActivity.EXTRA_TITLE, title)
+        // v2.6.1 deep scroll: the episode to land on, if any.
+        if (targetMessageId != null && targetMessageId != 0L) {
+            intent.putExtra(ChannelActivity.EXTRA_TARGET_MESSAGE_ID, targetMessageId)
+        }
         startActivity(intent)
     }
 }

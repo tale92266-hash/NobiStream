@@ -48,6 +48,13 @@ class DownloadManager(
     /** All download rows, newest first (Library Offline tab). */
     val downloads: Flow<List<DownloadEntity>> = dao.observeDownloads()
 
+    /**
+     * v2.6.1: status of ONE download row (see DownloadDao).
+     * Channel rows collect this per-row instead of the whole list.
+     */
+    fun downloadStatus(chatId: Long, messageId: Long): Flow<String?> =
+        dao.observeDownloadStatus(chatId, messageId)
+
     /** Total bytes of COMPLETED downloads (Control "Downloads use X" row). */
     val completedBytes: Flow<Long> = dao.observeCompletedBytes()
 

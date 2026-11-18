@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v2.6.1: night override of Theme.NobiStream. A night-qualified
+  style replaces the day one wholesale, so this restates the whole
+  theme — the only differences from values/styles.xml are the two
+  light-bar flags (false: light icons on the dark background).
+  Every other style (dialogs, buttons, chips, cards) is shared from
+  values/styles.xml and resolves its colours per qualifier.
+-->
+<resources>
+    <style name="Theme.NobiStream" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="colorSecondary">@color/primary</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+        <item name="colorError">@color/error</item>
+        <item name="colorOnError">@color/on_error</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="materialAlertDialogTheme">@style/Widget.NobiStream.Dialog</item>
+        <item name="bottomSheetDialogTheme">@style/Theme.NobiStream.BottomSheetDialog</item>
+        <item name="android:windowAnimationStyle">@style/Theme.NobiStream.ActivityTransitions</item>
+    </style>
+</resources>

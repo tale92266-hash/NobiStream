@@ -3,7 +3,11 @@
   NobiStream v3 design system styles.
   Typography is native Roboto/system via Material3 text appearances —
   no bundled font (no APK bloat, no licensing risk).
-  The app is dark-only: DayNight parent with identical day/night palettes.
+  v2.6.1: DayNight split — day (this file) is the LIGHT theme, so
+  the status/navigation bar icons are dark; values-night/styles.xml
+  overrides Theme.NobiStream back to light icons for dark mode.
+  (A night-qualified style replaces the day one wholesale, so the
+  override restates the whole theme.)
 -->
 <resources>
     <style name="Theme.NobiStream" parent="Theme.Material3.DayNight.NoActionBar">
@@ -20,8 +24,8 @@
         <item name="colorOnError">@color/on_error</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="materialAlertDialogTheme">@style/Widget.NobiStream.Dialog</item>
         <item name="bottomSheetDialogTheme">@style/Theme.NobiStream.BottomSheetDialog</item>
         <item name="android:windowAnimationStyle">@style/Theme.NobiStream.ActivityTransitions</item>

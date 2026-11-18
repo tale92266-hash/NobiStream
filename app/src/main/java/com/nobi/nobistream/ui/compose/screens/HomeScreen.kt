@@ -72,6 +72,7 @@ import com.nobi.nobistream.data.SettingsStore
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.ui.compose.CopiesSheetContent
 import com.nobi.nobistream.ui.compose.components.GroupAvatar
+import com.nobi.nobistream.ui.compose.components.HomeSkeleton
 import com.nobi.nobistream.ui.compose.components.NobiMediaCard
 import com.nobi.nobistream.ui.compose.components.QualityFilterChips
 import com.nobi.nobistream.ui.compose.components.QualityPillBadge
@@ -102,7 +103,9 @@ fun HomeScreen(
     repository: NobiRepository,
     downloadManager: DownloadManager,
     settingsStore: SettingsStore,
-    onOpenChannel: (Long, String) -> Unit,
+    // v2.6.1: third param is the deep-scroll target episode
+    // (messageId), or null for a plain open at the top.
+    onOpenChannel: (Long, String, Long?) -> Unit,
     onPlayVideo: (VideoItem) -> Unit,
     onOpenContinueAll: () -> Unit,
     onAddGroup: () -> Unit,
@@ -110,8 +113,14 @@ fun HomeScreen(
 ) {
     val scope = rememberCoroutineScope()
     val groups by repository.observeGroups().collectAsStateWithLifecycle(initialValue = emptyList())
-    val continueItems by repository.observeContinueWatching()
+    val continueItemsRaw by repository.observeContinueWatching()
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    // v2.6.1: one row per episode — the same episode watched in 2
+    // qualities is 2 position rows and showed twice (S3: EPISODE-330
+    // twice). Keeps the most recently watched copy per episode.
+    val continueItems = remember(continueItemsRaw) {
+        SmartFilter.dedupContinue(continueItemsRaw)
+    }
     val lastSeenCounts by settingsStore.lastSeenVideoCounts
         .collectAsStateWithLifecycle(initialValue = emptyMap())
     val savedDefaultFilter by settingsStore.defaultFilter
@@ -158,8 +167,14 @@ fun HomeScreen(
     }
 
     fun openHeroCopies(item: VideoItem) {
-        val group = SmartFilter.groupEpisodes(continueItems).firstOrNull {
-            it.best.chatId == item.chatId && it.best.messageId == item.messageId
+        // v2.6.1: group the RAW continue list here — the deduped
+        // list has one copy per episode, so grouping it would hide
+        // the very copies this sheet exists to offer.
+        // The hero item is the most recently watched copy, which is
+        // not necessarily the group's BEST copy — match by membership,
+        // not by best == hero.
+        val group = SmartFilter.groupEpisodes(continueItemsRaw).firstOrNull { g ->
+            g.copies.any { it.chatId == item.chatId && it.messageId == item.messageId }
         }
         if (group != null) {
             heroSheetGroup = group
@@ -194,12 +209,8 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         if (!groupsLoaded) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            // v2.6.1: shimmer skeleton, not a bare spinner.
+            HomeSkeleton()
         } else if (groups.isEmpty() && continueItems.isEmpty()) {
             // Designed empty Home — never a fake title.
             Box(
@@ -250,7 +261,8 @@ fun HomeScreen(
                             groupNameOf = groupNameOf,
                             onPlay = { playContinue(it) },
                             onOpenChannel = { item ->
-                                onOpenChannel(item.chatId, groupNameOf(item))
+                                // v2.6.1 deep scroll: land on this episode.
+                                onOpenChannel(item.chatId, groupNameOf(item), item.messageId)
                             },
                             onOpenCopies = { openHeroCopies(it) },
                             onToggleBookmark = { item ->
@@ -311,7 +323,17 @@ fun HomeScreen(
                                         onToggleBookmark = {
                                             scope.launch { repository.toggleBookmark(item) }
                                         },
-                                        modifier = Modifier.width(172.dp)
+                                        modifier = Modifier.width(172.dp),
+                                        // v2.6.1: tapping the "group •
+                                        // time left" subtitle opens the
+                                        // channel scrolled to this episode.
+                                        onSubtitleClick = {
+                                            onOpenChannel(
+                                                item.chatId,
+                                                groupNameOf(item),
+                                                item.messageId
+                                            )
+                                        }
                                     )
                                 }
                             }
@@ -338,7 +360,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
-                                onOpenChannel(group.chatId, group.title)
+                                onOpenChannel(group.chatId, group.title, null)
                             }
                         )
                     }
@@ -359,10 +381,19 @@ fun HomeScreen(
                 group = sheetGroup,
                 onPlayCopy = { copy ->
                     heroSheetGroup = null
+                    // Replace the episode's entry (same episode key)
+                    // with the picked copy; standalone items match
+                    // only by exact message.
+                    val copyKey = SmartFilter.parseKey(copy)
                     val playlist = continueItems.map { shown ->
-                        if (shown.chatId == sheetGroup.best.chatId &&
-                            shown.messageId == sheetGroup.best.messageId
-                        ) copy else shown
+                        val sameEpisode = if (copyKey != null) {
+                            shown.chatId == copy.chatId &&
+                                SmartFilter.parseKey(shown) == copyKey
+                        } else {
+                            shown.chatId == copy.chatId &&
+                                shown.messageId == copy.messageId
+                        }
+                        if (sameEpisode) copy else shown
                     }
                     playContinue(copy, playlist)
                 },

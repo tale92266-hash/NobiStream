@@ -1,6 +1,7 @@
 package com.nobi.nobistream.ui.compose.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +37,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,10 +66,12 @@ import com.nobi.nobistream.data.NobiRepository
 import com.nobi.nobistream.data.SettingsStore
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.ui.compose.CopiesSheetModal
+import com.nobi.nobistream.ui.compose.components.ChannelSkeleton
 import com.nobi.nobistream.ui.compose.components.GroupAvatar
 import com.nobi.nobistream.ui.compose.components.LetterAvatar
 import com.nobi.nobistream.ui.compose.components.QualityFilterChips
 import com.nobi.nobistream.ui.compose.components.QualityPillBadge
+import com.nobi.nobistream.ui.compose.components.VideoThumb
 import com.nobi.nobistream.ui.compose.theme.NobiGold
 import com.nobi.nobistream.ui.compose.theme.NobiSuccess
 import kotlinx.coroutines.CancellationException
@@ -92,10 +94,14 @@ private const val MAX_FIRST_PAGE_ATTEMPTS = 3
  * First page: an empty window (no videos AND no messages seen) is
  * retried with backoff 1.5s -> 3s -> 5s, bounded only by the 60s
  * timeout, which cancels the hung load and shows the error state +
- * Retry. "No videos found" appears ONLY when messages were actually
- * seen with no videos in them. Load More pages with
- * loadVideos(chatId, fromMessageId, 50), advancing on the oldest raw
- * message (hasMore = rawCount >= 50).
+ * Retry. v2.6.1: a window WITH messages but NO videos is NOT
+ * terminal any more — on a cold sync the first window often holds
+ * only text/service messages while videos sit in older windows, so
+ * the loader auto-pages on until videos arrive or history is
+ * exhausted; "No videos found" appears ONLY then. A cached first
+ * page (<= 5 min) shows instantly and refreshes in the background.
+ * Load More pages with loadVideos(chatId, fromMessageId, 50),
+ * advancing on the oldest raw message (hasMore = rawCount >= 50).
  *
  * The copies sheet state lives in THIS screen. PlayerPlaylist is set
  * here, immediately before onPlayVideo — the host lambda only builds
@@ -109,6 +115,8 @@ fun ChannelScreen(
     settingsStore: SettingsStore,
     chatId: Long,
     title: String,
+    // v2.6.1 deep scroll: messageId of the episode to land on.
+    targetMessageId: Long? = null,
     onBack: () -> Unit,
     onPlayVideo: (VideoItem) -> Unit,
     onShowMessage: (String) -> Unit = {}
@@ -118,8 +126,6 @@ fun ChannelScreen(
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val fillerMarks by repository.observeFillerMarks()
         .collectAsStateWithLifecycle(initialValue = emptySet())
-    val downloads by downloadManager.downloads
-        .collectAsStateWithLifecycle(initialValue = emptyList())
     val savedSmart by settingsStore.smartFilter
         .collectAsStateWithLifecycle(initialValue = true)
     val preferredQuality by settingsStore.preferredQuality
@@ -148,34 +154,81 @@ fun ChannelScreen(
     var sheetGroup by remember(chatId) { mutableStateOf<EpisodeGroup?>(null) }
 
     val preferredMaxRank = SmartFilter.maxRankFor(preferredQuality)
-    val downloadById = remember(downloads) {
-        downloads.associateBy { it.chatId to it.messageId }
-    }
 
-    // ---- First-page load with empty-window retry + 60s timeout ----
+    // ---- First-page load: cached instant show, auto-page through
+    // video-less windows, 60s timeout ----
     fun loadFirstPage() {
         loadJob = scope.launch {
+            // v2.6.1 (#10): show the cached first page instantly
+            // (<= 5 min old); the network load below still refreshes
+            // it in the background and replaces it silently.
+            repository.peekFirstPage(chatId)?.let { cached ->
+                allVideos = cached.videos
+                if (cached.lastMessageId > 0L) fromMessageId = cached.lastMessageId
+                hasMore = cached.rawCount >= PAGE_SIZE
+                totalVideoCount = cached.totalCount
+                sawMessages = cached.rawCount > 0
+            }
             loading = true
             var backoff = FIRST_PAGE_RETRY_DELAY_MS
             var attempts = 0
+            // v2.6.1 (#6): cursor for auto-paging through windows
+            // that hold only text/service messages. The old code
+            // treated "messages seen but NO videos" as TERMINAL
+            // empty, so a cold sync showed "No videos found" until
+            // a manual refresh. Now a video-less window pages on
+            // until videos arrive or history is exhausted.
+            var cursor = 0L
             while (true) {
                 try {
                     val page = withContext(Dispatchers.IO) {
-                        repository.loadVideos(chatId, 0L, PAGE_SIZE)
+                        repository.loadVideos(chatId, cursor, PAGE_SIZE)
                     }
-                    if (page.videos.isNotEmpty() || page.rawCount > 0) {
-                        // Terminal: videos arrived, or messages were
-                        // actually seen (an empty channel is a real
-                        // empty state, not a sync delay).
+                    if (page.videos.isNotEmpty()) {
                         timeoutJob?.cancel()
-                        allVideos = page.videos
+                        if (cursor == 0L) {
+                            allVideos = page.videos
+                        } else {
+                            // Auto-paged windows held no videos, so
+                            // this is the first video-bearing page;
+                            // merge with the cached list, if any.
+                            val seen = allVideos.map { it.chatId to it.messageId }.toHashSet()
+                            allVideos = allVideos +
+                                page.videos.filter { seen.add(it.chatId to it.messageId) }
+                        }
                         if (page.lastMessageId > 0L) fromMessageId = page.lastMessageId
                         hasMore = page.rawCount >= PAGE_SIZE
                         totalVideoCount = page.totalCount
-                        sawMessages = page.rawCount > 0
+                        sawMessages = true
                         loading = false
                         return@launch
                     }
+                    if (page.rawCount > 0) {
+                        // Messages seen, no videos yet: page on.
+                        sawMessages = true
+                        if (page.rawCount < PAGE_SIZE || page.lastMessageId <= 0L) {
+                            // History exhausted — a real empty state.
+                            // (Any cached list stays visible; a fresh
+                            // load that found nothing leaves allVideos
+                            // as resetAndLoad left it: empty.)
+                            timeoutJob?.cancel()
+                            hasMore = false
+                            loading = false
+                            return@launch
+                        }
+                        if (cursor != 0L && page.lastMessageId >= cursor) {
+                            // No forward progress — do not spin.
+                            timeoutJob?.cancel()
+                            loading = false
+                            firstPageError = true
+                            return@launch
+                        }
+                        cursor = page.lastMessageId
+                        fromMessageId = cursor
+                        continue
+                    }
+                    // rawCount == 0: nothing seen yet (cold sync) —
+                    // retry with backoff until the 60s timeout.
                     if (firstPageTimedOut) return@launch
                     delay(backoff)
                     backoff = (backoff * 2).coerceAtMost(FIRST_PAGE_RETRY_MAX_DELAY_MS)
@@ -250,7 +303,12 @@ fun ChannelScreen(
     val currentGroups: List<EpisodeGroup> = remember(allVideos, smartOn, preferredMaxRank) {
         if (smartOn) SmartFilter.groupEpisodes(allVideos, preferredMaxRank) else emptyList()
     }
-    val displayedVideos: List<VideoItem> = remember(
+    // v2.6.1 (#11): non-episode posts (news / announcements /
+    // trailers ...) leave the episode rows for a separate "Other
+    // videos" section at the bottom. The pre-split list keeps the
+    // shared pipeline (dedup -> filter -> fillers -> sort) identical
+    // for both sections.
+    val preSplitVideos: List<VideoItem> = remember(
         allVideos, smartOn, currentGroups, currentFilter, hideFillers, fillerMarks, sortNewest
     ) {
         var list = if (smartOn) {
@@ -266,9 +324,22 @@ fun ChannelScreen(
         }
         if (!sortNewest) list.reversed() else list
     }
+    val displayedVideos: List<VideoItem> = remember(preSplitVideos) {
+        preSplitVideos.filter { !SmartFilter.isNonEpisode(it) }
+    }
+    val otherDisplayed: List<VideoItem> = remember(preSplitVideos) {
+        preSplitVideos.filter { SmartFilter.isNonEpisode(it) }
+    }
+    // v2.6.1 (#11 v): the merged list is re-deduped on every Load
+    // More by construction — displayedVideos derives from allVideos
+    // via groupEpisodes, whose map is keyed by episode key, so no
+    // two displayed rows can share one. (A computed-but-unused
+    // "guard" would be vacuous; the invariant is structural, and
+    // SmartFilter.hasDuplicateEpisodeKeys exists for tests.)
 
     fun playVideo(item: VideoItem, playlistOverride: List<VideoItem>? = null) {
-        PlayerPlaylist.items = playlistOverride ?: displayedVideos
+        // Episodes first, then Other videos — display order.
+        PlayerPlaylist.items = playlistOverride ?: (displayedVideos + otherDisplayed)
         PlayerPlaylist.chatId = chatId
         PlayerPlaylist.episodeGroups = currentGroups
         PlayerPlaylist.fromContinue = false
@@ -322,10 +393,44 @@ fun ChannelScreen(
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastVisible ->
-                if (lastVisible != null && lastVisible >= displayedVideos.size - 5) {
+                if (lastVisible != null &&
+                    lastVisible >= displayedVideos.size + otherDisplayed.size - 5
+                ) {
                     loadMore()
                 }
             }
+    }
+
+    // v2.6.1 (#9) deep scroll: after the first load (and after
+    // auto-Load-More if the target isn't loaded yet) scroll to the
+    // target episode exactly once. The target may be a non-best
+    // copy, so match by episode key, not by messageId alone.
+    var deepScrolled by remember(chatId, targetMessageId) { mutableStateOf(false) }
+    val targetKey = remember(allVideos, targetMessageId) {
+        targetMessageId?.let { id ->
+            allVideos.firstOrNull { it.messageId == id }?.let { SmartFilter.parseKey(it) }
+        }
+    }
+    LaunchedEffect(displayedVideos, otherDisplayed, hasMore, loading, targetMessageId) {
+        val target = targetMessageId ?: return@LaunchedEffect
+        if (deepScrolled) return@LaunchedEffect
+        fun matches(item: VideoItem): Boolean =
+            item.messageId == target ||
+                (targetKey != null && SmartFilter.parseKey(item) == targetKey)
+        val episodeIndex = displayedVideos.indexOfFirst(::matches)
+        if (episodeIndex >= 0) {
+            listState.scrollToItem(episodeIndex)
+            deepScrolled = true
+            return@LaunchedEffect
+        }
+        val otherIndex = otherDisplayed.indexOfFirst(::matches)
+        if (otherIndex >= 0) {
+            // Episodes, then the "Other videos" header item, then others.
+            listState.scrollToItem(displayedVideos.size + 1 + otherIndex)
+            deepScrolled = true
+            return@LaunchedEffect
+        }
+        if (hasMore && !loading) loadMore()
     }
 
     val group = groups.firstOrNull { it.chatId == chatId }
@@ -334,10 +439,15 @@ fun ChannelScreen(
             it.best.chatId == selected.chatId && it.best.messageId == selected.messageId
         }
     } ?: currentGroups.firstOrNull()
-    val showEmpty = displayedVideos.isEmpty() && !loading && !firstPageError &&
-        allVideos.isEmpty() && sawMessages
+    val showEmpty = displayedVideos.isEmpty() && otherDisplayed.isEmpty() &&
+        !loading && !firstPageError && allVideos.isEmpty() && sawMessages
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            // v2.6.1: root background in theme colours.
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         // Banner: back + avatar + title + count + chips + Smart chip.
         Row(
             modifier = Modifier
@@ -473,8 +583,15 @@ fun ChannelScreen(
         ) {
             Column {
                 Text(
+                    // v2.6.1 (#11): the DEDUPED episode count only,
+                    // "+" while more pages remain — NEVER the first
+                    // page's bogus "/total" (S4 showed 1105/50:
+                    // 1105 deduped rows over a 50-message first
+                    // window). TDLib's first-page totalCount is a
+                    // locally-known message total, unreliable on a
+                    // cold sync.
                     text = "Episodes (${displayedVideos.size}" +
-                        (totalVideoCount?.let { "/$it" } ?: "") + ")",
+                        (if (hasMore) "+" else "") + ")",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold
                 )
@@ -501,20 +618,10 @@ fun ChannelScreen(
 
         when {
             loading && allVideos.isEmpty() -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Loading videos…",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                // v2.6.1: shimmer skeleton during the first load
+                // (including auto-paging through video-less windows),
+                // not a bare spinner.
+                ChannelSkeleton()
             }
             firstPageError -> {
                 Box(
@@ -578,13 +685,15 @@ fun ChannelScreen(
                 ) {
                     itemsIndexed(
                         displayedVideos,
-                        key = { _, item -> item.chatId to item.messageId }
+                        key = { _, item -> item.chatId to item.messageId },
+                        contentType = { _, _ -> "episode" }
                     ) { index, item ->
                         EpisodeRow(
                             item = item,
                             position = index + 1,
                             isFiller = (item.chatId to item.messageId) in fillerMarks,
-                            downloadStatus = downloadById[item.chatId to item.messageId]?.status,
+                            downloadManager = downloadManager,
+                            repository = repository,
                             onPlay = { playVideo(item) },
                             onToggleWatched = { toggleWatched(item) },
                             onDownload = { downloadVideo(item) },
@@ -592,8 +701,48 @@ fun ChannelScreen(
                             onOpenCopies = { openCopies(item) }
                         )
                     }
+                    // v2.6.1 (#11): non-episode posts live here, at
+                    // the bottom — still playable, never deleted.
+                    if (otherDisplayed.isNotEmpty()) {
+                        item(contentType = "other-header") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                            ) {
+                                Text(
+                                    text = "Other videos (${otherDisplayed.size})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text(
+                                    text = "News, announcements and trailers — still playable",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        itemsIndexed(
+                            otherDisplayed,
+                            key = { _, item -> item.chatId to item.messageId },
+                            contentType = { _, _ -> "other" }
+                        ) { index, item ->
+                            EpisodeRow(
+                                item = item,
+                                position = displayedVideos.size + index + 1,
+                                isFiller = (item.chatId to item.messageId) in fillerMarks,
+                                downloadManager = downloadManager,
+                                repository = repository,
+                                onPlay = { playVideo(item) },
+                                onToggleWatched = { toggleWatched(item) },
+                                onDownload = { downloadVideo(item) },
+                                onToggleFiller = { toggleFiller(item) },
+                                onOpenCopies = { openCopies(item) }
+                            )
+                        }
+                    }
                     if (loading) {
-                        item {
+                        item(contentType = "loading") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -638,17 +787,23 @@ private fun EpisodeRow(
     item: VideoItem,
     position: Int,
     isFiller: Boolean,
-    downloadStatus: String?,
+    downloadManager: DownloadManager,
+    repository: NobiRepository,
     onPlay: () -> Unit,
     onToggleWatched: () -> Unit,
     onDownload: () -> Unit,
     onToggleFiller: () -> Unit,
     onOpenCopies: () -> Unit
 ) {
+    // v2.6.1 (#8): this row collects ONLY its own download status
+    // — a progress tick recomposes this row alone, not the list.
+    val downloadStatus by downloadManager
+        .downloadStatus(item.chatId, item.messageId)
+        .collectAsStateWithLifecycle(initialValue = null)
     // Episode number from the title; the row's position when the
     // title carries no episode number.
     val episodeNumber = SmartFilter.parseKey(item)?.episode
-    val tileText = if (episodeNumber != null) "EP $episodeNumber" else "$position"
+    val badgeText = if (episodeNumber != null) "EP $episodeNumber" else "$position"
     // Caption excerpt ONLY when non-empty and different from the title.
     val excerpt = item.caption.trim().takeIf {
         it.isNotEmpty() && !it.equals(item.title.trim(), ignoreCase = true)
@@ -682,21 +837,35 @@ private fun EpisodeRow(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Surface(
-                        color = if (item.watched) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                        } else {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.size(48.dp)
+                    // v2.6.1 (#4): a real 16:9 thumbnail (Fit,
+                    // letterboxed) instead of the old "EP NNN" text
+                    // tile. The EP badge rides on the thumb so the
+                    // episode number stays visible at a glance.
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp, 54.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        VideoThumb(
+                            repository = repository,
+                            item = item,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(4.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.65f),
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
                             Text(
-                                text = tileText,
+                                text = badgeText,
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                fontSize = 10.sp,
+                                color = Color.White
                             )
                         }
                     }

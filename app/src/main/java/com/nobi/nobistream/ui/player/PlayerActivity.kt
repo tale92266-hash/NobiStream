@@ -28,6 +28,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -328,6 +329,10 @@ class PlayerActivity : AppCompatActivity() {
     private var scrubStartPositionMs = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // v2.6.1 (#3): the player STAYS dark by design (cinema) in
+        // every theme mode — force night for this activity only,
+        // before super.onCreate so the night resources apply.
+        delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES
         super.onCreate(savedInstanceState)
         // v9.5 Item C: a recreated activity (dark-mode / display-size
         // change) used to lose the fullscreen hold and open small in

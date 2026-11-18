@@ -13,11 +13,15 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v2.6.0: 2.6.0 / code 22 — real Compose redesign (Revision 2
-        // spec): new violet/cyan theme, Compose UI layer, real
-        // download manager, Control screen. Base = v9.9 HEAD.
-        versionCode = 22
-        versionName = "2.6.0"
+        // v2.6.1: 2.6.1 / code 23 — fix round from Sam's on-device
+        // feedback on 2.6.0: themed standalone hosts, Fit thumbs,
+        // 3-way theme + real light mode, episode-row thumbs,
+        // player centre-button circles, channel auto-paging,
+        // Compose skeletons, smooth-scroll + thumb/first-page
+        // caching, deep scroll, dedup (EPISODE - NNN) + Other
+        // videos + fixed count, Continue dedup.
+        versionCode = 23
+        versionName = "2.6.1"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the

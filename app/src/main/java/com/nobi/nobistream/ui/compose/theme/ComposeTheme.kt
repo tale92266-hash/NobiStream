@@ -94,6 +94,11 @@ fun NobiStreamTheme(
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
             window.navigationBarColor = colorScheme.surface.toArgb()
+            // v2.6.1 belt-and-braces: the decor view itself carries
+            // the theme background, so no unthemed Compose host can
+            // ever show a dark window behind light-theme content
+            // (the 2.6.0 Channel/Search/Settings bug) again.
+            window.decorView.setBackgroundColor(colorScheme.background.toArgb())
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }

@@ -2,10 +2,9 @@
 <!--
   NobiStream v9 design tokens — clean graphite dark (YouTube-like).
   ONE accent (#229ED9, Telegram blue). No purple, no neon, no gradients.
-  The night palette (values-night/colors.xml) is intentionally identical:
-  this app is dark-only by decision, so both qualifiers resolve to the
-  same tokens. All screens reference these names, never hardcoded hex.
-  v9: navy is DELETED — graphite only.
+  v2.6.1: this is the NIGHT palette; the day palette
+  (values/colors.xml) is light. All screens reference these names,
+  never hardcoded hex. v9: navy is DELETED — graphite only.
 -->
 <resources>
     <!-- Brand / accent -->

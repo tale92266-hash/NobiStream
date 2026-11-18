@@ -12,6 +12,7 @@ import com.nobi.nobistream.core.AuthState
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.ui.channel.ChannelActivity
 import com.nobi.nobistream.ui.compose.screens.SearchScreen
+import com.nobi.nobistream.ui.compose.theme.NobiThemeHost
 import com.nobi.nobistream.ui.home.MainActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
 import kotlinx.coroutines.launch
@@ -45,21 +46,27 @@ class SearchActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            SearchScreen(
-                repository = repository,
-                downloadManager = downloadManager,
-                settingsStore = settingsStore,
-                onPlayVideo = { item -> openPlayer(item) },
-                onOpenChannel = { chatId, title -> openChannel(chatId, title) },
-                onAddGroupLink = { link ->
-                    val intent = Intent(this, MainActivity::class.java)
-                        .putExtra(MainActivity.EXTRA_ADD_GROUP_LINK, link)
-                    startActivity(intent)
-                },
-                onShowMessage = { message ->
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                }
-            )
+            // v2.6.1: NobiThemeHost (see ChannelActivity) — the
+            // 2.6.0 standalone host had no theme wrapper at all.
+            NobiThemeHost(settingsStore = settingsStore) {
+                SearchScreen(
+                    repository = repository,
+                    downloadManager = downloadManager,
+                    settingsStore = settingsStore,
+                    onPlayVideo = { item -> openPlayer(item) },
+                    onOpenChannel = { chatId, title, targetMessageId ->
+                        openChannel(chatId, title, targetMessageId)
+                    },
+                    onAddGroupLink = { link ->
+                        val intent = Intent(this, MainActivity::class.java)
+                            .putExtra(MainActivity.EXTRA_ADD_GROUP_LINK, link)
+                        startActivity(intent)
+                    },
+                    onShowMessage = { message ->
+                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
         }
         // Downloads resume (same as MainActivity; guarded — the
         // pump needs TDLib READY, which only holds after login).
@@ -78,10 +85,13 @@ class SearchActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun openChannel(chatId: Long, title: String) {
+    private fun openChannel(chatId: Long, title: String, targetMessageId: Long? = null) {
         val intent = Intent(this, ChannelActivity::class.java)
             .putExtra(ChannelActivity.EXTRA_CHAT_ID, chatId)
             .putExtra(ChannelActivity.EXTRA_TITLE, title)
+        if (targetMessageId != null && targetMessageId != 0L) {
+            intent.putExtra(ChannelActivity.EXTRA_TARGET_MESSAGE_ID, targetMessageId)
+        }
         startActivity(intent)
     }
 }
