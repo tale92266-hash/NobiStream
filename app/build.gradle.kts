@@ -12,9 +12,9 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v9.1: 2.5.1 / code 13 — all 35 audit items + lock corner fix.
-        versionCode = 13
-        versionName = "2.5.1"
+        // v9.2: 2.5.2 / code 14 — tap regression fix (skeleton timeouts).
+        versionCode = 14
+        versionName = "2.5.2"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the

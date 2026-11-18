@@ -98,16 +98,25 @@
 
                 <!-- v9.1 #4: Home skeleton — shown while the groups
                      are still loading on a cold start. -->
+                <!-- v9.2: a skeleton must never eat a tap — the
+                     container, the grid and the sweep are all
+                     explicitly non-clickable / non-focusable, so a
+                     stuck skeleton can only ever be scrolled past,
+                     never tapped into silence. -->
                 <FrameLayout
                     android:id="@+id/homeSkeletonContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:clickable="false"
+                    android:focusable="false"
                     android:visibility="gone">
 
                     <GridLayout
                         android:id="@+id/homeSkeletonGrid"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:paddingStart="@dimen/screen_margin"
                         android:paddingEnd="@dimen/screen_margin" />
 
@@ -115,7 +124,9 @@
                         android:id="@+id/homeShimmerSweep"
                         android:layout_width="160dp"
                         android:layout_height="match_parent"
-                        android:background="@drawable/v8_shimmer_sweep" />
+                        android:background="@drawable/v8_shimmer_sweep"
+                        android:clickable="false"
+                        android:focusable="false" />
                 </FrameLayout>
 
                 <!-- Hero Spotlight: the most recent Continue Watching
@@ -430,16 +441,22 @@
 
                 <!-- v9.1 #4: Library skeleton — shown while the first
                      library page is still loading. -->
+                <!-- v9.2: same non-clickable guarantee as the Home
+                     skeleton (see homeSkeletonContainer). -->
                 <FrameLayout
                     android:id="@+id/librarySkeletonContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:clickable="false"
+                    android:focusable="false"
                     android:visibility="gone">
 
                     <GridLayout
                         android:id="@+id/librarySkeletonGrid"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:paddingStart="@dimen/screen_margin"
                         android:paddingEnd="@dimen/screen_margin" />
 
@@ -447,7 +464,9 @@
                         android:id="@+id/libraryShimmerSweep"
                         android:layout_width="160dp"
                         android:layout_height="match_parent"
-                        android:background="@drawable/v8_shimmer_sweep" />
+                        android:background="@drawable/v8_shimmer_sweep"
+                        android:clickable="false"
+                        android:focusable="false" />
                 </FrameLayout>
 
                 <LinearLayout
@@ -631,10 +650,17 @@
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
         <!-- Shown when no groups exist yet (either tab). -->
+        <!-- v9.2: the full-screen empty state is the topmost child
+             of this container — explicitly non-clickable /
+             non-focusable, so it can never swallow taps meant for
+             the content beneath it (its own action button stays
+             clickable: clickable is per-view, not inherited). -->
         <com.nobi.nobistream.ui.components.EmptyStateView
             android:id="@+id/emptyState"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:clickable="false"
+            android:focusable="false"
             android:visibility="gone" />
     </FrameLayout>
 

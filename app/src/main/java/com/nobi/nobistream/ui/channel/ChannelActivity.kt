@@ -29,7 +29,9 @@ import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.components.SortSheet
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -52,6 +54,10 @@ class ChannelActivity : AppCompatActivity() {
         /** v4-fb4: first-page retries while TDLib syncs the chat. */
         private const val MAX_FIRST_PAGE_ATTEMPTS = 3
         private const val FIRST_PAGE_RETRY_DELAY_MS = 1500L
+        /** v9.2: a TDLib first page may legitimately take tens of
+         * seconds on a slow network; 60s matches the app's existing
+         * 60s LauncherActivity auth wait. */
+        private const val FIRST_PAGE_TIMEOUT_MS = 60_000L
     }
 
     private lateinit var binding: ActivityChannelBinding
@@ -81,6 +87,15 @@ class ChannelActivity : AppCompatActivity() {
     private var currentGroups: List<EpisodeGroup> = emptyList()
     private var firstPageAttempts = 0
     private var firstPageRetrying = false
+    /** v9.2: the in-flight page load, so the first-page timeout can
+     * cancel a hung TDLib call. */
+    private var loadJob: Job? = null
+    /** v9.2: the first-page timeout job (cancelled on any terminal
+     * outcome); null once the first page has loaded or failed. */
+    private var firstPageTimeoutJob: Job? = null
+    /** v9.2: true after a first-page timeout until an explicit
+     * Retry — a pending retry must not restart the load. */
+    private var firstPageTimedOut = false
     /** v8: the 1200ms diagonal shimmer sweep animator (see showSkeleton). */
     private var shimmerAnimator: ObjectAnimator? = null
     /** v8 toolbar subtitle: total videos from the first page. */
@@ -295,6 +310,9 @@ class ChannelActivity : AppCompatActivity() {
     }
 
     private fun resetAndLoad() {
+        loadJob?.cancel()
+        firstPageTimeoutJob?.cancel()
+        firstPageTimedOut = false
         allVideos.clear()
         fromMessageId = 0L
         hasMore = true
@@ -302,15 +320,24 @@ class ChannelActivity : AppCompatActivity() {
         firstPageRetrying = false
         adapter.submitVideos(emptyList())
         binding.errorState.visibility = View.GONE
+        // v9.2: the first page has no timeout anywhere else — see
+        // MainActivity.onLibraryFirstPageTimeout for the mechanism.
+        firstPageTimeoutJob = lifecycleScope.launch {
+            delay(FIRST_PAGE_TIMEOUT_MS)
+            onFirstPageTimeout()
+        }
         loadPage()
     }
 
     private fun loadPage() {
-        if (loading || !hasMore) return
+        // v9.2: after a first-page timeout, a pending retry must not
+        // silently restart the load — only an explicit Retry
+        // (resetAndLoad) clears the flag.
+        if (loading || !hasMore || (firstPageTimedOut && allVideos.isEmpty())) return
         loading = true
         val firstPage = allVideos.isEmpty()
         if (firstPage) showSkeleton(true) else binding.loadMoreFooter.visibility = View.VISIBLE
-        lifecycleScope.launch(Dispatchers.IO) {
+        loadJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val page = repository.loadVideos(chatId, fromMessageId, PAGE_SIZE)
                 withContext(Dispatchers.Main) {
@@ -336,6 +363,7 @@ class ChannelActivity : AppCompatActivity() {
                     }
                     firstPageRetrying = false
                     loading = false
+                    firstPageTimeoutJob?.cancel()
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
                     // v8: first page carries the channel total — the
@@ -359,6 +387,10 @@ class ChannelActivity : AppCompatActivity() {
                     applyFilter()
                 }
             } catch (e: Exception) {
+                // v9.2: a load cancelled by the first-page timeout
+                // throws here too — the timeout already showed the
+                // error state, so there is nothing more to do.
+                if (e is CancellationException) return@launch
                 withContext(Dispatchers.Main) {
                     // v4-fb4: a first-page failure can also just mean
                     // the chat isn't ready yet — retry before showing
@@ -375,6 +407,7 @@ class ChannelActivity : AppCompatActivity() {
                     }
                     firstPageRetrying = false
                     loading = false
+                    firstPageTimeoutJob?.cancel()
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
                     if (firstPage) {
@@ -393,6 +426,28 @@ class ChannelActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * v9.2: first-page timeout — the channel skeleton hid only when
+     * a load returned or threw; a hung TDLib load left it up
+     * forever with no error and no recovery (same mechanism as the
+     * library timeout in MainActivity). After 60s the page fails
+     * exactly like a load error (Retry restarts it); the hung load
+     * is cancelled so it can never overwrite the error state late.
+     */
+    private fun onFirstPageTimeout() {
+        if (allVideos.isNotEmpty()) return
+        firstPageTimedOut = true
+        loadJob?.cancel()
+        loadJob = null
+        firstPageRetrying = false
+        loading = false
+        showSkeleton(false)
+        binding.loadMoreFooter.visibility = View.GONE
+        binding.videosRecycler.visibility = View.GONE
+        binding.emptyState.visibility = View.GONE
+        binding.errorState.visibility = View.VISIBLE
     }
 
     /**

@@ -50,7 +50,9 @@ import com.nobi.nobistream.ui.login.LoginActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.FadeInAnimator
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -86,6 +88,15 @@ class MainActivity : AppCompatActivity() {
         /** v8: prefill the Add Group sheet with a clipboard link
          * (from the Search paste-link chip). */
         const val EXTRA_ADD_GROUP_LINK = "add_group_link"
+
+        /** v9.2: Room emits in milliseconds — 10s without an emit
+         * means something is deeply wrong; treat the list as loaded
+         * so the Home skeleton can never sit over the content. */
+        private const val GROUPS_TIMEOUT_MS = 10_000L
+        /** v9.2: a TDLib first page may legitimately take tens of
+         * seconds on a slow network; 60s matches the app's existing
+         * 60s LauncherActivity auth wait. */
+        private const val FIRST_PAGE_TIMEOUT_MS = 60_000L
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -120,6 +131,15 @@ class MainActivity : AppCompatActivity() {
     private var libraryGroupsSignature = ""
     private var libraryFirstPageFailed = false
     private var refreshing = false
+    /** v9.2: the in-flight library page load, so the first-page
+     * timeout can cancel a hung TDLib call. */
+    private var libraryLoadJob: Job? = null
+    /** v9.2: the first-page timeout job (cancelled on any terminal
+     * outcome); null once the first page has loaded or failed. */
+    private var libraryTimeoutJob: Job? = null
+    /** v9.2: true after a first-page timeout until an explicit
+     * Retry — background re-entry must not restart the load. */
+    private var libraryTimedOut = false
     /** v9.1 #24: the last library load error, for the Details action. */
     private var libraryLastError: String? = null
     /** v9.1 #19: last-seen video count per group (NEW dot source). */
@@ -374,6 +394,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        // v9.2: Home failsafe — Room emits in milliseconds; if the
+        // groups flow has not emitted 10s after start, treat the
+        // list as loaded so the Home skeleton can never sit over
+        // the content forever. A late Room emission still submits
+        // the list normally (the collector runs regardless).
+        lifecycleScope.launch {
+            delay(GROUPS_TIMEOUT_MS)
+            if (!groupsLoaded) {
+                groupsLoaded = true
+                updateSkeletons()
+                showTab(currentTab)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -583,6 +616,8 @@ class MainActivity : AppCompatActivity() {
     // ---- Your Library ----
 
     private fun resetAndLoadLibrary() {
+        libraryTimeoutJob?.cancel()
+        libraryTimedOut = false
         allLibrary.clear()
         libraryCursors = emptyMap()
         libraryHasMore = true
@@ -596,17 +631,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadLibraryPage() {
-        if (libraryLoading || !libraryHasMore || groups.isEmpty()) return
+        // v9.2: after a first-page timeout, background re-entry (a
+        // scroll) must not silently restart the load — only an
+        // explicit Retry (resetAndLoadLibrary) clears the flag.
+        if (libraryLoading || !libraryHasMore || groups.isEmpty() ||
+            (libraryTimedOut && allLibrary.isEmpty())
+        ) return
         libraryLoading = true
         updateLibraryLoadMoreButton()
         val firstPage = allLibrary.isEmpty()
         if (!firstPage) binding.libraryLoadMoreFooter.visibility = View.VISIBLE
+        if (firstPage) {
+            // v9.2: the first page has no timeout anywhere else — a
+            // hung TDLib load left the skeleton up forever. After
+            // 60s the page fails like a load error (Retry restarts
+            // it); the hung load itself is cancelled.
+            libraryTimeoutJob?.cancel()
+            libraryTimeoutJob = lifecycleScope.launch {
+                delay(FIRST_PAGE_TIMEOUT_MS)
+                onLibraryFirstPageTimeout()
+            }
+        }
         val currentGroups = groups.toList()
         val cursors = libraryCursors
-        lifecycleScope.launch(Dispatchers.IO) {
+        libraryLoadJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val page = repository.loadLibraryPage(currentGroups, cursors)
                 withContext(Dispatchers.Main) {
+                    libraryTimeoutJob?.cancel()
                     libraryLoading = false
                     binding.libraryLoadMoreFooter.visibility = View.GONE
                     libraryCursors = page.cursors
@@ -626,7 +678,12 @@ class MainActivity : AppCompatActivity() {
                     applyLibraryFilter()
                 }
             } catch (e: Exception) {
+                // v9.2: a load cancelled by the first-page timeout
+                // throws here too — the timeout already showed the
+                // error state, so there is nothing more to do.
+                if (e is CancellationException) return@launch
                 withContext(Dispatchers.Main) {
+                    libraryTimeoutJob?.cancel()
                     libraryLoading = false
                     binding.libraryLoadMoreFooter.visibility = View.GONE
                     updateLibraryLoadMoreButton()
@@ -650,6 +707,33 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * v9.2: first-page timeout — the library skeleton hid only when
+     * a load returned or threw; a hung TDLib load left it up
+     * forever with no error and no recovery, and a stuck skeleton
+     * is taller than the screen (4 full-width 16:9 cards), so every
+     * tap landed on a dead placeholder while the header and nav bar
+     * kept working. After 60s the page fails exactly like a load
+     * error (Retry restarts it); the hung load is cancelled so it
+     * can never overwrite the error state late.
+     */
+    private fun onLibraryFirstPageTimeout() {
+        if (libraryLoaded || allLibrary.isNotEmpty()) return
+        libraryTimedOut = true
+        libraryLoadJob?.cancel()
+        libraryLoadJob = null
+        libraryLoading = false
+        binding.libraryLoadMoreFooter.visibility = View.GONE
+        libraryFirstPageFailed = true
+        libraryLastError = getString(R.string.library_error_timeout)
+        binding.libraryHeader.visibility = View.VISIBLE
+        binding.libraryFilterScroll.visibility = View.VISIBLE
+        binding.libraryRecycler.visibility = View.GONE
+        binding.libraryEmptyState.visibility = View.GONE
+        binding.libraryErrorState.visibility = View.VISIBLE
+        updateSkeletons()
     }
 
     /**

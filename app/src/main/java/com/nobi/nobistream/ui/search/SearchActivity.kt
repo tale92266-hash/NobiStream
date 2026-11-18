@@ -38,6 +38,7 @@ import com.nobi.nobistream.ui.components.NavTab
 import com.nobi.nobistream.ui.home.MainActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -60,6 +61,13 @@ import kotlinx.coroutines.withContext
  */
 class SearchActivity : AppCompatActivity() {
 
+    companion object {
+        /** v9.2: a TDLib search may legitimately take tens of
+         * seconds on a slow network; 60s matches the app's existing
+         * 60s LauncherActivity auth wait. */
+        private const val SEARCH_TIMEOUT_MS = 60_000L
+    }
+
     private lateinit var binding: ActivitySearchBinding
 
     private val locator get() = (application as NobiStreamApplication).serviceLocator
@@ -74,6 +82,13 @@ class SearchActivity : AppCompatActivity() {
     private var smartOn = true
     private var searchGroups: List<EpisodeGroup> = emptyList()
     private var searchJob: Job? = null
+    /** v9.2: the in-flight search, so the timeout can cancel a hung
+     * TDLib call (separate from [searchJob], which is the 400ms
+     * debounce). */
+    private var searchLoadJob: Job? = null
+    /** v9.2: the search timeout job (cancelled on any terminal
+     * outcome). */
+    private var searchTimeoutJob: Job? = null
     /** v8: the 1200ms diagonal shimmer sweep animator (see showSkeleton). */
     private var shimmerAnimator: ObjectAnimator? = null
     /** v8: t.me link currently on the clipboard (null = no link / field not empty). */
@@ -304,6 +319,11 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun runSearch(rawQuery: String) {
+        // v9.2: a new search supersedes the previous one — cancel
+        // its load and its timeout so a late result can never
+        // overwrite the new search's state.
+        searchLoadJob?.cancel()
+        searchTimeoutJob?.cancel()
         val query = rawQuery.trim()
         if (query.isEmpty()) {
             showStartState()
@@ -314,13 +334,21 @@ class SearchActivity : AppCompatActivity() {
         binding.emptyState.visibility = View.GONE
         binding.errorState.visibility = View.GONE
         binding.recentContainer.visibility = View.GONE
-        lifecycleScope.launch(Dispatchers.IO) {
+        // v9.2: the search has no timeout anywhere else — a hung
+        // TDLib search left the skeleton up forever. After 60s it
+        // fails like a search error (Retry restarts it).
+        searchTimeoutJob = lifecycleScope.launch {
+            delay(SEARCH_TIMEOUT_MS)
+            onSearchTimeout()
+        }
+        searchLoadJob = lifecycleScope.launch(Dispatchers.IO) {
             // The query is saved once it actually runs (dedup keeps
             // repeats from piling up; only query text is stored).
             repository.settingsStore.addRecentSearch(query)
             try {
                 val found = repository.searchVideos(query, groups)
                 withContext(Dispatchers.Main) {
+                    searchTimeoutJob?.cancel()
                     showSkeleton(false)
                     // v5 Smart Filter: search results dedup too, so
                     // one episode appears once even when it was
@@ -351,8 +379,13 @@ class SearchActivity : AppCompatActivity() {
                         binding.resultsRecycler.visibility = View.VISIBLE
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // v9.2: a search cancelled by the timeout throws
+                // here too — the timeout already showed the error
+                // state, so there is nothing more to do.
+                if (e is CancellationException) return@launch
                 withContext(Dispatchers.Main) {
+                    searchTimeoutJob?.cancel()
                     showSkeleton(false)
                     binding.resultCount.visibility = View.GONE
                     binding.resultsRecycler.visibility = View.GONE
@@ -361,6 +394,23 @@ class SearchActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * v9.2: search timeout — same mechanism as the first-page
+     * timeouts in MainActivity / ChannelActivity. After 60s the
+     * search fails exactly like a search error (Retry restarts it);
+     * the hung search is cancelled so it can never overwrite the
+     * error state late.
+     */
+    private fun onSearchTimeout() {
+        searchLoadJob?.cancel()
+        searchLoadJob = null
+        showSkeleton(false)
+        binding.resultCount.visibility = View.GONE
+        binding.resultsRecycler.visibility = View.GONE
+        binding.emptyState.visibility = View.GONE
+        binding.errorState.visibility = View.VISIBLE
     }
 
     /**

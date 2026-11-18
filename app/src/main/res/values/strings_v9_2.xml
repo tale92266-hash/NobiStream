@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- v9.2: first-page load timeouts — a hung TDLib load left the
+         skeleton up forever with no error and no recovery. After
+         60s the page fails like a load error (Retry restarts it). -->
+    <string name="library_error_timeout">The first page took longer than 60 seconds to load, so it was stopped. Check your connection and tap Retry.</string>
+</resources>

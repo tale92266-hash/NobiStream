@@ -163,16 +163,24 @@
          screen margin; item margins are the 12dp/16dp grid gaps
          (6dp/8dp half-gaps). The sweep band translates across the
          container for the 1200ms diagonal shimmer. -->
+    <!-- v9.2: a skeleton must never eat a tap — container, grid
+         and sweep are explicitly non-clickable / non-focusable, so
+         a stuck skeleton can only ever be scrolled past, never
+         tapped into silence. -->
     <FrameLayout
         android:id="@+id/skeletonContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:clickable="false"
+        android:focusable="false"
         android:visibility="gone">
 
         <GridLayout
             android:id="@+id/skeletonGrid"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clickable="false"
+            android:focusable="false"
             android:columnCount="1"
             android:paddingStart="@dimen/screen_margin"
             android:paddingEnd="@dimen/screen_margin">
@@ -215,6 +223,8 @@
             android:layout_width="160dp"
             android:layout_height="match_parent"
             android:background="@drawable/v8_shimmer_sweep"
+            android:clickable="false"
+            android:focusable="false"
             android:translationX="-160dp" />
     </FrameLayout>
 
@@ -252,11 +262,18 @@
             android:textSize="@dimen/text_caption" />
     </LinearLayout>
 
+    <!-- v9.2: the full-screen empty/error states sit above the
+         list — explicitly non-clickable / non-focusable, so they
+         can never swallow taps meant for the content beneath them
+         (their own Retry/action buttons stay clickable: clickable
+         is per-view, not inherited). -->
     <com.nobi.nobistream.ui.components.EmptyStateView
         android:id="@+id/emptyState"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:clickable="false"
+        android:focusable="false"
         android:visibility="gone" />
 
     <com.nobi.nobistream.ui.components.ErrorStateView
@@ -264,6 +281,8 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:clickable="false"
+        android:focusable="false"
         android:visibility="gone" />
 
 </LinearLayout>
