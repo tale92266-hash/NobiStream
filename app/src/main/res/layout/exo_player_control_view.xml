@@ -138,7 +138,19 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Bottom: time + seek bar. Track 3dp, touch height 24dp, thumb 12dp,
-         16dp side margins, time text 12sp. -->
+         16dp side margins, time text 12sp.
+         v9.3 Bug B: exo_progress used to anchor to the GONE seekTicks
+         view (Bottom_toTopOf seekTicks, whose own top anchored back to
+         exo_progress) — on-device that degenerate chain resolved with
+         the seekbar at the TOP of the video, overlapping the top bar
+         (thumb over the close button). The bar now anchors DIRECTLY to
+         ctrlBottomRow (8dp gap leaves room for the 4dp ticks + 2dp
+         margin when they are visible); seekTicks keeps its own
+         constraints and, when gone, nothing depends on it. The time
+         labels travel with the bar (Bottom_toTopOf exo_progress), so
+         the whole block sits YouTube-style at the bottom of the video.
+         Same shared layout for portrait + landscape, so one fix covers
+         both. -->
     <TextView
         android:id="@id/exo_position"
         android:layout_width="wrap_content"
@@ -165,6 +177,7 @@
         android:layout_height="@dimen/player_timebar_height"
         android:layout_marginStart="@dimen/spacing_16"
         android:layout_marginEnd="@dimen/spacing_16"
+        android:layout_marginBottom="8dp"
         app:bar_height="3dp"
         app:buffered_color="@color/progress_buffered"
         app:played_color="@color/primary"
@@ -172,7 +185,7 @@
         app:scrubber_enabled_size="12dp"
         app:touch_target_height="24dp"
         app:unplayed_color="@color/outline"
-        app:layout_constraintBottom_toTopOf="@id/seekTicks"
+        app:layout_constraintBottom_toTopOf="@id/ctrlBottomRow"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 

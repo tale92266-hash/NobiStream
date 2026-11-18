@@ -453,10 +453,25 @@ class MainActivity : AppCompatActivity() {
     private fun showTab(tab: String) {
         currentTab = tab
         val hasGroups = groups.isNotEmpty()
-        binding.homeScroll.visibility =
-            if (tab == TAB_HOME && (hasGroups || !groupsLoaded)) View.VISIBLE else View.GONE
-        binding.libraryContainer.visibility =
-            if (tab == TAB_LIBRARY && hasGroups) View.VISIBLE else View.GONE
+        // v9.3 Bug A: the two SwipeRefreshLayouts are stacked full-screen
+        // siblings in the tab FrameLayout (librarySwipeRefresh above
+        // homeSwipeRefresh). showTab used to toggle only the inner scroll
+        // containers, so the LIBRARY layout stayed VISIBLE + enabled on
+        // the Home tab — an empty, enabled SwipeRefreshLayout whose
+        // (gone) child cannot scroll up returns true for ACTION_DOWN
+        // (SwipeRefreshLayout.onTouchEvent) and eats every tap on the
+        // Home tab, cold start included. Toggle the layouts themselves
+        // (plus isEnabled as defence-in-depth) so the inactive tab's
+        // layout can never intercept a touch. Pull-to-refresh still
+        // works: the active tab's layout is visible + enabled.
+        val homeVisible = tab == TAB_HOME && (hasGroups || !groupsLoaded)
+        val libraryVisible = tab == TAB_LIBRARY && hasGroups
+        binding.homeSwipeRefresh.visibility = if (homeVisible) View.VISIBLE else View.GONE
+        binding.homeSwipeRefresh.isEnabled = homeVisible
+        binding.homeScroll.visibility = if (homeVisible) View.VISIBLE else View.GONE
+        binding.librarySwipeRefresh.visibility = if (libraryVisible) View.VISIBLE else View.GONE
+        binding.librarySwipeRefresh.isEnabled = libraryVisible
+        binding.libraryContainer.visibility = if (libraryVisible) View.VISIBLE else View.GONE
         binding.emptyState.visibility =
             if (groupsLoaded && !hasGroups) View.VISIBLE else View.GONE
         setupBottomNav(if (tab == TAB_LIBRARY) NavTab.LIBRARY else NavTab.HOME)
