@@ -56,16 +56,10 @@ object FormatUtils {
         var i = 0
         while (i < text.length) {
             val cp = text.codePointAt(i)
-            val type = Character.getType(cp)
-            val isLetterOrDigit = type == Character.UPPERCASE_LETTER ||
-                type == Character.LOWERCASE_LETTER ||
-                type == Character.TITLECASE_LETTER ||
-                type == Character.MODIFIER_LETTER ||
-                type == Character.OTHER_LETTER ||
-                type == Character.DECIMAL_DIGIT_NUMBER ||
-                type == Character.LETTER_NUMBER ||
-                type == Character.OTHER_NUMBER
-            if (isLetterOrDigit) break
+            // Character.isLetterOrDigit covers every letter/digit
+            // category; emoji, symbols, punctuation, spaces, format
+            // characters (ZWJ, variation selectors) are all skipped.
+            if (Character.isLetterOrDigit(cp)) break
             i += Character.charCount(cp)
         }
         val stripped = text.substring(i).trimStart()
