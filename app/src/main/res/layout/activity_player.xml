@@ -27,6 +27,35 @@
         app:show_buffering="never"
         app:use_controller="true" />
 
+    <!-- v9.8 lock dim: the SAME scrim the controller uses when open
+         (@drawable/player_controller_scrim — 3-stop gradient, top and
+         bottom #99000000 / 60% black, centre transparent), as a
+         full-screen overlay pinned to the PlayerView. It is NOT
+         clickable / NOT focusable, so it never intercepts a touch:
+         taps fall through to the PlayerView listener that drives the
+         tap-anywhere show/hide and the unlock tap. It sits above the
+         PlayerView (so it dims the video AND the locked seekbar that
+         lives inside the controller) but below every later sibling —
+         the corner unlock button and the audio notice stay at full
+         brightness above it. Visibility is owned ONLY by
+         showLockCluster() / hideLockCluster(), so the dim appears
+         and disappears TOGETHER with the corner button + seekbar
+         on the same 3s timer; when the cluster hides the video is
+         undimmed, exactly like the controls-hidden state. -->
+    <View
+        android:id="@+id/lockDimOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/player_controller_scrim"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/playerView"
+        app:layout_constraintEnd_toEndOf="@id/playerView"
+        app:layout_constraintStart_toStartOf="@id/playerView"
+        app:layout_constraintTop_toTopOf="@id/playerView" />
+
     <!-- v8 §4.4: portrait details panel below the 16:9 player. GONE in
          landscape (PlayerActivity switches the PlayerView bottom
          constraint to the parent and hides this). -->

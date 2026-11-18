@@ -12,9 +12,10 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v9.7: 2.5.7 / code 19 — FFmpeg audio (NextLib extension).
-        versionCode = 19
-        versionName = "2.5.7"
+        // v9.8: 2.5.8 / code 20 — lock-state dim (lockDimOverlay reuses
+        // the controller scrim; no other behaviour change).
+        versionCode = 20
+        versionName = "2.5.8"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the

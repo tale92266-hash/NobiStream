@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.Drawable
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.media.AudioManager
@@ -258,6 +259,15 @@ class PlayerActivity : AppCompatActivity() {
     private val lockHideRunnable = Runnable {
         if (locked) hideLockCluster()
     }
+
+    // v9.8 lock dim: the controller root's own background while the
+    // player is locked. applyLockedControls() stashes it here and
+    // clears it, so the locked dim comes from lockDimOverlay ALONE —
+    // one scrim, exactly the controls-open look, never a doubled
+    // scrim — and so the video is truly undimmed once the cluster
+    // hides (the controller root stays up but empty). Restored by
+    // restoreControllerChrome() on unlock / every unlocked show.
+    private var lockDimControllerBackground: Drawable? = null
 
     private val feedbackHandler = Handler(Looper.getMainLooper())
     private val hideFeedback = Runnable { binding.gestureFeedback.visibility = View.GONE }
@@ -719,9 +729,13 @@ class PlayerActivity : AppCompatActivity() {
      * HO"). applyLockedControls() first re-applies the locked mode
      * (chrome hidden, seekbar dimmed and dead) so a re-show after
      * any interruption is still correct.
+     * v9.8: the lock dim (lockDimOverlay, the same scrim the
+     * controller uses when open) shows TOGETHER with the button +
+     * seekbar, on this same call and the same 3s timer.
      */
     private fun showLockCluster() {
         applyLockedControls()
+        binding.lockDimOverlay.visibility = View.VISIBLE
         binding.lockCornerButton.visibility = View.VISIBLE
         setLockedSeekbarVisible(true)
         lockHideHandler.removeCallbacks(lockHideRunnable)
@@ -734,9 +748,13 @@ class PlayerActivity : AppCompatActivity() {
      * itself stays up but empty (chrome + seekbar both gone), so
      * taps still reach the PlayerView listener that brings the UI
      * back.
+     * v9.8: the lock dim hides TOGETHER with the button + seekbar,
+     * so a hidden cluster leaves the video undimmed, exactly like
+     * the controls-hidden state.
      */
     private fun hideLockCluster() {
         lockHideHandler.removeCallbacks(lockHideRunnable)
+        binding.lockDimOverlay.visibility = View.GONE
         binding.lockCornerButton.visibility = View.GONE
         setLockedSeekbarVisible(false)
     }
@@ -793,6 +811,17 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.findViewById<View>(R.id.playerControllerRoot)?.let { controller ->
             controller.animate().cancel()
             controller.alpha = 1f
+            // v9.8 lock dim: clear the controller's own scrim while
+            // locked (stashed in lockDimControllerBackground, restored
+            // by restoreControllerChrome()) so the dim the user sees
+            // is lockDimOverlay ALONE — one scrim, exactly the
+            // controls-open look, and a hidden cluster leaves the
+            // video truly undimmed instead of the controller's scrim
+            // lingering behind the empty root.
+            if (lockDimControllerBackground == null) {
+                lockDimControllerBackground = controller.background
+            }
+            controller.background = null
         }
         setControllerChromeVisible(false)
         exoProgress.alpha = 0.5f
@@ -805,6 +834,13 @@ class PlayerActivity : AppCompatActivity() {
 
     /** v9.5 Item A: undo the locked mode — chrome back, seekbar live. */
     private fun restoreControllerChrome() {
+        // v9.8 lock dim: give the controller its own scrim back
+        // (stashed by applyLockedControls() on lock), so the
+        // controls-open look is exactly as before once unlocked.
+        binding.playerView.findViewById<View>(R.id.playerControllerRoot)?.let { controller ->
+            lockDimControllerBackground?.let { stashed -> controller.background = stashed }
+            lockDimControllerBackground = null
+        }
         setControllerChromeVisible(true)
         setLockedSeekbarVisible(true)
         exoProgress.alpha = 1f
@@ -855,6 +891,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.gestureFeedback.visibility = View.GONE
             binding.playerError.visibility = View.GONE
             binding.lockCornerButton.visibility = View.GONE
+            binding.lockDimOverlay.visibility = View.GONE
             binding.audioNotice.visibility = View.GONE
             // v8 §4.4: every floating overlay goes away in PiP too.
             hideUpNextCard()
