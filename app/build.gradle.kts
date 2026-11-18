@@ -12,9 +12,9 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v9.2: 2.5.2 / code 14 — tap regression fix (skeleton timeouts).
-        versionCode = 18
-        versionName = "2.5.6"
+        // v9.7: 2.5.7 / code 19 — FFmpeg audio (NextLib extension).
+        versionCode = 19
+        versionName = "2.5.7"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the
@@ -113,6 +113,14 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.media3.common)
+    // v9.7: NextLib FFmpeg extension (prebuilt AAR, Maven Central,
+    // version pinned to media3 1.8.0) — software audio decoders for
+    // codecs the device has no platform decoder for (E-AC-3/DTS in the
+    // 1080p copies). Wired via NextRenderersFactory in PlayerActivity.
+    // APK grows ~24 MB (native libs, all 4 ABIs). NextLib wrapper is
+    // GPL-3.0, FFmpeg itself LGPL (no --enable-gpl); app is private,
+    // personal use only.
+    implementation(libs.nextlib.media3ext)
 
     // Room for playback positions, saved groups and cached video metadata.
     implementation(libs.room.runtime)

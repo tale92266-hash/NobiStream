@@ -39,6 +39,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -61,6 +62,8 @@ import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.components.Haptics
 import com.nobi.nobistream.ui.components.SortSheet
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegLibrary
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -1099,7 +1102,21 @@ class PlayerActivity : AppCompatActivity() {
             .setBufferDurationsMs(50_000, 120_000, 1_000, 2_000)
             .setBackBuffer(30_000, true)
             .build()
-        player = ExoPlayer.Builder(this)
+        // v9.7: FFmpeg software audio decoders (NextLib prebuilt
+        // extension, media3 1.8.0 — see app/build.gradle.kts).
+        // NextRenderersFactory in EXTENSION_RENDERER_MODE_ON keeps the
+        // platform (hardware) decoders first — AAC still decodes in
+        // hardware — and falls back to FFmpeg software decode only for
+        // codecs this device has no decoder for (E-AC-3/DTS in the
+        // 1080p copies, e.g. EPISODE-323 message 1272, which played
+        // silent before). PREFER would route ALL audio through software
+        // decode; ON is the right mode here. setEnableDecoderFallback
+        // also lets a MediaCodec decoder failure fall back to FFmpeg.
+        val renderersFactory = NextRenderersFactory(this)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setEnableDecoderFallback(true)
+        Log.i("PlayerActivity", "FFmpeg audio extension available: ${FfmpegLibrary.isAvailable()}")
+        player = ExoPlayer.Builder(this, renderersFactory)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
@@ -1715,9 +1732,14 @@ class PlayerActivity : AppCompatActivity() {
      * (TDLib reports only the container MIME type); the check below
      * works from what Media3 reports — group present, track
      * supported, track selected — so it stays correct whatever the
-     * codec is. A real decode-side fix would be a software audio
-     * decoder (ExoPlayer FFmpeg extension) — a separate, large
-     * native/CI decision, not smuggled into this build.
+     * codec is.
+     *
+     * v9.7: the decode-side fix IS in now (NextLib FFmpeg extension,
+     * NextRenderersFactory in EXTENSION_RENDERER_MODE_ON). Tracks
+     * decodable in software now report supported/selected, so this
+     * notice hides for E-AC-3/DTS too. It stays only for the
+     * genuinely unsupported (no renderer, platform or FFmpeg, can
+     * decode the track) or no-audio-track cases.
      */
     private fun updateAudioNotice(tracks: Tracks) {
         // Tracks not discovered yet (source loading/cleared) — say
