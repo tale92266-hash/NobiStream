@@ -140,6 +140,11 @@
     <string name="player_unlock">Unlock controls</string>
     <string name="player_locked">Controls locked</string>
     <string name="player_unlocked">Controls unlocked</string>
+    <!-- v9.6 Item B: shown when the current video's audio track
+         cannot be decoded on this device (unsupported codec) or the
+         file has no audio track at all. -->
+    <string name="audio_unsupported">Audio not supported on this device — try the 720p copy</string>
+    <string name="audio_no_track">This video has no audio track</string>
     <string name="player_pip_needs_playing">Play the video first to use picture-in-picture</string>
     <string name="player_first_video">This is the first video</string>
     <string name="player_last_video">This is the last video</string>

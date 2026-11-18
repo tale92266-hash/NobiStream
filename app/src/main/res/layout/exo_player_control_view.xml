@@ -271,7 +271,7 @@
             android:layout_height="@dimen/icon_button_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_lock"
-            android:src="@drawable/ic_lock_open" />
+            android:src="@drawable/ic_lock" />
 
         <!-- v6 Rule 6: CC button. GONE unless a subtitle sidecar was
              found for this video (PlayerActivity drives visibility).

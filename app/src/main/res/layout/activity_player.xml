@@ -429,44 +429,55 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- v9.5 lock overlay (Sam 2026-11-18): when locked, ONLY the
-         centred transparent "Tap to unlock" pill shows — no corner
-         key, no time text, no progress bar. The container is NOT
-         clickable: taps around the pill fall through to the
-         PlayerView (which toggles the pill's show/hide); ONLY a tap
-         on the pill itself unlocks (its click listener + the
-         isTapOnLockCluster fallback in PlayerActivity). The pill
-         carries the lock icon (drawableStart) with the text. -->
-    <LinearLayout
-        android:id="@+id/lockOverlayContainer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:clickable="false"
-        android:focusable="false"
-        android:orientation="vertical"
+    <!-- v9.6 lock (Sam 2026-11-18): the centre pill is GONE — the
+         ONLY unlock control is this single button at the top-right
+         corner of the video (same corner as v9.1/v9.4). Visible only
+         while locked; the lock button in the controller's bottom row
+         (bottom-right) locks. The button and the seekbar show/hide
+         TOGETHER on the 3s timer (see showLockCluster /
+         hideLockCluster in PlayerActivity). -->
+    <ImageButton
+        android:id="@+id/lockCornerButton"
+        android:layout_width="@dimen/icon_button_size"
+        android:layout_height="@dimen/icon_button_size"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:layout_marginEnd="@dimen/spacing_16"
+        android:background="@drawable/bg_gesture_pill"
+        android:contentDescription="@string/player_unlock"
+        android:elevation="8dp"
+        android:src="@drawable/ic_lock_open"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@id/playerView"
+        app:layout_constraintEnd_toEndOf="@id/playerView"
+        app:layout_constraintTop_toTopOf="@id/playerView" />
+
+    <!-- v9.6 Item B: persistent notice when the current video's
+         audio cannot play on this device (unsupported codec — the
+         track is never selected, so the video plays silently with no
+         error) or the file has no audio track at all. Outside the
+         controller so it stays visible after the controls auto-hide;
+         PlayerActivity drives it from onTracksChanged. Single line,
+         just below the top bar, so it never covers the centre
+         transport in portrait. -->
+    <TextView
+        android:id="@+id/audioNotice"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_16"
+        android:layout_marginEnd="@dimen/spacing_16"
+        android:layout_marginTop="64dp"
+        android:background="@drawable/bg_gesture_pill"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:paddingStart="@dimen/spacing_12"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_12"
+        android:paddingBottom="@dimen/spacing_8"
+        android:textColor="#FFFFFF"
+        android:textSize="@dimen/text_caption"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="@id/playerView"
         app:layout_constraintStart_toStartOf="@id/playerView"
-        app:layout_constraintTop_toTopOf="@id/playerView">
-
-        <TextView
-            android:id="@+id/unlockPill"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_lock_pill_transparent"
-            android:clickable="true"
-            android:contentDescription="@string/player_tap_to_unlock"
-            android:drawableStart="@drawable/ic_lock"
-            android:drawablePadding="@dimen/spacing_4"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="48dp"
-            android:paddingStart="@dimen/spacing_12"
-            android:paddingEnd="@dimen/spacing_12"
-            android:text="@string/player_tap_to_unlock"
-            android:textColor="#FFFFFF"
-            android:textSize="@dimen/text_action" />
-    </LinearLayout>
+        app:layout_constraintTop_toTopOf="@id/playerView" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

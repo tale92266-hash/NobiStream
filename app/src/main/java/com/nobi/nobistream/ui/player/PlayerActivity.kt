@@ -37,6 +37,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -244,15 +245,15 @@ class PlayerActivity : AppCompatActivity() {
         if (player?.isPlaying == true) setControlsVisible(false)
     }
 
-    // v9.4 Bug L: the lock cluster gets the SAME 3s auto-hide as the
-    // normal controls — it never had one, so the lock button, the
-    // "Tap to unlock" pill and its thin progress bar sat on screen
-    // forever after locking. The runnable hides the cluster only
-    // while still locked; a tap anywhere brings it back (see
+    // v9.4 Bug L: the locked UI gets the SAME 3s auto-hide as the
+    // normal controls — it never had one, so the lock affordance sat
+    // on screen forever after locking. The runnable hides the locked
+    // UI (corner button + seekbar together, v9.6) only while still
+    // locked; a tap anywhere brings it back (see
     // onSingleTapConfirmed).
     private val lockHideHandler = Handler(Looper.getMainLooper())
     private val lockHideRunnable = Runnable {
-        if (locked) binding.lockOverlayContainer.visibility = View.GONE
+        if (locked) hideLockCluster()
     }
 
     private val feedbackHandler = Handler(Looper.getMainLooper())
@@ -351,15 +352,13 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.setControllerHideOnTouch(false)
         setControlsVisible(true, animate = false)
         wireControllerButtons()
-        // v9.5 Item A (Sam 2026-11-18): when locked, ONLY the centred
-        // transparent "Tap to unlock" pill shows — no corner key, no
-        // time text, no progress bar. ONLY a tap ON the pill unlocks:
-        // the container is NOT clickable (taps around the pill fall
-        // through to the PlayerView, which toggles the pill's
-        // show/hide), and the gesture detector unlocks only for a tap
-        // inside the pill's own rect (see isTapOnLockCluster). The
-        // pill's own click listener is the single unlock path.
-        binding.unlockPill.setOnClickListener { setLocked(false) }
+        // v9.6 lock (Sam 2026-11-18): the centre pill is GONE — the
+        // ONLY unlock control is the single corner button at the
+        // top-right of the video (same corner as v9.1/v9.4). It is
+        // visible only while locked; the bottom-row lock button locks.
+        // Its click listener is the single unlock path (plus the
+        // isTapOnLockCluster fallback in the gesture detector).
+        binding.lockCornerButton.setOnClickListener { setLocked(false) }
         binding.upNextCancel.setOnClickListener { hideUpNextCard() }
         binding.upNextPlayNow.setOnClickListener { advanceToUpNext() }
         binding.upNextPlay.setOnClickListener { advanceToUpNext() }
@@ -690,36 +689,69 @@ class PlayerActivity : AppCompatActivity() {
         cancelHoldPending()
         if (holdSpeedActive) endHold2x()
         if (value) {
-            // v9.5 Item A: lock = seekbar-only mode. The controller
-            // stays up with ONLY the seekbar visible (dimmed, not
-            // seekable) — the rest of the chrome hides. The centred
-            // transparent pill shows and auto-hides after 3s (v9.4);
-            // a tap anywhere brings it back for 3s.
+            // v9.6 lock (Sam 2026-11-18): the seekbar and the corner
+            // button show/hide TOGETHER (see showLockCluster /
+            // hideLockCluster) — the v9.5 seekbar stayed up while the
+            // pill hid on its own timer. NO toast on lock or unlock
+            // (Sam: "TOAST NA AAYE"). Icons are actions: the corner
+            // button shows the UNLOCK icon while locked; the
+            // bottom-row button shows the LOCK icon while unlocked.
             applyLockedControls()
             showLockCluster()
+            binding.lockCornerButton.setImageResource(R.drawable.ic_lock_open)
             ctrlLock.setImageResource(R.drawable.ic_lock)
-            Toast.makeText(this, getString(R.string.player_locked), Toast.LENGTH_SHORT).show()
         } else {
             hideLockCluster()
-            ctrlLock.setImageResource(R.drawable.ic_lock_open)
+            ctrlLock.setImageResource(R.drawable.ic_lock)
             setControlsVisible(true)
             // v9.1 #20: unlock haptic through the shared helper.
             Haptics.tap(binding.playerView)
-            Toast.makeText(this, getString(R.string.player_unlocked), Toast.LENGTH_SHORT).show()
         }
     }
 
-    /** v9.4 Bug L: show the lock cluster and arm its 3s auto-hide. */
+    /**
+     * v9.6 lock: show the locked UI — the corner unlock button AND
+     * the seekbar block — and arm its 3s auto-hide. The two always
+     * move together (Sam: "LOCK KEY K STH SEEKBAR SHOW AND HIDE
+     * HO"). applyLockedControls() first re-applies the locked mode
+     * (chrome hidden, seekbar dimmed and dead) so a re-show after
+     * any interruption is still correct.
+     */
     private fun showLockCluster() {
-        binding.lockOverlayContainer.visibility = View.VISIBLE
+        applyLockedControls()
+        binding.lockCornerButton.visibility = View.VISIBLE
+        setLockedSeekbarVisible(true)
         lockHideHandler.removeCallbacks(lockHideRunnable)
         lockHideHandler.postDelayed(lockHideRunnable, CONTROLLER_TIMEOUT_MS.toLong())
     }
 
-    /** v9.4 Bug L: hide the lock cluster now and disarm its timer. */
+    /**
+     * v9.6 lock: hide the locked UI now — corner button AND seekbar
+     * block together — and disarm its timer. The controller root
+     * itself stays up but empty (chrome + seekbar both gone), so
+     * taps still reach the PlayerView listener that brings the UI
+     * back.
+     */
     private fun hideLockCluster() {
         lockHideHandler.removeCallbacks(lockHideRunnable)
-        binding.lockOverlayContainer.visibility = View.GONE
+        binding.lockCornerButton.visibility = View.GONE
+        setLockedSeekbarVisible(false)
+    }
+
+    /**
+     * v9.6 lock: the seekbar block (bar + time labels + ticks) — the
+     * half of the locked UI that is NOT the corner button. Ticks
+     * only ever show when they were built for this video
+     * (refreshSeekTicks), so a short video never gains an empty
+     * 4dp strip from this call.
+     */
+    private fun setLockedSeekbarVisible(visible: Boolean) {
+        val v = if (visible) View.VISIBLE else View.GONE
+        exoProgress.visibility = v
+        exoPosition.visibility = v
+        exoDuration.visibility = v
+        seekTicksContainer.visibility =
+            if (visible && seekTicksContainer.childCount > 0) View.VISIBLE else View.GONE
     }
 
     /**
@@ -748,8 +780,10 @@ class PlayerActivity : AppCompatActivity() {
      * guard in findControllerViews, so a locked seekbar is provably
      * dead). Any in-flight fade-out is cancelled first — its
      * withEndAction would otherwise hide the controller afterwards.
-     * The auto-hide timer is disarmed: the seekbar does not hide
-     * while locked (only the pill has a 3s timer).
+     * v9.6: the seekbar block's VISIBILITY is owned by
+     * showLockCluster / hideLockCluster (it hides together with the
+     * corner button); this function only sets up the mode, it does
+     * not force the block visible.
      */
     private fun applyLockedControls() {
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
@@ -769,6 +803,7 @@ class PlayerActivity : AppCompatActivity() {
     /** v9.5 Item A: undo the locked mode — chrome back, seekbar live. */
     private fun restoreControllerChrome() {
         setControllerChromeVisible(true)
+        setLockedSeekbarVisible(true)
         exoProgress.alpha = 1f
         exoProgress.isEnabled = true
         exoPosition.alpha = 1f
@@ -816,7 +851,8 @@ class PlayerActivity : AppCompatActivity() {
             binding.bufferingOverlay.visibility = View.GONE
             binding.gestureFeedback.visibility = View.GONE
             binding.playerError.visibility = View.GONE
-            binding.lockOverlayContainer.visibility = View.GONE
+            binding.lockCornerButton.visibility = View.GONE
+            binding.audioNotice.visibility = View.GONE
             // v8 §4.4: every floating overlay goes away in PiP too.
             hideUpNextCard()
             cancelHoldPending()
@@ -955,19 +991,20 @@ class PlayerActivity : AppCompatActivity() {
      * app never asks PlayerView what it thinks. Showing fades the
      * controller in (250ms) and (re)arms the 3s auto-hide while
      * playing; hiding fades it out and only then sets it GONE, so
-     * the tools never blink away mid-tap. While locked, showing is
-     * refused outright — the lock overlay is the only UI.
+     * the tools never blink away mid-tap. While locked, showing /
+     * hiding just toggles the locked UI (corner button + seekbar
+     * together) — see showLockCluster / hideLockCluster.
      */
     private fun setControlsVisible(visible: Boolean, animate: Boolean = true) {
-        // v9.5 Item A: while locked, every hide/show request just
-        // re-applies seekbar-only mode — the seekbar must never
-        // disappear (the old hide path took it with the controller).
-        // In PiP the controller hides normally instead (tiny window).
+        // v9.6 lock: while locked, every hide/show request just
+        // toggles the locked UI (corner button + seekbar together) —
+        // the seekbar must never appear without the button or vice
+        // versa. In PiP the controller hides normally instead (tiny
+        // window).
         if (locked && !inPip) {
-            applyLockedControls()
+            if (visible) showLockCluster() else hideLockCluster()
             return
         }
-        if (visible && locked) return
         if (visible) restoreControllerChrome()
         val wasVisible = isControlsVisible
         isControlsVisible = visible
@@ -1089,6 +1126,11 @@ class PlayerActivity : AppCompatActivity() {
                     binding.bufferingOverlay.visibility = View.GONE
                     binding.playerError.visibility = View.GONE
                     cancelOfflineTimer()
+                    // v9.6 Item B: backstop for the audio check — the
+                    // track groups are complete by READY even if
+                    // onTracksChanged fired while they were still
+                    // being discovered.
+                    player?.let { updateAudioNotice(it.currentTracks) }
                     // v6: a successful load clears the stall budget —
                     // the 10-attempt bound counts CONSECUTIVE
                     // failures, and a recovered stall is not one.
@@ -1139,6 +1181,13 @@ class PlayerActivity : AppCompatActivity() {
             // not at the next 5s tick — so a seek-then-exit still
             // resumes from the seek target.
             if (reason == Player.DISCONTINUITY_REASON_SEEK) savePositionNow()
+        }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            // v9.6 Item B: the app was blind to unsupported audio —
+            // nothing ever inspected the audio tracks. Evaluate on
+            // every track change (new video, subtitle re-prepare).
+            updateAudioNotice(tracks)
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -1384,6 +1433,11 @@ class PlayerActivity : AppCompatActivity() {
         ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
         refreshDetailsPanel()
         binding.playerError.visibility = View.GONE
+        // v9.6 Item B: a new video resets the audio notice — the
+        // previous video's unsupported-audio state must not linger
+        // into this one; onTracksChanged re-evaluates for the new
+        // source.
+        binding.audioNotice.visibility = View.GONE
         // v6: a new video cancels any pending stall retry / offline
         // timer and resets the stall budget; it also drops the
         // previous video's subtitle tracks and discovery job.
@@ -1640,6 +1694,65 @@ class PlayerActivity : AppCompatActivity() {
         exo.trackSelectionParameters = params.build()
         updateCcButton()
         updateDetailsSubtitlesState()
+    }
+
+    /**
+     * v9.6 Item B — WHY high-quality video plays with NO audio:
+     * Media3's track selector only ever selects a track that at
+     * least one renderer on the device can decode. The 1080p copy
+     * (message 1272, EPISODE-323) carries an audio track in a codec
+     * this Vivo has no decoder for (the 720p copy's AAC decodes
+     * fine, which is why only the high-quality copy is silent) — so
+     * the audio track is never selected, no renderer ever fails, and
+     * no error ever fires: the video just plays silently. The app
+     * never inspected the tracks, so the silence was invisible to
+     * it. This check makes it visible instead: an audio group with
+     * no supported track (or no audio group at all) shows a plain
+     * one-line notice telling the user what happened and what to do
+     * (watch the 720p copy). It never blocks the video.
+     *
+     * The exact codec of a given file cannot be known from the app
+     * (TDLib reports only the container MIME type); the check below
+     * works from what Media3 reports — group present, track
+     * supported, track selected — so it stays correct whatever the
+     * codec is. A real decode-side fix would be a software audio
+     * decoder (ExoPlayer FFmpeg extension) — a separate, large
+     * native/CI decision, not smuggled into this build.
+     */
+    private fun updateAudioNotice(tracks: Tracks) {
+        // Tracks not discovered yet (source loading/cleared) — say
+        // nothing until they are; the READY backstop re-evaluates.
+        if (tracks.groups.isEmpty()) {
+            binding.audioNotice.visibility = View.GONE
+            return
+        }
+        val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        if (audioGroups.isEmpty()) {
+            binding.audioNotice.setText(R.string.audio_no_track)
+            binding.audioNotice.visibility = View.VISIBLE
+            return
+        }
+        val anySelected =
+            audioGroups.any { g -> (0 until g.length).any { g.isTrackSelected(it) } }
+        if (anySelected) {
+            binding.audioNotice.visibility = View.GONE
+            return
+        }
+        val anySupported =
+            audioGroups.any { g -> (0 until g.length).any { g.isTrackSupported(it) } }
+        if (anySupported) {
+            // Supported track exists but the selector didn't pick it
+            // — a selection quirk, not an unsupported codec. Log it
+            // and stay quiet; the video still has a playable track.
+            Log.w(
+                "PlayerActivity",
+                "Audio track supported but not selected for ${playlist.getOrNull(index)?.title}"
+            )
+            binding.audioNotice.visibility = View.GONE
+        } else {
+            binding.audioNotice.setText(R.string.audio_unsupported)
+            binding.audioNotice.visibility = View.VISIBLE
+        }
     }
 
     private fun updateCcButton() {
@@ -1910,26 +2023,25 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * v9.1 lock fallback: is this PlayerView-relative tap inside the
-     * corner lock cluster (button + pill + time/progress, +8dp slack)?
-     * The GestureDetector is fed PlayerView touches, so e.x/e.y are in
-     * PlayerView coordinates; the cluster rect is converted from screen
-     * coordinates via the PlayerView's own screen rect.
+     * corner lock button (+8dp slack)? The GestureDetector is fed
+     * PlayerView touches, so e.x/e.y are in PlayerView coordinates;
+     * the button rect is converted from screen coordinates via the
+     * PlayerView's own screen rect.
      */
-    // v9.5 Item A: the unlock hit-target is the PILL alone — the
-    // container, its gaps and (removed) time/progress no longer
-    // unlock. Taps around the pill fall through to the PlayerView
-    // and only toggle the pill's show/hide.
+    // v9.6 lock: the hit-target is the CORNER BUTTON alone — the
+    // centre pill is gone. Taps around the button fall through to
+    // the PlayerView and only toggle the locked UI's show/hide.
     private fun isTapOnLockCluster(e: MotionEvent): Boolean {
-        if (binding.lockOverlayContainer.visibility != View.VISIBLE) return false
-        val pillRect = Rect()
-        if (!binding.unlockPill.getGlobalVisibleRect(pillRect)) return false
+        if (binding.lockCornerButton.visibility != View.VISIBLE) return false
+        val buttonRect = Rect()
+        if (!binding.lockCornerButton.getGlobalVisibleRect(buttonRect)) return false
         val playerRect = Rect()
         if (!binding.playerView.getGlobalVisibleRect(playerRect)) return false
         val slack = (8 * resources.displayMetrics.density).toInt()
-        pillRect.inset(-slack, -slack)
+        buttonRect.inset(-slack, -slack)
         val x = (playerRect.left + e.x).toInt()
         val y = (playerRect.top + e.y).toInt()
-        return pillRect.contains(x, y)
+        return buttonRect.contains(x, y)
     }
 
     private fun setupGestures() {
@@ -1941,22 +2053,22 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                     if (locked) {
                         // v9.1 lock fallback (Sam 2026-11-18): a tap
-                        // on the unlock pill unlocks even if the
-                        // PlayerView swallowed the touch before the
-                        // pill's own click listener saw it — the old
-                        // centre button's tap never arrived, and this
-                        // detector is the one place that tap is
+                        // on the corner unlock button unlocks even if
+                        // the PlayerView swallowed the touch before
+                        // the button's own click listener saw it — the
+                        // old centre button's tap never arrived, and
+                        // this detector is the one place that tap is
                         // guaranteed to be seen (the PlayerView
                         // listener consumes every surface touch).
-                        // v9.4 Bug L: a tap OUTSIDE the pill toggles
-                        // the pill itself (Netflix-style):
-                        // hidden -> show for 3s; visible -> hide now.
-                        // The old code swallowed these taps, so the
-                        // cluster could neither be hidden nor brought
-                        // back by tapping.
+                        // v9.6 lock: a tap OUTSIDE the button toggles
+                        // the locked UI itself (button + seekbar
+                        // together): hidden -> show for 3s; visible ->
+                        // hide now. The old code swallowed these taps,
+                        // so the locked UI could neither be hidden nor
+                        // brought back by tapping.
                         if (isTapOnLockCluster(e)) {
                             setLocked(false)
-                        } else if (binding.lockOverlayContainer.visibility == View.VISIBLE) {
+                        } else if (binding.lockCornerButton.visibility == View.VISIBLE) {
                             hideLockCluster()
                         } else {
                             showLockCluster()
