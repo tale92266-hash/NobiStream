@@ -57,4 +57,15 @@
         android:text="@string/common_close"
         android:visibility="gone" />
 
+    <!-- v9.1 #24: Details — technical detail (error + crash-log
+         path) in an info sheet, below Dismiss. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/errorDetails"
+        style="@style/Widget.NobiStream.Button.Text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_4"
+        android:text="@string/common_details"
+        android:visibility="gone" />
+
 </LinearLayout>

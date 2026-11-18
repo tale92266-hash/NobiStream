@@ -7,9 +7,11 @@
   clipToOutline, so image, badges and progress bar all stay inside
   the radius (the old corner_thumb token was defined but never
   applied — that was the square-corners bug).
-  Badges are dark pills (v8_badge_dark, white bold 11sp): quality +
-  watched share a bottom-left row (never overlapping), duration sits
-  bottom-right, copies top-right, cached (fully downloaded) top-left.
+  Badges are dark pills (v8_badge_dark, white bold 11sp): quality
+  bottom-left, duration bottom-right, copies top-right, cached
+  (fully downloaded) top-left. v9.1 #7: a watched card shows a FULL
+  progress bar + an accent check-dot at the bar's right end instead
+  of a "Watched" pill; the duration pill lifts to clear the dot.
   Title 14sp medium max 2 lines; meta 12sp. Progress is a 3dp bar on
   the thumbnail's bottom edge with the visible progress_track.
 -->
@@ -107,22 +109,6 @@
                 android:textColor="#FFFFFF"
                 android:textSize="@dimen/text_badge"
                 android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/watchedBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/spacing_8"
-                android:background="@drawable/v8_badge_dark"
-                android:paddingStart="@dimen/spacing_8"
-                android:paddingTop="@dimen/spacing_4"
-                android:paddingEnd="@dimen/spacing_8"
-                android:paddingBottom="@dimen/spacing_4"
-                android:text="@string/common_watched"
-                android:textColor="#FFFFFF"
-                android:textSize="@dimen/text_badge"
-                android:textStyle="bold"
-                android:visibility="gone" />
         </LinearLayout>
 
         <TextView
@@ -151,6 +137,22 @@
             android:progress="0"
             android:progressDrawable="@drawable/progress_video"
             android:visibility="gone" />
+
+        <!-- v9.1 #7: watched check-dot — accent circle + white check,
+             sitting at the progress bar's right end (bottom|end, so it
+             straddles the bar). Last child = topmost in the frame. -->
+        <ImageView
+            android:id="@+id/watchedDot"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="@dimen/spacing_8"
+            android:background="@drawable/bg_watched_dot"
+            android:contentDescription="@null"
+            android:padding="3dp"
+            android:src="@drawable/ic_check"
+            android:visibility="gone"
+            app:tint="@android:color/white" />
     </FrameLayout>
 
     <TextView

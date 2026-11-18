@@ -22,14 +22,39 @@
         android:paddingEnd="@dimen/screen_margin"
         android:paddingBottom="@dimen/spacing_12">
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/groupPhoto"
+        <!-- v9.1 #19: avatar stack — tonal letter circle underneath,
+             photo on top when it loads, NEW dot top-right. -->
+        <FrameLayout
             android:layout_width="@dimen/group_icon_size"
             android:layout_height="@dimen/group_icon_size"
-            android:contentDescription="@string/home_title"
-            android:scaleType="centerCrop"
-            android:src="@drawable/ic_video_placeholder"
-            app:shapeAppearance="@style/Shape.NobiStream.Circle" />
+            android:background="@drawable/bg_letter_avatar">
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/groupPhoto"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/home_title"
+                android:scaleType="centerCrop"
+                app:shapeAppearance="@style/Shape.NobiStream.Circle" />
+
+            <TextView
+                android:id="@+id/groupLetter"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <View
+                android:id="@+id/groupNewDot"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/bg_new_dot"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"

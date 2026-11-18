@@ -172,11 +172,30 @@
         app:scrubber_enabled_size="12dp"
         app:touch_target_height="24dp"
         app:unplayed_color="@color/outline"
-        app:layout_constraintBottom_toTopOf="@id/ctrlBottomRow"
+        app:layout_constraintBottom_toTopOf="@id/seekTicks"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Bottom row: fullscreen, aspect, PiP, lock, episode counter, speed -->
+    <!-- v9.1 #13: 10-minute tick marks above the seekbar (long
+         videos only — PlayerActivity builds them once per
+         duration). 4dp tall, 16dp side margins, 2dp below the bar. -->
+    <LinearLayout
+        android:id="@+id/seekTicks"
+        android:layout_width="0dp"
+        android:layout_height="4dp"
+        android:layout_marginStart="@dimen/spacing_16"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="@dimen/spacing_16"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/ctrlBottomRow"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/exo_progress" />
+
+    <!-- Bottom row: TWO groups — left (fullscreen / aspect / PiP)
+         and right (lock / CC / counter / speed) — so the speed pill
+         never drifts when the counter text changes length. -->
     <LinearLayout
         android:id="@+id/ctrlBottomRow"
         android:layout_width="match_parent"
@@ -188,6 +207,13 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:id="@+id/ctrlBottomLeft"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/ctrlFullscreen"
@@ -212,6 +238,19 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_pip"
             android:src="@drawable/ic_pip" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/ctrlBottomRight"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/ctrlLock"
@@ -233,11 +272,6 @@
             android:src="@drawable/ic_closed_caption"
             android:visibility="gone" />
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
-
         <TextView
             android:id="@+id/ctrlCounter"
             android:layout_width="wrap_content"
@@ -246,16 +280,26 @@
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption" />
 
+        <!-- v9.1 #13: speed is an icon+text pill now (not a bare
+             "1.0x" label) — same shortcut into the options sheet. -->
         <TextView
             android:id="@+id/ctrlSpeedLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:padding="@dimen/spacing_8"
+            android:background="@drawable/bg_gesture_pill"
+            android:drawableStart="@drawable/ic_speed"
+            android:drawablePadding="@dimen/spacing_4"
+            android:gravity="center_vertical"
+            android:minHeight="32dp"
+            android:paddingStart="@dimen/spacing_8"
+            android:paddingTop="@dimen/spacing_4"
+            android:paddingEnd="@dimen/spacing_8"
+            android:paddingBottom="@dimen/spacing_4"
             android:text="1.0x"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_body"
             android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

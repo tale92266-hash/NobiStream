@@ -58,9 +58,9 @@ class SettingsStore(context: Context) {
     /** "White" / "Yellow" / "Cyan". */
     val subtitleColor: Flow<String> =
         dataStore.data.map { it[KEY_SUBTITLE_COLOR] ?: "White" }
-    /** "Semi-black" / "Black" / "Transparent". */
+    /** v9.1 #26: "Black 50%" / "Black 80%" / "Transparent" (opacity inside the background dropdown). Legacy "Semi-black" / "Black" values are migrated on first run (see SettingsActivity). */
     val subtitleBackground: Flow<String> =
-        dataStore.data.map { it[KEY_SUBTITLE_BACKGROUND] ?: "Semi-black" }
+        dataStore.data.map { it[KEY_SUBTITLE_BACKGROUND] ?: "Black 50%" }
 
     /**
      * v4: recent search queries, newest first, capped at 10,
@@ -102,6 +102,37 @@ class SettingsStore(context: Context) {
             } else {
                 prefs[KEY_RECENT_SEARCHES] = updated.joinToString("\n")
             }
+        }
+    }
+
+    /**
+     * v9.1 #19: last-seen video count per group ("chatId=count,...").
+     * A group shows its NEW dot only when a last-seen value EXISTS
+     * and the count has grown since — first install shows no dots
+     * (nothing is "new" yet). Updated when a channel is opened.
+     */
+    val lastSeenVideoCounts: Flow<Map<Long, Int>> = dataStore.data.map { prefs ->
+        prefs[KEY_LAST_SEEN_VIDEO_COUNTS].orEmpty()
+            .split(',').mapNotNull { part ->
+                val kv = part.split('=', limit = 2)
+                val chatId = kv.getOrNull(0)?.toLongOrNull()
+                val count = kv.getOrNull(1)?.toIntOrNull()
+                if (chatId != null && count != null) chatId to count else null
+            }.toMap()
+    }
+
+    suspend fun setLastSeenVideoCount(chatId: Long, count: Int) {
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_LAST_SEEN_VIDEO_COUNTS].orEmpty()
+                .split(',').mapNotNull { part ->
+                    val kv = part.split('=', limit = 2)
+                    val c = kv.getOrNull(0)?.toLongOrNull()
+                    val n = kv.getOrNull(1)?.toIntOrNull()
+                    if (c != null && n != null) c to n else null
+                }.toMap().toMutableMap()
+            current[chatId] = count
+            prefs[KEY_LAST_SEEN_VIDEO_COUNTS] =
+                current.entries.joinToString(",") { "${it.key}=${it.value}" }
         }
     }
 
@@ -165,6 +196,7 @@ class SettingsStore(context: Context) {
         val KEY_SUBTITLE_COLOR = stringPreferencesKey("subtitle_color")
         val KEY_SUBTITLE_BACKGROUND = stringPreferencesKey("subtitle_background")
         val KEY_RECENT_SEARCHES = stringPreferencesKey("recent_searches")
+        val KEY_LAST_SEEN_VIDEO_COUNTS = stringPreferencesKey("last_seen_video_counts")
         const val MAX_RECENT_SEARCHES = 10
     }
 }

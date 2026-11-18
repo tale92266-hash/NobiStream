@@ -19,7 +19,7 @@
             android:name=".ui.login.LauncherActivity"
             android:exported="true"
             android:noHistory="true"
-            android:theme="@style/Theme.NobiStream.Launcher">
+            android:theme="@style/Theme.NobiStream.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

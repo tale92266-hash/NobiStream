@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 #35: Smart toggle chip text — ON is accent, OFF is the quiet secondary text. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/primary" android:state_checked="true" />
+    <item android:color="@color/chip_unselected_text" />
+</selector>

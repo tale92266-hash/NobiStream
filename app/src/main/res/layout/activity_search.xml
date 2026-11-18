@@ -97,7 +97,7 @@
                 android:paddingBottom="@dimen/spacing_8"
                 android:text="@string/search_recent_clear"
                 android:textColor="@color/primary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_action" />
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
@@ -168,6 +168,18 @@
             android:background="@drawable/v8_shimmer_sweep"
             android:translationX="-160dp" />
     </FrameLayout>
+
+    <!-- v9.1 #16: result count, above the grid ("12 results"). -->
+    <TextView
+        android:id="@+id/resultCount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="@dimen/screen_margin"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/screen_margin"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_caption"
+        android:visibility="gone" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/resultsRecycler"

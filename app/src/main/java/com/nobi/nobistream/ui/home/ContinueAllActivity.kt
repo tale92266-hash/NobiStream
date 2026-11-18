@@ -46,7 +46,7 @@ class ContinueAllActivity : AppCompatActivity() {
         binding.toolbar.setNavigationOnClickListener { finish() }
 
         adapter = ContinueAllAdapter(
-            onClick = { item -> openContinue(item) },
+            onClick = { item, thumb -> openContinue(item, thumb) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
             },
@@ -94,7 +94,11 @@ class ContinueAllActivity : AppCompatActivity() {
         return listOf(groupName, remaining).filter { it.isNotEmpty() }.joinToString(" • ")
     }
 
-    private fun openContinue(item: VideoItem) {
+    /**
+     * v9.1 #1: shared-element transition into the player (same
+     * "video_thumb_<id>" element as Home / Library / Channel).
+     */
+    private fun openContinue(item: VideoItem, thumb: android.widget.ImageView? = null) {
         PlayerPlaylist.items = allItems
         PlayerPlaylist.chatId = item.chatId
         // v8: Continue opens have no episode grouping (Room-only
@@ -107,6 +111,13 @@ class ContinueAllActivity : AppCompatActivity() {
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)
-        startActivity(intent)
+        if (thumb != null) {
+            val options = android.app.ActivityOptions.makeSceneTransitionAnimation(
+                this, thumb, "video_thumb_${item.messageId}"
+            )
+            startActivity(intent, options.toBundle())
+        } else {
+            startActivity(intent)
+        }
     }
 }

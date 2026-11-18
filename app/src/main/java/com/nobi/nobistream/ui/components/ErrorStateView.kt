@@ -25,6 +25,7 @@ class ErrorStateView @JvmOverloads constructor(
     private val bodyView: TextView
     private val retryButton: MaterialButton
     private val dismissButton: MaterialButton
+    private val detailsButton: MaterialButton
 
     init {
         orientation = VERTICAL
@@ -34,6 +35,7 @@ class ErrorStateView @JvmOverloads constructor(
         bodyView = findViewById(R.id.errorBody)
         retryButton = findViewById(R.id.errorRetry)
         dismissButton = findViewById(R.id.errorDismiss)
+        detailsButton = findViewById(R.id.errorDetails)
     }
 
     fun setIcon(@DrawableRes resId: Int) {
@@ -67,5 +69,20 @@ class ErrorStateView @JvmOverloads constructor(
 
     fun hideDismiss() {
         dismissButton.visibility = View.GONE
+    }
+
+    /**
+     * v9.1 #24: Details action — a quiet text button below Dismiss
+     * that shows the technical detail (error message + where the
+     * crash log lives) in an info sheet. Library only for now.
+     */
+    fun setDetails(text: CharSequence = context.getString(R.string.common_details), onClick: () -> Unit) {
+        detailsButton.text = text
+        detailsButton.visibility = View.VISIBLE
+        detailsButton.setOnClickListener { onClick() }
+    }
+
+    fun hideDetails() {
+        detailsButton.visibility = View.GONE
     }
 }

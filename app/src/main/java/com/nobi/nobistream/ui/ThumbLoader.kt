@@ -31,7 +31,20 @@ import kotlinx.coroutines.withContext
  */
 object ThumbLoader {
 
-    fun load(scope: CoroutineScope, repo: NobiRepository, item: VideoItem, imageView: ImageView) {
+    /**
+     * v9.1 #4/#9: [onDone] fires on EVERY terminal path, on the
+     * calling (Main) thread — local hit, download success, or the
+     * placeholder-stays failure. Callers use it to stop a shimmer
+     * (Home/Library skeleton, hero shimmer). It fires when the image
+     * is handed to Coil (the 200ms crossfade then runs on its own).
+     */
+    fun load(
+        scope: CoroutineScope,
+        repo: NobiRepository,
+        item: VideoItem,
+        imageView: ImageView,
+        onDone: (() -> Unit)? = null
+    ) {
         // Tag the view with the ITEM, not the thumbnail id: the id
         // can change across the fallback re-resolve below, and the
         // tag is what stops a late download from landing in a
@@ -47,6 +60,7 @@ object ThumbLoader {
                 // sizes the decode to the view, so no oversized bitmaps.
                 crossfade(200)
             }
+            onDone?.invoke()
             return
         }
         val thumbId = item.thumbFileId
@@ -84,6 +98,7 @@ object ThumbLoader {
             }
             // path still blank = genuinely no thumbnail (or the
             // download failed): the placeholder stays. Deliberate.
+            onDone?.invoke()
         }
     }
 }

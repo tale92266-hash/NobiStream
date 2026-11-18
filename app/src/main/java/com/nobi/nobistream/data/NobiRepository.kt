@@ -95,6 +95,19 @@ class NobiRepository(
         database.groupDao().delete(chatId)
     }
 
+    /**
+     * v9.1 #3: non-mutating resolve for the Add Group preview — the
+     * same resolveChat as addGroup, but nothing is written to the
+     * DB. The video count comes from a 1-item history load:
+     * resolveChat alone returns videoCount 0 (the count comes from
+     * loadVideos' totalCount, see refreshGroups).
+     */
+    suspend fun resolveGroupPreview(link: String): GroupItem {
+        val group = gateway.resolveChat(link)
+        val total = runCatching { loadVideos(group.chatId, 0L, 1).totalCount }.getOrNull() ?: 0
+        return group.copy(videoCount = total)
+    }
+
     /** Load one page of videos and merge in saved resume positions. */
     suspend fun loadVideos(chatId: Long, fromMessageId: Long, limit: Int = 50): VideoPage {
         val page = gateway.loadVideos(chatId, fromMessageId, limit)
@@ -418,5 +431,21 @@ class NobiRepository(
         File(cacheDir, "media3").deleteRecursively()
         File(cacheDir, "exoplayer").deleteRecursively()
         File(cacheDir, "image_cache").deleteRecursively()
+    }
+
+    /**
+     * v9.1 #11: bytes used by the caches clearCache() deletes — the
+     * Settings cache-used bar. Read on IO (it walks the cache dirs).
+     */
+    fun getCacheUsedBytes(): Long {
+        val cacheDir = context.cacheDir
+        var total = 0L
+        for (name in listOf("media3", "exoplayer", "image_cache")) {
+            val dir = File(cacheDir, name)
+            if (dir.exists()) {
+                total += dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            }
+        }
+        return total
     }
 }

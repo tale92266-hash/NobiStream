@@ -93,4 +93,32 @@
         app:selectionRequired="true"
         app:singleSelection="true" />
 
+    <!-- v9.1 #30: subtitles in this sheet (not only behind the CC
+         button) — "Off" + one chip per discovered track, or a quiet
+         caption when the video has no subtitle sidecar. -->
+    <TextView
+        style="@style/Text.NobiStream.SectionHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:text="@string/player_subtitles" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/subtitleChips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8"
+        app:chipSpacingHorizontal="@dimen/chip_gap"
+        app:selectionRequired="true"
+        app:singleSelection="true" />
+
+    <TextView
+        android:id="@+id/subtitleEmptyCaption"
+        style="@style/Text.NobiStream.Caption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8"
+        android:text="@string/player_no_subtitles"
+        android:visibility="gone" />
+
 </LinearLayout>

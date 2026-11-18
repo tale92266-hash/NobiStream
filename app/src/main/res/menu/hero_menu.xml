@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 #9: hero overflow menu — text only. "View copies" is
+     hidden by the host when the hero has no other copies. -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/hero_menu_copies"
+        android:title="@string/hero_menu_copies" />
+    <item
+        android:id="@+id/hero_menu_open_channel"
+        android:title="@string/hero_menu_open_channel" />
+</menu>

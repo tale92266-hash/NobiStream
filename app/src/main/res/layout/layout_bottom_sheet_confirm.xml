@@ -50,9 +50,9 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/confirmButton"
-            style="@style/Widget.NobiStream.Button.Danger"
+            style="@style/Widget.NobiStream.Button.DangerFilled"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/spacing_8" />
+            android:layout_marginStart="@dimen/spacing_12" />
     </LinearLayout>
 </LinearLayout>

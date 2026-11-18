@@ -17,6 +17,12 @@
         app:navigationIcon="@drawable/ic_back"
         app:titleTextColor="@color/text_primary" />
 
+    <!-- v9.1 #35: chip-row edge fade — the row fades out at the
+         right edge instead of clipping hard. -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -91,31 +97,53 @@
                  the deduped list. -->
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipSmart"
-                style="@style/Widget.NobiStream.Chip.Filter"
+                style="@style/Widget.NobiStream.Chip.Smart"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/chip_gap"
                 android:checkable="true"
                 android:checked="true"
                 android:text="@string/channel_filter_smart" />
+
+            <!-- v9.1 #12: sort is a pill button naming the current
+                 sort ("Sort: Newest"), not an icon-only button. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/sortButton"
+                style="@style/Widget.NobiStream.Button.Secondary"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/button_height_small"
+                android:layout_marginStart="@dimen/chip_gap"
+                android:text="@string/channel_sort_newest"
+                app:icon="@drawable/ic_sort" />
         </LinearLayout>
     </HorizontalScrollView>
 
+        <View
+            android:id="@+id/chipsFade"
+            android:layout_width="16dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:background="@drawable/fade_edge_right"
+            android:clickable="false"
+            android:focusable="false" />
+    </FrameLayout>
+
+    <!-- v9.1 #32: the search field is full-width now — sort lives
+         in the chips row above, refresh in the toolbar menu. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/screen_margin"
         android:layout_marginTop="@dimen/spacing_8"
-        android:layout_marginEnd="@dimen/spacing_8"
+        android:layout_marginEnd="@dimen/screen_margin"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/searchLayout"
             style="@style/Widget.NobiStream.TextInputLayout.Search"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="@dimen/search_field_height"
-            android:layout_weight="1"
             android:hint="@string/channel_search_hint"
             app:startIconDrawable="@drawable/ic_search">
 
@@ -126,22 +154,6 @@
                 android:inputType="text"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
-
-        <ImageButton
-            android:id="@+id/sortButton"
-            android:layout_width="@dimen/icon_button_size"
-            android:layout_height="@dimen/icon_button_size"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/channel_sort_newest"
-            android:src="@drawable/ic_sort" />
-
-        <ImageButton
-            android:id="@+id/refreshButton"
-            android:layout_width="@dimen/icon_button_size"
-            android:layout_height="@dimen/icon_button_size"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/channel_refresh"
-            android:src="@drawable/ic_refresh" />
     </LinearLayout>
 
     <!-- v8 shimmer skeleton in the SAME grid as the real cards.

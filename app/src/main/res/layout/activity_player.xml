@@ -50,7 +50,7 @@
             android:ellipsize="end"
             android:maxLines="2"
             android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:textSize="@dimen/text_subhead" />
 
         <TextView
             android:id="@+id/detailsMeta"
@@ -58,7 +58,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_4"
             android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:textSize="@dimen/text_caption" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -66,89 +66,62 @@
             android:layout_marginTop="@dimen/spacing_12"
             android:orientation="horizontal">
 
-            <TextView
+            <!-- v9.1 #14: real M3 chips (not TextViews with a pill
+                 background) — same look, real touch ripple, real
+                 chip icons. checkable=false: these are actions, not
+                 toggles. -->
+            <com.google.android.material.chip.Chip
                 android:id="@+id/detailsSubtitles"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_gesture_pill"
-                android:clickable="true"
-                android:contentDescription="@string/player_subtitles"
-                android:drawableStart="@drawable/ic_closed_caption"
-                android:drawablePadding="@dimen/spacing_4"
-                android:focusable="true"
-                android:paddingStart="@dimen/spacing_12"
-                android:paddingTop="@dimen/spacing_8"
-                android:paddingEnd="@dimen/spacing_12"
-                android:paddingBottom="@dimen/spacing_8"
+                android:checkable="false"
                 android:text="@string/player_subtitles"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:visibility="gone" />
+                android:textSize="@dimen/text_action"
+                android:visibility="gone"
+                app:chipIcon="@drawable/ic_closed_caption" />
 
-            <TextView
+            <com.google.android.material.chip.Chip
                 android:id="@+id/detailsSpeed"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/spacing_8"
-                android:background="@drawable/bg_gesture_pill"
-                android:clickable="true"
-                android:contentDescription="@string/player_speed"
-                android:drawableStart="@drawable/ic_speed"
-                android:drawablePadding="@dimen/spacing_4"
-                android:focusable="true"
-                android:paddingStart="@dimen/spacing_12"
-                android:paddingTop="@dimen/spacing_8"
-                android:paddingEnd="@dimen/spacing_12"
-                android:paddingBottom="@dimen/spacing_8"
+                android:checkable="false"
                 android:text="1.0x"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_action"
+                app:chipIcon="@drawable/ic_speed" />
 
-            <TextView
+            <com.google.android.material.chip.Chip
                 android:id="@+id/detailsAspect"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/spacing_8"
-                android:background="@drawable/bg_gesture_pill"
-                android:clickable="true"
-                android:contentDescription="@string/player_aspect_ratio"
-                android:drawableStart="@drawable/ic_aspect_ratio"
-                android:drawablePadding="@dimen/spacing_4"
-                android:focusable="true"
-                android:paddingStart="@dimen/spacing_12"
-                android:paddingTop="@dimen/spacing_8"
-                android:paddingEnd="@dimen/spacing_12"
-                android:paddingBottom="@dimen/spacing_8"
+                android:checkable="false"
                 android:text="Fit"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_action"
+                app:chipIcon="@drawable/ic_aspect_ratio" />
 
-            <TextView
+            <com.google.android.material.chip.Chip
                 android:id="@+id/detailsCopies"
+                style="@style/Widget.NobiStream.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/spacing_8"
-                android:background="@drawable/bg_gesture_pill"
-                android:clickable="true"
-                android:contentDescription="@string/player_details_copies"
-                android:focusable="true"
-                android:paddingStart="@dimen/spacing_12"
-                android:paddingTop="@dimen/spacing_8"
-                android:paddingEnd="@dimen/spacing_12"
-                android:paddingBottom="@dimen/spacing_8"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
+                android:checkable="false"
+                android:textSize="@dimen/text_action"
                 android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Buffering overlay: loader + text + downloaded %. Kept from v2 —
-         it is what tells buffering apart from a stuck frame. -->
+    <!-- Buffering overlay: loader + text + "Xs ahead". v9.1 #17:
+         NO pill background any more — the text sits on the video
+         with a shadow, so the overlay reads as a status, not a card. -->
     <LinearLayout
         android:id="@+id/bufferingOverlay"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_gesture_pill"
         android:gravity="center"
         android:orientation="vertical"
         android:padding="@dimen/spacing_16"
@@ -167,6 +140,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_12"
+            android:shadowColor="#80000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
             android:text="@string/player_buffering"
             android:textColor="#FFFFFF"
             android:textSize="@dimen/text_body" />
@@ -176,6 +153,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_4"
+            android:shadowColor="#80000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption" />
 
@@ -188,6 +169,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_4"
+            android:shadowColor="#80000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
             android:text="@string/player_offline_retrying"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption"
@@ -312,7 +297,7 @@
         android:paddingEnd="@dimen/spacing_12"
         android:paddingBottom="@dimen/spacing_8"
         android:textColor="#FFFFFF"
-        android:textSize="13sp"
+        android:textSize="@dimen/text_action"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/playerView"
         app:layout_constraintEnd_toEndOf="parent"
@@ -373,6 +358,7 @@
                 android:layout_marginTop="@dimen/spacing_8"
                 android:orientation="horizontal">
 
+                <!-- v9.1 #5: 48dp touch targets (they were ~29dp). -->
                 <TextView
                     android:id="@+id/upNextCancel"
                     android:layout_width="wrap_content"
@@ -380,10 +366,15 @@
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
-                    android:padding="@dimen/spacing_8"
+                    android:gravity="center"
+                    android:minHeight="48dp"
+                    android:paddingStart="@dimen/spacing_16"
+                    android:paddingTop="@dimen/spacing_8"
+                    android:paddingEnd="@dimen/spacing_16"
+                    android:paddingBottom="@dimen/spacing_8"
                     android:text="@string/player_up_next_cancel"
                     android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
+                    android:textSize="@dimen/text_action" />
 
                 <TextView
                     android:id="@+id/upNextPlayNow"
@@ -393,10 +384,15 @@
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
-                    android:padding="@dimen/spacing_8"
+                    android:gravity="center"
+                    android:minHeight="48dp"
+                    android:paddingStart="@dimen/spacing_16"
+                    android:paddingTop="@dimen/spacing_8"
+                    android:paddingEnd="@dimen/spacing_16"
+                    android:paddingBottom="@dimen/spacing_8"
                     android:text="@string/player_up_next_play_now"
                     android:textColor="@color/primary"
-                    android:textSize="13sp"
+                    android:textSize="@dimen/text_action"
                     android:textStyle="bold" />
 
                 <TextView
@@ -407,10 +403,15 @@
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
-                    android:padding="@dimen/spacing_8"
+                    android:gravity="center"
+                    android:minHeight="48dp"
+                    android:paddingStart="@dimen/spacing_16"
+                    android:paddingTop="@dimen/spacing_8"
+                    android:paddingEnd="@dimen/spacing_16"
+                    android:paddingBottom="@dimen/spacing_8"
                     android:text="@string/player_up_next_play"
                     android:textColor="@color/primary"
-                    android:textSize="13sp"
+                    android:textSize="@dimen/text_action"
                     android:textStyle="bold"
                     android:visibility="gone" />
             </LinearLayout>
@@ -428,43 +429,81 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Lock overlay: the only tappable thing while locked. -->
-    <ImageButton
-        android:id="@+id/lockOverlayButton"
-        android:layout_width="@dimen/player_lock_size"
-        android:layout_height="@dimen/player_lock_size"
-        android:background="@drawable/bg_gesture_pill"
-        android:contentDescription="@string/player_unlock"
-        android:src="@drawable/ic_lock"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <!-- v8 §4.4: the subtle "Tap to unlock" pill shown with the lock
-         overlay while controls are locked; tapping it unlocks. -->
-    <TextView
-        android:id="@+id/unlockPill"
+    <!-- v9.1 lock overlay (Sam 2026-11-18: lock beech me nahi, kone me
+         chahiye + tap par hide hona chahiye). Top-right corner cluster
+         clear of the video centre and the display cutout (margins are
+         bumped by the cutout insets in PlayerActivity). The WHOLE
+         container is clickable — button, pill, time row, gaps — so a
+         tap anywhere on the cluster unlocks; the gesture detector also
+         unlocks on a tap inside this rect as a fallback (see
+         PlayerActivity.onSingleTapConfirmed). Time + thin progress are
+         the audit #28 additions. -->
+    <LinearLayout
+        android:id="@+id/lockOverlayContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_12"
-        android:background="@drawable/bg_gesture_pill"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:layout_marginEnd="@dimen/spacing_16"
         android:clickable="true"
-        android:contentDescription="@string/player_tap_to_unlock"
-        android:drawableStart="@drawable/ic_lock"
-        android:drawablePadding="@dimen/spacing_4"
+        android:elevation="8dp"
         android:focusable="true"
-        android:paddingStart="@dimen/spacing_12"
-        android:paddingTop="@dimen/spacing_8"
-        android:paddingEnd="@dimen/spacing_12"
-        android:paddingBottom="@dimen/spacing_8"
-        android:text="@string/player_tap_to_unlock"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
+        android:gravity="end"
+        android:orientation="vertical"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/lockOverlayButton" />
+        app:layout_constraintEnd_toEndOf="@id/playerView"
+        app:layout_constraintTop_toTopOf="@id/playerView">
+
+        <ImageButton
+            android:id="@+id/lockOverlayButton"
+            android:layout_width="@dimen/icon_button_size"
+            android:layout_height="@dimen/icon_button_size"
+            android:layout_gravity="end"
+            android:background="@drawable/bg_gesture_pill"
+            android:contentDescription="@string/player_unlock"
+            android:src="@drawable/ic_lock" />
+
+        <!-- v8 §4.4: the subtle "Tap to unlock" pill shown with the lock
+             overlay while controls are locked; tapping it unlocks.
+             v9.1: 48dp min height (audit #28 touch target). -->
+        <TextView
+            android:id="@+id/unlockPill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_8"
+            android:background="@drawable/bg_gesture_pill"
+            android:clickable="true"
+            android:contentDescription="@string/player_tap_to_unlock"
+            android:drawableStart="@drawable/ic_lock"
+            android:drawablePadding="@dimen/spacing_4"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12"
+            android:text="@string/player_tap_to_unlock"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/text_action" />
+
+        <!-- Audit #28: current time + thin progress on the lock overlay. -->
+        <TextView
+            android:id="@+id/lockTimeText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="@dimen/spacing_8"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/text_caption" />
+
+        <ProgressBar
+            android:id="@+id/lockProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="120dp"
+            android:layout_height="@dimen/progress_bar_height"
+            android:layout_gravity="end"
+            android:layout_marginTop="@dimen/spacing_4"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_video" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

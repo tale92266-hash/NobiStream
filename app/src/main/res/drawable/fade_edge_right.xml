@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 #35: chip-row edge fade — transparent on the left, the app
+     background on the right, so a scrolled chip row fades out instead
+     of clipping hard at the screen edge. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:endColor="@color/background"
+        android:startColor="#00FFFFFF"
+        android:type="linear" />
+</shape>

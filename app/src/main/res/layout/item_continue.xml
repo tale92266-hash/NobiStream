@@ -17,7 +17,7 @@
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="@dimen/continue_thumb_height"
-        android:background="@drawable/v8_thumb_rounded"
+        android:background="@drawable/v8_thumb_rounded_outline"
         android:clipToOutline="true">
 
         <ImageView
@@ -50,6 +50,24 @@
             android:textColor="#FFFFFF"
             android:textSize="@dimen/text_badge"
             android:textStyle="bold" />
+
+        <!-- v9.1 #27: "left" pill — time remaining, bottom-left,
+             opposite the duration pill. -->
+        <TextView
+            android:id="@+id/continueLeft"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="@dimen/spacing_8"
+            android:background="@drawable/v8_badge_dark"
+            android:paddingStart="@dimen/spacing_8"
+            android:paddingTop="@dimen/spacing_4"
+            android:paddingEnd="@dimen/spacing_8"
+            android:paddingBottom="@dimen/spacing_4"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/text_badge"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <ProgressBar
             android:id="@+id/continueProgress"

@@ -1,6 +1,7 @@
 package com.nobi.nobistream.ui.home
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -15,7 +16,14 @@ import java.io.File
 
 class GroupAdapter(
     private val onClick: (GroupItem) -> Unit,
-    private val onLongClick: (GroupItem) -> Unit
+    private val onLongClick: (GroupItem, android.view.View) -> Unit,
+    /**
+     * v9.1 #19: NEW dot — true when the group has videos the user
+     * has not seen yet (last-seen count exists AND is smaller than
+     * the current count). The host supplies it from SettingsStore;
+     * null = no dots.
+     */
+    private val isNewProvider: ((GroupItem) -> Boolean)? = null
 ) : ListAdapter<GroupItem, GroupAdapter.ViewHolder>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -43,18 +51,36 @@ class GroupAdapter(
             } else {
                 "$count • ${itemView.context.getString(R.string.home_group_updated, date)}"
             }
+            // v9.1 #19: letter avatar — the first letter/digit of the
+            // title, on a tonal circle. The photo covers it when one
+            // loads; when there is no photo (or the load fails) the
+            // letter stays visible so the row never shows a grey box.
+            val letter = item.title.firstOrNull { it.isLetterOrDigit() }
+                ?.uppercaseChar()?.toString() ?: "?"
+            binding.groupLetter.text = letter
             val photoPath = item.photoLocalPath
             if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
                 binding.groupPhoto.load(File(photoPath)) {
                     placeholder(R.drawable.ic_video_placeholder)
                     error(R.drawable.ic_video_placeholder)
                     crossfade(200)
+                    listener(
+                        onSuccess = { _, _ -> binding.groupLetter.visibility = View.GONE },
+                        onError = { _, _ ->
+                            binding.groupPhoto.setImageDrawable(null)
+                            binding.groupLetter.visibility = View.VISIBLE
+                        }
+                    )
                 }
             } else {
-                binding.groupPhoto.setImageResource(R.drawable.ic_video_placeholder)
+                binding.groupPhoto.setImageDrawable(null)
+                binding.groupLetter.visibility = View.VISIBLE
             }
+            // v9.1 #19: NEW dot — top-right of the avatar.
+            binding.groupNewDot.visibility =
+                if (isNewProvider?.invoke(item) == true) View.VISIBLE else View.GONE
             binding.root.setOnClickListener { onClick(item) }
-            binding.root.setOnLongClickListener { onLongClick(item); true }
+            binding.root.setOnLongClickListener { onLongClick(item, binding.root); true }
         }
     }
 

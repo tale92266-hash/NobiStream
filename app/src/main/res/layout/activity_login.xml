@@ -69,7 +69,7 @@
                     android:gravity="center"
                     android:text="1"
                     android:textColor="@color/text_primary"
-                    android:textSize="12sp"
+                    android:textSize="@dimen/text_caption"
                     android:textStyle="bold" />
 
                 <TextView
@@ -79,7 +79,7 @@
                     android:layout_marginTop="@dimen/spacing_4"
                     android:text="@string/login_step_phone"
                     android:textColor="@color/text_primary"
-                    android:textSize="12sp" />
+                    android:textSize="@dimen/text_caption" />
             </LinearLayout>
 
             <View
@@ -104,7 +104,7 @@
                     android:gravity="center"
                     android:text="2"
                     android:textColor="@color/text_primary"
-                    android:textSize="12sp"
+                    android:textSize="@dimen/text_caption"
                     android:textStyle="bold" />
 
                 <TextView
@@ -114,7 +114,7 @@
                     android:layout_marginTop="@dimen/spacing_4"
                     android:text="@string/login_step_code"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="@dimen/text_caption" />
             </LinearLayout>
 
             <View
@@ -139,7 +139,7 @@
                     android:gravity="center"
                     android:text="3"
                     android:textColor="@color/text_primary"
-                    android:textSize="12sp"
+                    android:textSize="@dimen/text_caption"
                     android:textStyle="bold" />
 
                 <TextView
@@ -149,7 +149,7 @@
                     android:layout_marginTop="@dimen/spacing_4"
                     android:text="@string/login_step_password"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="@dimen/text_caption" />
             </LinearLayout>
         </LinearLayout>
 
@@ -232,22 +232,84 @@
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/codeInputLayout"
-            style="@style/Widget.NobiStream.TextInputLayout"
+        <!-- v9.1 #2: six OTP boxes — one digit each, 48x56dp, the
+             focused box gets the accent stroke (bg_otp_box). Typing
+             flows forward, paste distributes, DEL goes back. -->
+        <LinearLayout
+            android:id="@+id/otpBoxesContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_16"
-            android:hint="@string/login_code_label"
+            android:gravity="center"
+            android:orientation="horizontal"
             android:visibility="gone">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/codeEdit"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+            <EditText
+                android:id="@+id/otpBox0"
+                android:layout_width="48dp"
+                android:layout_height="56dp"
+                android:background="@drawable/bg_otp_box"
+                android:gravity="center"
                 android:inputType="number"
-                android:minHeight="56dp" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_title" />
+
+            <EditText
+                android:id="@+id/otpBox1"
+                android:layout_width="48dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="@dimen/spacing_4"
+                android:background="@drawable/bg_otp_box"
+                android:gravity="center"
+                android:inputType="number"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_title" />
+
+            <EditText
+                android:id="@+id/otpBox2"
+                android:layout_width="48dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="@dimen/spacing_4"
+                android:background="@drawable/bg_otp_box"
+                android:gravity="center"
+                android:inputType="number"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_title" />
+
+            <EditText
+                android:id="@+id/otpBox3"
+                android:layout_width="48dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="@dimen/spacing_4"
+                android:background="@drawable/bg_otp_box"
+                android:gravity="center"
+                android:inputType="number"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_title" />
+
+            <EditText
+                android:id="@+id/otpBox4"
+                android:layout_width="48dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="@dimen/spacing_4"
+                android:background="@drawable/bg_otp_box"
+                android:gravity="center"
+                android:inputType="number"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_title" />
+
+            <EditText
+                android:id="@+id/otpBox5"
+                android:layout_width="48dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="@dimen/spacing_4"
+                android:background="@drawable/bg_otp_box"
+                android:gravity="center"
+                android:imeOptions="actionDone"
+                android:inputType="number"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_title" />
+        </LinearLayout>
 
         <!-- Code-step actions: resend (30s countdown) + change number. -->
         <LinearLayout
@@ -282,7 +344,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_16"
             android:hint="@string/login_password_label"
-            android:visibility="gone">
+            android:visibility="gone"
+            app:endIconMode="password_toggle">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/passwordEdit"

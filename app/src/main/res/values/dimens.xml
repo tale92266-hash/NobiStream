@@ -72,6 +72,7 @@
 
     <!-- Player: play/pause touch 64dp with ~48dp icon; secondary touch 48dp, icons 28-32dp -->
     <dimen name="player_control_size">48dp</dimen>
+    <dimen name="player_control_size_portrait">56dp</dimen>
     <dimen name="player_play_size">64dp</dimen>
     <dimen name="player_play_icon">48dp</dimen>
     <dimen name="player_secondary_icon">32dp</dimen>
@@ -86,7 +87,7 @@
     <dimen name="continue_card_width">200dp</dimen>
     <dimen name="continue_thumb_height">112dp</dimen>
     <dimen name="group_icon_size">56dp</dimen>
-    <dimen name="progress_bar_height">3dp</dimen>
+    <dimen name="progress_bar_height">4dp</dimen>
     <dimen name="grid_gap_horizontal">12dp</dimen>
     <dimen name="grid_gap_vertical">16dp</dimen>
     <!-- v8 bottom nav + hero + see-all rows -->

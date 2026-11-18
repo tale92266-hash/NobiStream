@@ -13,7 +13,7 @@ import com.nobi.nobistream.databinding.ItemContinueBinding
 import com.nobi.nobistream.ui.components.PressFeedback
 
 class ContinueAdapter(
-    private val onClick: (VideoItem) -> Unit,
+    private val onClick: (VideoItem, ImageView) -> Unit,
     private val onThumbNeeded: (VideoItem, ImageView) -> Unit,
     private val metaProvider: (VideoItem) -> String
 ) : ListAdapter<VideoItem, ContinueAdapter.ViewHolder>(DIFF) {
@@ -47,8 +47,21 @@ class ContinueAdapter(
                 binding.continueDuration.visibility = View.GONE
             }
             binding.continueProgress.progress = (item.progressFraction * 100).toInt()
+            // v9.1 #27: "left" pill — time remaining, bottom-left.
+            // Hidden for live / unknown-duration videos.
+            val remaining = (item.durationSec - item.progressSec).coerceAtLeast(0L)
+            if (item.durationSec > 0 && !item.watched) {
+                binding.continueLeft.visibility = View.VISIBLE
+                binding.continueLeft.text = itemView.context.getString(
+                    R.string.home_left, FormatUtils.formatDuration(remaining.toInt())
+                )
+            } else {
+                binding.continueLeft.visibility = View.GONE
+            }
             onThumbNeeded(item, binding.continueThumb)
-            binding.root.setOnClickListener { onClick(item) }
+            // v9.1 #1: shared-element transition into the player.
+            binding.continueThumb.transitionName = "video_thumb_${item.messageId}"
+            binding.root.setOnClickListener { onClick(item, binding.continueThumb) }
         }
     }
 

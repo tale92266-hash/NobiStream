@@ -1,6 +1,6 @@
 package com.nobi.nobistream.ui.components
 
-import android.view.HapticFeedbackConstants
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.nobi.nobistream.databinding.ItemSheetOptionBinding
@@ -14,12 +14,18 @@ import com.nobi.nobistream.databinding.LayoutBottomSheetSortBinding
  */
 object SortSheet {
 
+    /**
+     * v9.1 #12: [icons] is a per-option Material Symbols drawable
+     * (same order as [options], 0 = no icon). Trailing + default
+     * null so every existing call site compiles unchanged.
+     */
     fun show(
         activity: AppCompatActivity,
         title: String,
         options: List<String>,
         selectedIndex: Int,
-        onPick: (Int) -> Unit
+        onPick: (Int) -> Unit,
+        icons: List<Int>? = null
     ) {
         val dialog = BottomSheetDialog(activity)
         val binding = LayoutBottomSheetSortBinding.inflate(activity.layoutInflater)
@@ -30,8 +36,16 @@ object SortSheet {
             )
             row.optionLabel.text = label
             row.optionRadio.isChecked = index == selectedIndex
+            val iconRes = icons?.getOrNull(index) ?: 0
+            if (iconRes != 0) {
+                row.optionIcon.setImageResource(iconRes)
+                row.optionIcon.visibility = View.VISIBLE
+            } else {
+                row.optionIcon.visibility = View.GONE
+            }
             row.root.setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                // v9.1 #20: haptics through the shared helper.
+                Haptics.tap(it)
                 onPick(index)
                 dialog.dismiss()
             }

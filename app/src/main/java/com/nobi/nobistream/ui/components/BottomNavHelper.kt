@@ -1,7 +1,6 @@
 package com.nobi.nobistream.ui.components
 
 import android.content.Intent
-import android.view.HapticFeedbackConstants
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.navigation.NavigationBarView
@@ -64,7 +63,8 @@ object BottomNavHelper {
             val tab = TAB_FOR_ITEM[item.itemId]
                 ?: return@setOnItemSelectedListener false
             if (tab == selected) return@setOnItemSelectedListener true
-            nav.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            // v9.1 #20: haptics through the shared helper.
+            Haptics.tick(nav)
             if (onLocalTab?.invoke(tab) == true) {
                 applyIcons(nav, tab)
                 return@setOnItemSelectedListener true

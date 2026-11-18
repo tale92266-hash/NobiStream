@@ -7,6 +7,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.EpisodeGroup
 import com.nobi.nobistream.core.FormatUtils
+import com.nobi.nobistream.core.SmartFilter
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ItemCopiesRowBinding
 import com.nobi.nobistream.databinding.LayoutBottomSheetCopiesBinding
@@ -27,7 +28,17 @@ import com.nobi.nobistream.databinding.LayoutBottomSheetCopiesBinding
  */
 object CopiesSheet {
 
-    fun show(context: Context, group: EpisodeGroup, onPick: (VideoItem) -> Unit) {
+    /**
+     * v9.1 #15: [groupNameProvider] resolves the channel name for a
+     * copy (Main/Search look it up from the groups list, Channel /
+     * Player pass their channel title). Blank = no name shown.
+     */
+    fun show(
+        context: Context,
+        group: EpisodeGroup,
+        onPick: (VideoItem) -> Unit,
+        groupNameProvider: ((VideoItem) -> String)? = null
+    ) {
         val dialog = BottomSheetDialog(context)
         val binding = LayoutBottomSheetCopiesBinding.inflate(LayoutInflater.from(context))
         val best = group.best
@@ -36,6 +47,16 @@ object CopiesSheet {
             episodeLabel(group),
             group.copies.size
         )
+        // v9.1 #15: WHY this copy is Best — the first criterion where
+        // it beats the second-best copy (rank, then size, then date).
+        val reason = SmartFilter.bestReasonFor(group)
+        val bestText = context.getString(
+            when (reason) {
+                SmartFilter.BestReason.QUALITY -> R.string.smart_best_quality
+                SmartFilter.BestReason.SIZE -> R.string.smart_best_size
+                SmartFilter.BestReason.NEWEST -> R.string.smart_best_newest
+            }
+        )
         group.copies.forEach { copy ->
             val row = ItemCopiesRowBinding.inflate(
                 LayoutInflater.from(context), binding.copiesRowsContainer, false
@@ -43,10 +64,13 @@ object CopiesSheet {
             row.copyQuality.text = copy.quality.label
             val size = FormatUtils.formatSize(copy.sizeBytes)
             val date = FormatUtils.formatDate(copy.dateEpochSec)
+            // v9.1 #15: group name leads the meta ("Channel • 1.4 GB • 12 Nov").
+            val groupName = groupNameProvider?.invoke(copy).orEmpty()
             row.copyMeta.text =
-                listOf(size, date).filter { it.isNotEmpty() }.joinToString(" • ")
+                listOf(groupName, size, date).filter { it.isNotEmpty() }.joinToString(" • ")
             val isBest = copy.chatId == best.chatId && copy.messageId == best.messageId
             row.copyBest.visibility = if (isBest) View.VISIBLE else View.GONE
+            if (isBest) row.copyBest.text = bestText
             row.copyCheck.visibility = if (isBest) View.VISIBLE else View.GONE
             row.root.setOnClickListener {
                 dialog.dismiss()

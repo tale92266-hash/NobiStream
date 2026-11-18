@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 #8: Library section header — channel name + video count.
+     Full-width row (the host's SpanSizeLookup spans it across the
+     whole grid); the videos of that channel follow below it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="@dimen/spacing_16"
+    android:paddingBottom="@dimen/spacing_8">
+
+    <TextView
+        android:id="@+id/libraryHeaderTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/text_subhead"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/libraryHeaderCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_8"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_caption" />
+
+</LinearLayout>

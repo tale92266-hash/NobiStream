@@ -136,8 +136,19 @@ class SearchActivity : AppCompatActivity() {
 
         // v8: "Paste Telegram link" chip — tap it to add the
         // clipboard's t.me link as a group (via MainActivity).
+        // v9.1 #16: the chip is ALWAYS visible now (not only when a
+        // link is on the clipboard) — with no link it explains
+        // itself instead of opening the sheet.
         binding.pasteLinkChip.setOnClickListener {
-            val link = pasteLink ?: return@setOnClickListener
+            val link = pasteLink
+            if (link == null) {
+                Snackbar.make(
+                    binding.root,
+                    R.string.search_paste_hint,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
             val intent = Intent(this, MainActivity::class.java)
                 .putExtra(MainActivity.EXTRA_ADD_GROUP_LINK, link)
             startActivity(intent)
@@ -250,6 +261,9 @@ class SearchActivity : AppCompatActivity() {
      * v8 "Paste Telegram link" chip: visible ONLY while the field
      * is empty AND the clipboard holds a t.me link. Anything else
      * on the clipboard (or a non-empty field) hides it.
+     * v9.1 #16: the chip is ALWAYS visible now — the pasteLink is
+     * still only computed when the field is empty, so a tap with
+     * no link shows the hint instead of opening the sheet.
      */
     private fun updatePasteChip() {
         pasteLink = if (binding.searchEdit.text.isNullOrBlank()) {
@@ -257,8 +271,7 @@ class SearchActivity : AppCompatActivity() {
         } else {
             null
         }
-        binding.pasteLinkChip.visibility =
-            if (pasteLink != null) View.VISIBLE else View.GONE
+        binding.pasteLinkChip.visibility = View.VISIBLE
     }
 
     private fun readTelegramLinkFromClipboard(): String? {
@@ -281,6 +294,7 @@ class SearchActivity : AppCompatActivity() {
     private fun showStartState() {
         showSkeleton(false)
         binding.resultsRecycler.visibility = View.GONE
+        binding.resultCount.visibility = View.GONE
         binding.errorState.visibility = View.GONE
         binding.emptyState.visibility = View.VISIBLE
         binding.emptyState.setTitle(getString(R.string.search_start_title))
@@ -320,20 +334,27 @@ class SearchActivity : AppCompatActivity() {
                         searchGroups = emptyList()
                         results = found
                     }
-                    adapter.submitList(results)
+                    adapter.submitVideos(results)
+                    // v9.1 #16: result count above the grid.
                     if (found.isEmpty()) {
+                        binding.resultCount.visibility = View.GONE
                         binding.resultsRecycler.visibility = View.GONE
                         binding.emptyState.visibility = View.VISIBLE
                         binding.emptyState.setTitle(getString(R.string.search_no_results))
                         binding.emptyState.setBody(getString(R.string.search_no_results_body))
                     } else {
                         binding.emptyState.visibility = View.GONE
+                        binding.resultCount.text = getString(
+                            R.string.search_results_count, results.size
+                        )
+                        binding.resultCount.visibility = View.VISIBLE
                         binding.resultsRecycler.visibility = View.VISIBLE
                     }
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     showSkeleton(false)
+                    binding.resultCount.visibility = View.GONE
                     binding.resultsRecycler.visibility = View.GONE
                     binding.emptyState.visibility = View.GONE
                     binding.errorState.visibility = View.VISIBLE
@@ -430,12 +451,19 @@ class SearchActivity : AppCompatActivity() {
         val group = searchGroups.firstOrNull {
             it.best.chatId == best.chatId && it.best.messageId == best.messageId
         } ?: return
-        CopiesSheet.show(this, group) { copy ->
-            val playlist = results.map { shown ->
-                if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
-                else shown
+        CopiesSheet.show(
+            this, group,
+            onPick = { copy ->
+                val playlist = results.map { shown ->
+                    if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
+                    else shown
+                }
+                openPlayer(copy, thumb, playlist)
+            },
+            // v9.1 #15: group name per row.
+            groupNameProvider = { video ->
+                groups.firstOrNull { it.chatId == video.chatId }?.title.orEmpty()
             }
-            openPlayer(copy, thumb, playlist)
-        }
+        )
     }
 }

@@ -450,7 +450,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_12"
-                android:hint="@string/settings_api_hash">
+                android:hint="@string/settings_api_hash"
+                app:endIconMode="password_toggle">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/apiHashEdit"
@@ -537,6 +538,25 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_12"
                 android:text="@string/settings_clear_cache" />
+
+            <!-- v9.1 #11: cache-used bar — bytes used vs the selected
+                 limit, refreshed in onResume + after clearing. -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/cacheUsedBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_16"
+                android:indeterminate="false"
+                android:max="100"
+                app:indicatorColor="@color/primary"
+                app:trackColor="@color/surface_variant" />
+
+            <TextView
+                android:id="@+id/cacheUsedText"
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4" />
 
             <!-- Application -->
             <TextView

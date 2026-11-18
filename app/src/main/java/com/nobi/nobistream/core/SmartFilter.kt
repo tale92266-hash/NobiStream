@@ -115,6 +115,24 @@ object SmartFilter {
         }
     }
 
+    /** v9.1 #15: why the best copy won — shown on the copies sheet's
+     * "Best" pill. Mirrors [bestFirst] exactly (rank, then size, then
+     * date): the best copy beats the second-best on the FIRST criterion
+     * where they differ. */
+    enum class BestReason { QUALITY, SIZE, NEWEST }
+
+    fun bestReasonFor(group: EpisodeGroup): BestReason {
+        val copies = group.copies
+        if (copies.size < 2) return BestReason.QUALITY
+        val best = copies[0]
+        val second = copies[1]
+        return when {
+            best.quality.rank != second.quality.rank -> BestReason.QUALITY
+            best.sizeBytes != second.sizeBytes -> BestReason.SIZE
+            else -> BestReason.NEWEST
+        }
+    }
+
     /**
      * The deduped list: one best copy per episode, in channel order,
      * each carrying its hidden-copy count for the card badge.

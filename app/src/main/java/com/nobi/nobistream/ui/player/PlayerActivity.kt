@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.media.AudioManager
 import android.net.Uri
@@ -15,18 +16,19 @@ import android.os.Looper
 import android.util.Log
 import android.util.Rational
 import android.view.GestureDetector
-import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -57,6 +59,7 @@ import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.playback.TdlibDataSource
 import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
+import com.nobi.nobistream.ui.components.Haptics
 import com.nobi.nobistream.ui.components.SortSheet
 import java.io.File
 import java.io.IOException
@@ -126,8 +129,8 @@ class PlayerActivity : AppCompatActivity() {
         private const val SCROLL_VERTICAL = 1
         private const val SCROLL_HORIZONTAL = 2
 
-        /** v8 §4.4: Up Next countdown length. */
-        private const val UP_NEXT_COUNTDOWN_SEC = 5
+        /** v8 §4.4: Up Next countdown length. v9.1 #5: 5s → 10s. */
+        private const val UP_NEXT_COUNTDOWN_SEC = 10
 
         /** v8 §4.4: press-and-hold delay before 2x kicks in. */
         private const val HOLD_2X_DELAY_MS = 400L
@@ -222,6 +225,9 @@ class PlayerActivity : AppCompatActivity() {
     private val bufferUpdater = object : Runnable {
         override fun run() {
             updateBufferingPercent()
+            // v9.1 audit #28: keep the lock overlay's time/progress
+            // live while locked (500ms tick, same as buffering %).
+            if (locked) updateLockTime()
             bufferHandler.postDelayed(this, 500L)
         }
     }
@@ -233,6 +239,17 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var ctrlTitle: TextView
     private lateinit var ctrlSpeedLabel: TextView
     private lateinit var ctrlCounter: TextView
+    /** v9.1 #13: the four secondary transport buttons (sized per orientation). */
+    private lateinit var ctrlPrev: ImageButton
+    private lateinit var ctrlRew: ImageButton
+    private lateinit var ctrlFfwd: ImageButton
+    private lateinit var ctrlNext: ImageButton
+    /** v9.1 #13: 10-minute tick marks above the seekbar (long videos only). */
+    private lateinit var seekTicksContainer: LinearLayout
+    /** Duration the ticks were last built for — rebuild only when it changes. */
+    private var lastTicksDurationMs: Long = -1L
+    /** v9.1 #15: channel names by chatId, for the copies sheet rows. */
+    private var groupNamesByChatId: Map<Long, String> = emptyMap()
 
     private var optionsSheet: BottomSheetDialog? = null
 
@@ -288,10 +305,36 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.setControllerHideOnTouch(false)
         setControlsVisible(true, animate = false)
         wireControllerButtons()
+        // v9.1 lock (Sam 2026-11-18): the WHOLE corner cluster unlocks —
+        // button, pill, and the container itself (gaps / time / progress).
+        // The old centre button HAD its listeners wired, yet Sam's tap
+        // never unlocked: the tap evidently never reached the button —
+        // the PlayerView touch listener consumes every surface touch
+        // and its detector swallows locked taps (onSingleTapConfirmed
+        // returns true while locked), so a tap that lands on the
+        // surface instead of the button dies there. Two fixes: the
+        // container is clickable with elevation (topmost in dispatch),
+        // AND the detector unlocks on a tap inside the cluster rect
+        // as a fallback (see onSingleTapConfirmed). Both call
+        // setLocked(false); only one fires per tap.
+        binding.lockOverlayContainer.setOnClickListener { setLocked(false) }
         binding.lockOverlayButton.setOnClickListener { setLocked(false) }
         // v8 §4.4: the "Tap to unlock" pill unlocks too; Up Next card
         // buttons; portrait details-panel action pills.
         binding.unlockPill.setOnClickListener { setLocked(false) }
+        // v9.1 lock: keep the corner cluster clear of the display
+        // cutout (punch-hole) — bump its top/end margins by the
+        // cutout insets. The 16dp XML margins are the fallback when
+        // no cutout is reported.
+        ViewCompat.setOnApplyWindowInsetsListener(binding.lockOverlayContainer) { view, insets ->
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val density = resources.displayMetrics.density
+            val lp = view.layoutParams as ConstraintLayout.LayoutParams
+            lp.topMargin = (16 * density).toInt() + cutout.top
+            lp.marginEnd = (16 * density).toInt() + cutout.right
+            view.layoutParams = lp
+            insets
+        }
         binding.upNextCancel.setOnClickListener { hideUpNextCard() }
         binding.upNextPlayNow.setOnClickListener { advanceToUpNext() }
         binding.upNextPlay.setOnClickListener { advanceToUpNext() }
@@ -322,13 +365,13 @@ class PlayerActivity : AppCompatActivity() {
         // v8 §4.4: channel name for the portrait details-panel meta
         // ("Channel • Date • Size • Quality") — read once from the
         // saved groups; omitted when unknown, never invented.
+        // v9.1 #15: the same read fills the copies-sheet group-name map.
         lifecycleScope.launch(Dispatchers.IO) {
-            val name = runCatching {
-                repository.observeGroups().first()
-                    .firstOrNull { it.chatId == chatId }?.title
-            }.getOrNull()
+            val groups = runCatching { repository.observeGroups().first() }.getOrNull()
+            val name = groups?.firstOrNull { it.chatId == chatId }?.title
             withContext(Dispatchers.Main) {
                 channelName = name
+                groupNamesByChatId = groups?.associate { it.chatId to it.title }.orEmpty()
                 refreshDetailsPanel()
             }
         }
@@ -394,6 +437,12 @@ class PlayerActivity : AppCompatActivity() {
         ctrlSpeedLabel = view.findViewById(R.id.ctrlSpeedLabel)
         ctrlCounter = view.findViewById(R.id.ctrlCounter)
         ctrlSubtitles = view.findViewById(R.id.ctrlSubtitles)
+        // v9.1 #13: secondary transport buttons + seek ticks.
+        ctrlPrev = view.findViewById(R.id.ctrlPrev)
+        ctrlRew = view.findViewById(R.id.ctrlRew)
+        ctrlFfwd = view.findViewById(R.id.ctrlFfwd)
+        ctrlNext = view.findViewById(R.id.ctrlNext)
+        seekTicksContainer = view.findViewById(R.id.seekTicks)
     }
 
     private fun wireControllerButtons() {
@@ -401,10 +450,10 @@ class PlayerActivity : AppCompatActivity() {
         ctrlPlayPause.setOnClickListener { togglePlayPause() }
         // v6: Next/Previous auto-resume silently from the saved
         // position, like every other open (no dialog any more).
-        view.findViewById<View>(R.id.ctrlPrev).setOnClickListener { playAt(index - 1) }
-        view.findViewById<View>(R.id.ctrlNext).setOnClickListener { playAt(index + 1) }
-        view.findViewById<View>(R.id.ctrlRew).setOnClickListener { seekBy(-10_000L) }
-        view.findViewById<View>(R.id.ctrlFfwd).setOnClickListener { seekBy(10_000L) }
+        ctrlPrev.setOnClickListener { playAt(index - 1) }
+        ctrlNext.setOnClickListener { playAt(index + 1) }
+        ctrlRew.setOnClickListener { seekBy(-10_000L) }
+        ctrlFfwd.setOnClickListener { seekBy(10_000L) }
         view.findViewById<View>(R.id.ctrlBack).setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         ctrlFullscreen.setOnClickListener { setFullscreen(!isFullscreen) }
         view.findViewById<View>(R.id.ctrlAspect).setOnClickListener { cycleAspect() }
@@ -485,6 +534,32 @@ class PlayerActivity : AppCompatActivity() {
             refreshDetailsPanel()
         }
         binding.playerView.layoutParams = lp
+        // v9.1 #13: secondary transport buttons grow in portrait
+        // (56dp) so the tap targets stay thumb-sized; landscape
+        // keeps the compact 48dp.
+        val secondarySize = resources.getDimensionPixelSize(
+            if (landscape) R.dimen.player_control_size
+            else R.dimen.player_control_size_portrait
+        )
+        for (button in listOf(ctrlPrev, ctrlRew, ctrlFfwd, ctrlNext)) {
+            val params = button.layoutParams
+            params.width = secondarySize
+            params.height = secondarySize
+            button.layoutParams = params
+        }
+        // v9.1 #5: the Up Next card is bottom-CENTRE in portrait
+        // (a centred card, not a corner one) and bottom-right in
+        // landscape (clear of the controller).
+        val upNextLp = binding.upNextCard.layoutParams as ConstraintLayout.LayoutParams
+        if (landscape) {
+            upNextLp.startToStart = ConstraintLayout.LayoutParams.UNSET
+            upNextLp.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+        } else {
+            upNextLp.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            upNextLp.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+        }
+        binding.upNextCard.layoutParams = upNextLp
+        refreshSeekTicks()
         // v8.3: release the orientation request ONLY after an exit to
         // portrait — from here the sensor governs again, so rotating
         // the device rotates the player. NEVER release while a
@@ -495,6 +570,59 @@ class PlayerActivity : AppCompatActivity() {
         // fullscreen button are the only exits.
         if (!landscape && !fullscreenHeld) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    /**
+     * v9.1 #13: 10-minute tick marks above the seekbar — only for
+     * videos longer than 30 minutes (a 12-minute episode has no
+     * use for them). Ticks are built once per duration (guarded by
+     * [lastTicksDurationMs]); each inter-tick gap is exactly
+     * 10 minutes wide in weight, the trailing gap is the remainder,
+     * so the ticks land on the seekbar's 10-minute marks.
+     * (The 2dp ticks themselves take a hair of width — the last
+     * tick sits a couple of dp early on very long videos. Cosmetic.)
+     */
+    private fun refreshSeekTicks() {
+        val duration = player?.duration ?: return
+        if (duration == lastTicksDurationMs) return
+        lastTicksDurationMs = duration
+        seekTicksContainer.removeAllViews()
+        if (duration <= 30 * 60_000L || duration <= 0L) {
+            seekTicksContainer.visibility = View.GONE
+            return
+        }
+        val tickCount = (duration / (10 * 60_000L)).toInt()
+        if (tickCount <= 0) {
+            seekTicksContainer.visibility = View.GONE
+            return
+        }
+        seekTicksContainer.visibility = View.VISIBLE
+        val tickWidth = resources.getDimensionPixelSize(R.dimen.spacing_4) / 2
+        val gapWeight = (10 * 60_000L).toFloat() / duration
+        for (i in 1..tickCount) {
+            val gap = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, gapWeight
+                )
+            }
+            seekTicksContainer.addView(gap)
+            val tick = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    tickWidth, LinearLayout.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundColor(getColor(R.color.outline))
+            }
+            seekTicksContainer.addView(tick)
+        }
+        val trailingWeight = 1f - tickCount * gapWeight
+        if (trailingWeight > 0f) {
+            val trailing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, trailingWeight
+                )
+            }
+            seekTicksContainer.addView(trailing)
         }
     }
 
@@ -512,18 +640,44 @@ class PlayerActivity : AppCompatActivity() {
             // Locking hides the controls through the single source of
             // truth — never PlayerView directly.
             setControlsVisible(false)
-            binding.lockOverlayButton.visibility = View.VISIBLE
-            // v8 §4.4: only the lock icon + the subtle "Tap to
-            // unlock" pill remain while locked.
-            binding.unlockPill.visibility = View.VISIBLE
+            // v9.1: the whole corner cluster shows/hides as one —
+            // never the button/pill individually (that split is what
+            // the old centre overlay did).
+            binding.lockOverlayContainer.visibility = View.VISIBLE
             ctrlLock.setImageResource(R.drawable.ic_lock)
+            updateLockTime()
             Toast.makeText(this, getString(R.string.player_locked), Toast.LENGTH_SHORT).show()
         } else {
-            binding.lockOverlayButton.visibility = View.GONE
-            binding.unlockPill.visibility = View.GONE
+            binding.lockOverlayContainer.visibility = View.GONE
             ctrlLock.setImageResource(R.drawable.ic_lock_open)
             setControlsVisible(true)
+            // v9.1 #20: unlock haptic through the shared helper.
+            Haptics.tap(binding.playerView)
             Toast.makeText(this, getString(R.string.player_unlocked), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * v9.1 audit #28: current time + thin progress on the lock overlay
+     * ("12:34 / 23:06"). Called once on lock and every 500ms by the
+     * buffer ticker while locked; the progress bar hides when the
+     * duration is unknown.
+     */
+    private fun updateLockTime() {
+        val exo = player ?: return
+        val positionSec = (exo.currentPosition / 1000L).toInt()
+        val durationMs = exo.duration
+        binding.lockTimeText.text = if (durationMs > 0) {
+            "${FormatUtils.formatDuration(positionSec)} / ${FormatUtils.formatDuration((durationMs / 1000L).toInt())}"
+        } else {
+            FormatUtils.formatDuration(positionSec)
+        }
+        if (durationMs > 0) {
+            binding.lockProgress.visibility = View.VISIBLE
+            binding.lockProgress.progress =
+                ((exo.currentPosition * 100L) / durationMs).toInt().coerceIn(0, 100)
+        } else {
+            binding.lockProgress.visibility = View.GONE
         }
     }
 
@@ -567,7 +721,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.bufferingOverlay.visibility = View.GONE
             binding.gestureFeedback.visibility = View.GONE
             binding.playerError.visibility = View.GONE
-            binding.lockOverlayButton.visibility = View.GONE
+            binding.lockOverlayContainer.visibility = View.GONE
             // v8 §4.4: every floating overlay goes away in PiP too.
             hideUpNextCard()
             cancelHoldPending()
@@ -576,11 +730,9 @@ class PlayerActivity : AppCompatActivity() {
             binding.seekPreviewPill.visibility = View.GONE
             binding.doubleTapRipple.visibility = View.GONE
             binding.doubleTapPill.visibility = View.GONE
-            binding.unlockPill.visibility = View.GONE
             binding.detailsPanel.visibility = View.GONE
         } else if (locked) {
-            binding.lockOverlayButton.visibility = View.VISIBLE
-            binding.unlockPill.visibility = View.VISIBLE
+            binding.lockOverlayContainer.visibility = View.VISIBLE
         } else {
             // Leaving PiP: restore the layout for the current
             // orientation (details panel included), then the controls.
@@ -631,6 +783,41 @@ class PlayerActivity : AppCompatActivity() {
             autoplay = checked
             lifecycleScope.launch {
                 repository.settingsStore.setAutoplay(checked)
+            }
+        }
+
+        // v9.1 #30: subtitles live in this sheet now (not only
+        // behind the CC button). "Off" + one chip per discovered
+        // track; no tracks = a quiet caption instead of chips.
+        if (subtitleTracks.isEmpty()) {
+            sheetBinding.subtitleChips.visibility = View.GONE
+            sheetBinding.subtitleEmptyCaption.visibility = View.VISIBLE
+        } else {
+            sheetBinding.subtitleEmptyCaption.visibility = View.GONE
+            sheetBinding.subtitleChips.visibility = View.VISIBLE
+            val offChip = LayoutInflater.from(this)
+                .inflate(R.layout.item_option_chip, sheetBinding.subtitleChips, false) as Chip
+            offChip.text = getString(R.string.player_subtitles_off)
+            offChip.isChecked = !subtitlesEnabled
+            offChip.setOnCheckedChangeListener { _, checked ->
+                if (checked) {
+                    setSubtitlesEnabled(false)
+                    dialog.dismiss()
+                }
+            }
+            sheetBinding.subtitleChips.addView(offChip)
+            subtitleTracks.forEach { track ->
+                val chip = LayoutInflater.from(this)
+                    .inflate(R.layout.item_option_chip, sheetBinding.subtitleChips, false) as Chip
+                chip.text = displayLanguage(track)
+                chip.isChecked = subtitlesEnabled && currentSubtitleLanguage == track.language
+                chip.setOnCheckedChangeListener { _, checked ->
+                    if (checked) {
+                        setSubtitlesEnabled(true, track.language)
+                        dialog.dismiss()
+                    }
+                }
+                sheetBinding.subtitleChips.addView(chip)
             }
         }
 
@@ -874,7 +1061,10 @@ class PlayerActivity : AppCompatActivity() {
             }
             // Fatal: decoder / renderer / parse failure, or a file
             // that could not even be resolved. Error screen at once.
-            showFatalError(networkFailure = isNetworkError(error) && !currentItemUnresolvable)
+            showFatalError(
+                networkFailure = isNetworkError(error) && !currentItemUnresolvable,
+                decoderFailure = isDecoderError(error)
+            )
         }
     }
 
@@ -925,11 +1115,27 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * v6 Rule 2: the ONLY place the error screen appears.
-     * [networkFailure] picks the wording: the connection died after
-     * retries were exhausted vs the video file itself failed.
+     * v9.1 #29: true when ExoPlayer could not DECODE this video on
+     * this device (unsupported codec / decoder init failure) — a
+     * different problem from a network stall or a missing file, so
+     * it gets its own error copy ("Try another copy").
      */
-    private fun showFatalError(networkFailure: Boolean) {
+    private fun isDecoderError(error: PlaybackException): Boolean {
+        return when (error.errorCode) {
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> true
+            else -> false
+        }
+    }
+
+    /**
+     * v6 Rule 2: the ONLY place the error screen appears.
+     * v9.1 #29: the wording is error-specific — decoder first
+     * ("Try another copy"), then network, then the file itself.
+     */
+    private fun showFatalError(networkFailure: Boolean, decoderFailure: Boolean = false) {
         // A failed source must never leave a stale resume behind.
         resumeSeekPending = false
         cancelOfflineTimer()
@@ -940,8 +1146,11 @@ class PlayerActivity : AppCompatActivity() {
             setTitle(getString(R.string.player_error_title))
             setBody(
                 getString(
-                    if (networkFailure) R.string.player_error_network_body
-                    else R.string.player_error_file_body
+                    when {
+                        decoderFailure -> R.string.player_error_decoder_body
+                        networkFailure -> R.string.player_error_network_body
+                        else -> R.string.player_error_file_body
+                    }
                 )
             )
         }
@@ -1001,16 +1210,23 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * v9.1 #17: the buffering line reads "Xs ahead" — seconds of
+     * video already downloaded past the playhead — not a % of the
+     * whole video (a % of a 2-hour episode barely moves and says
+     * nothing about whether playback will stall again). The pill
+     * background is gone (see activity_player.xml): the text sits
+     * on the video with a shadow instead.
+     */
     private fun updateBufferingPercent() {
         val exo = player ?: return
         if (binding.bufferingOverlay.visibility != View.VISIBLE) return
-        val duration = exo.duration
-        if (duration > 0) {
-            val percent = (exo.bufferedPosition * 100L / duration).coerceIn(0L, 100L)
-            binding.bufferingPercent.text = getString(R.string.player_buffered_percent, percent)
-        } else {
-            binding.bufferingPercent.text = ""
-        }
+        val aheadSec = ((exo.bufferedPosition - exo.currentPosition) / 1000L)
+            .coerceAtLeast(0L)
+        binding.bufferingPercent.text = getString(R.string.player_buffered_ahead, aheadSec)
+        // v9.1 #13: the seek ticks need the real duration — the
+        // 500ms ticker is the earliest reliable place to learn it.
+        refreshSeekTicks()
     }
 
     /**
@@ -1359,7 +1575,7 @@ class PlayerActivity : AppCompatActivity() {
             }.getOrNull() ?: "White"
             val background = runCatching {
                 repository.settingsStore.subtitleBackground.first()
-            }.getOrNull() ?: "Semi-black"
+            }.getOrNull() ?: "Black 50%"
             view.setFractionalTextSize(
                 when (size) {
                     "Small" -> 0.04f
@@ -1372,7 +1588,13 @@ class PlayerActivity : AppCompatActivity() {
                 "Cyan" -> 0xFF00E5FF.toInt()
                 else -> Color.WHITE
             }
+            // v9.1 #26: opacity lives INSIDE the background choice
+            // ("Black 50%" = 0x80, "Black 80%" = 0xCC). Legacy
+            // values still map (an unmigrated install reads
+            // "Semi-black" → 0x99 until the one-shot migration runs).
             val bg = when (background) {
+                "Black 80%" -> 0xCC000000.toInt()
+                "Black 50%" -> 0x80000000.toInt()
                 "Black" -> 0xCC000000.toInt()
                 "Transparent" -> Color.TRANSPARENT
                 else -> 0x99000000.toInt()
@@ -1522,24 +1744,31 @@ class PlayerActivity : AppCompatActivity() {
         binding.detailsCopies.text =
             getString(R.string.player_details_copies_count, group.copies.size)
         binding.detailsCopies.setOnClickListener {
-            CopiesSheet.show(this, group) { copy ->
-                val target = playlist.indexOfFirst {
-                    it.chatId == copy.chatId && it.messageId == copy.messageId
+            CopiesSheet.show(
+                this, group,
+                onPick = { copy ->
+                    val target = playlist.indexOfFirst {
+                        it.chatId == copy.chatId && it.messageId == copy.messageId
+                    }
+                    if (target >= 0) {
+                        if (target != index) playAt(target)
+                    } else {
+                        // The copy isn't in the playlist (Smart Filter
+                        // hid it): substitute it for the current item,
+                        // the same way the list pickers do (v5). Save
+                        // the outgoing item's position first, and skip
+                        // playAt's own save so the position isn't
+                        // attributed to the incoming copy.
+                        savePositionNow()
+                        playlist = playlist.toMutableList().also { it[index] = copy }
+                        playAt(index, saveCurrent = false)
+                    }
+                },
+                // v9.1 #15: group name per row.
+                groupNameProvider = { video ->
+                    groupNamesByChatId[video.chatId].orEmpty()
                 }
-                if (target >= 0) {
-                    if (target != index) playAt(target)
-                } else {
-                    // The copy isn't in the playlist (Smart Filter
-                    // hid it): substitute it for the current item,
-                    // the same way the list pickers do (v5). Save
-                    // the outgoing item's position first, and skip
-                    // playAt's own save so the position isn't
-                    // attributed to the incoming copy.
-                    savePositionNow()
-                    playlist = playlist.toMutableList().also { it[index] = copy }
-                    playAt(index, saveCurrent = false)
-                }
-            }
+            )
         }
     }
 
@@ -1569,6 +1798,27 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * v9.1 lock fallback: is this PlayerView-relative tap inside the
+     * corner lock cluster (button + pill + time/progress, +8dp slack)?
+     * The GestureDetector is fed PlayerView touches, so e.x/e.y are in
+     * PlayerView coordinates; the cluster rect is converted from screen
+     * coordinates via the PlayerView's own screen rect.
+     */
+    private fun isTapOnLockCluster(e: MotionEvent): Boolean {
+        val container = binding.lockOverlayContainer
+        if (container.visibility != View.VISIBLE) return false
+        val clusterRect = Rect()
+        if (!container.getGlobalVisibleRect(clusterRect)) return false
+        val playerRect = Rect()
+        if (!binding.playerView.getGlobalVisibleRect(playerRect)) return false
+        val slack = (8 * resources.displayMetrics.density).toInt()
+        clusterRect.inset(-slack, -slack)
+        val x = (playerRect.left + e.x).toInt()
+        val y = (playerRect.top + e.y).toInt()
+        return clusterRect.contains(x, y)
+    }
+
     private fun setupGestures() {
         val detector = GestureDetector(
             this,
@@ -1576,7 +1826,19 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onDown(e: MotionEvent): Boolean = true
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    if (locked) return true
+                    if (locked) {
+                        // v9.1 lock fallback (Sam 2026-11-18): a tap
+                        // inside the corner lock cluster unlocks even
+                        // if the PlayerView swallowed the touch before
+                        // the cluster's own click listener saw it —
+                        // the old centre button's tap never arrived,
+                        // and this detector is the one place that tap
+                        // is guaranteed to be seen (the PlayerView
+                        // listener consumes every surface touch).
+                        // Taps elsewhere while locked stay swallowed.
+                        if (isTapOnLockCluster(e)) setLocked(false)
+                        return true
+                    }
                     // v4-player-UX: ONE tap flips the single source of
                     // truth — every tool hides, next tap shows them
                     // all again. onSingleTapConfirmed (not onDown /
@@ -1614,9 +1876,8 @@ class PlayerActivity : AppCompatActivity() {
                         cancelHoldPending()
                         if (holdSpeedActive) endHold2x()
                         // §2E: subtle haptic when a swipe starts.
-                        binding.playerView.performHapticFeedback(
-                            HapticFeedbackConstants.KEYBOARD_TAP
-                        )
+                        // v9.1 #20: through the shared helper.
+                        Haptics.tap(binding.playerView)
                         scrollMode = if (kotlin.math.abs(distanceX) > kotlin.math.abs(distanceY) * 1.5f) {
                             scrollStartPosition = exo.currentPosition
                             pendingSeekTarget = scrollStartPosition
@@ -1725,14 +1986,15 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * Double-tap seek feedback: a radial semi-transparent ripple +
-     * an animated "-10s / +10s" pill on the tapped half (bias 0.25
-     * left, 0.75 right), plus a subtle KEYBOARD_TAP haptic. The seek
-     * itself already happened in seekBySilent; the centred
-     * gestureFeedback pill stays out of it so there is exactly one
-     * pill on screen.
+     * an animated pill on the tapped half (bias 0.25 left, 0.75
+     * right), plus a subtle KEYBOARD_TAP haptic. v9.1 #18: the pill
+     * names the TARGET time ("-10s → 12:34") — the seek already
+     * happened in seekBySilent, so currentPosition IS the target;
+     * the arrow part is omitted when the duration is unknown.
      */
     private fun showDoubleTapFeedback(left: Boolean, deltaMs: Long) {
-        binding.playerView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        // v9.1 #20: haptics through the shared helper.
+        Haptics.tap(binding.playerView)
         val bias = if (left) 0.25f else 0.75f
         val rippleLp = binding.doubleTapRipple.layoutParams as ConstraintLayout.LayoutParams
         rippleLp.horizontalBias = bias
@@ -1743,8 +2005,14 @@ class PlayerActivity : AppCompatActivity() {
         binding.doubleTapPillIcon.setImageResource(
             if (deltaMs < 0) R.drawable.ic_replay_10 else R.drawable.ic_forward_10
         )
-        binding.doubleTapPillText.text =
-            if (deltaMs < 0) "-${-deltaMs / 1000}s" else "+${deltaMs / 1000}s"
+        val deltaText = if (deltaMs < 0) "-${-deltaMs / 1000}s" else "+${deltaMs / 1000}s"
+        val durationMs = player?.duration ?: 0L
+        binding.doubleTapPillText.text = if (durationMs > 0) {
+            val targetSec = ((player?.currentPosition ?: 0L) / 1000L).toInt()
+            "$deltaText → ${FormatUtils.formatDuration(targetSec)}"
+        } else {
+            deltaText
+        }
         binding.doubleTapRipple.apply {
             visibility = View.VISIBLE
             alpha = 0.45f
@@ -1787,13 +2055,17 @@ class PlayerActivity : AppCompatActivity() {
         player?.playbackParameters = PlaybackParameters(2.0f)
         ctrlSpeedLabel.text = "2.0x"
         binding.holdSpeedPill.visibility = View.VISIBLE
-        binding.playerView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        // v9.1 #20: engage haptic through the shared helper.
+        Haptics.tap(binding.playerView)
     }
 
     private fun endHold2x() {
         if (!holdSpeedActive) return
         holdSpeedActive = false
         binding.holdSpeedPill.visibility = View.GONE
+        // v9.1 #20: release haptic (engage had one; silence on
+        // release felt like the hold was still on).
+        Haptics.tap(binding.playerView)
         val restore = speedIndexBeforeHold.coerceIn(speeds.indices)
         speedIndexBeforeHold = -1
         setSpeedQuiet(restore)
@@ -1844,14 +2116,20 @@ class PlayerActivity : AppCompatActivity() {
         binding.seekPreviewPill.text =
             "${FormatUtils.formatDuration((target / 1000L).toInt())} / $total$delta"
         binding.seekPreviewPill.visibility = View.VISIBLE
-        // Slide the pill to sit above the thumb. The TimeBar lives
-        // inside the PlayerView, which spans the full width, so the
-        // thumb x maps 1:1 onto the activity root; clamp the shift so
-        // the pill never runs off-screen.
+        // Slide the pill to sit above the thumb. v9.1 #22: the thumb
+        // x is computed in ROOT coordinates (bar's screen position
+        // minus the root's screen position) — the old code used
+        // barView.left, which is relative to the controller, so the
+        // clamp could still push the pill off-screen on wide
+        // screens. The clamp itself is unchanged.
         binding.seekPreviewPill.post {
             val barView = timeBar as View
+            val barLoc = IntArray(2)
+            val rootLoc = IntArray(2)
+            barView.getLocationOnScreen(barLoc)
+            binding.root.getLocationOnScreen(rootLoc)
             val fraction = if (durationMs > 0) target.toFloat() / durationMs else 0f
-            val thumbX = barView.left + fraction * barView.width
+            val thumbX = (barLoc[0] - rootLoc[0]) + fraction * barView.width
             val halfPill = binding.seekPreviewPill.width / 2f
             val center = binding.root.width / 2f
             val shift = (thumbX - center)

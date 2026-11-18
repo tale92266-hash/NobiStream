@@ -42,28 +42,36 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/addGroupButton"
-            style="@style/Widget.NobiStream.Button.Secondary"
+            style="@style/Widget.NobiStream.Button.Primary"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/button_height_small"
             android:text="@string/home_add_group_short"
             app:icon="@drawable/ic_add" />
 
-        <ImageButton
-            android:id="@+id/homeRefreshButton"
+        <!-- v9.1 #6: refresh button + spinner share one 48dp frame —
+             the spinner replaces the button INSIDE the frame, so the
+             top bar never shifts when a refresh starts. -->
+        <FrameLayout
+            android:id="@+id/homeRefreshFrame"
             android:layout_width="@dimen/icon_button_size"
-            android:layout_height="@dimen/icon_button_size"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/home_refresh"
-            android:src="@drawable/ic_refresh" />
+            android:layout_height="@dimen/icon_button_size">
 
-        <ProgressBar
-            android:id="@+id/homeRefreshProgress"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginStart="@dimen/spacing_8"
-            android:layout_marginEnd="@dimen/spacing_8"
-            android:indeterminateTint="@color/primary"
-            android:visibility="gone" />
+            <ImageButton
+                android:id="@+id/homeRefreshButton"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/home_refresh"
+                android:src="@drawable/ic_refresh" />
+
+            <ProgressBar
+                android:id="@+id/homeRefreshProgress"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:indeterminateTint="@color/primary"
+                android:visibility="gone" />
+        </FrameLayout>
     </LinearLayout>
 
     <FrameLayout
@@ -71,7 +79,12 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- HOME tab -->
+        <!-- HOME tab — pull-to-refresh (v9.1 #6). -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/homeSwipeRefresh"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
         <androidx.core.widget.NestedScrollView
             android:id="@+id/homeScroll"
             android:layout_width="match_parent"
@@ -82,6 +95,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
+
+                <!-- v9.1 #4: Home skeleton — shown while the groups
+                     are still loading on a cold start. -->
+                <FrameLayout
+                    android:id="@+id/homeSkeletonContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone">
+
+                    <GridLayout
+                        android:id="@+id/homeSkeletonGrid"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="@dimen/screen_margin"
+                        android:paddingEnd="@dimen/screen_margin" />
+
+                    <View
+                        android:id="@+id/homeShimmerSweep"
+                        android:layout_width="160dp"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/v8_shimmer_sweep" />
+                </FrameLayout>
 
                 <!-- Hero Spotlight: the most recent Continue Watching
                      video. 16:9 thumb, scrim, title + meta over the
@@ -130,6 +165,73 @@
                                 app:layout_constraintEnd_toEndOf="@id/heroThumb"
                                 app:layout_constraintStart_toStartOf="@id/heroThumb"
                                 app:layout_constraintTop_toTopOf="@id/heroThumb" />
+
+                            <!-- v9.1 #9: hero shimmer — the dark sweep
+                                 over the thumbnail until it loads. -->
+                            <View
+                                android:id="@+id/heroShimmer"
+                                android:layout_width="160dp"
+                                android:layout_height="0dp"
+                                android:background="@drawable/v8_shimmer_sweep"
+                                android:visibility="gone"
+                                app:layout_constraintBottom_toBottomOf="@id/heroThumb"
+                                app:layout_constraintStart_toStartOf="@id/heroThumb"
+                                app:layout_constraintTop_toTopOf="@id/heroThumb" />
+
+                            <!-- v9.1 #9: duration + quality pills on
+                                 the hero thumb (top corners). The
+                                 duration pill clears the More button
+                                 (72dp end margin). -->
+                            <TextView
+                                android:id="@+id/heroQuality"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="@dimen/spacing_16"
+                                android:layout_marginTop="@dimen/spacing_16"
+                                android:background="@drawable/v8_badge_dark"
+                                android:paddingStart="@dimen/spacing_8"
+                                android:paddingTop="@dimen/spacing_4"
+                                android:paddingEnd="@dimen/spacing_8"
+                                android:paddingBottom="@dimen/spacing_4"
+                                android:textColor="#FFFFFF"
+                                android:textSize="@dimen/text_badge"
+                                android:textStyle="bold"
+                                android:visibility="gone"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="@id/heroThumb" />
+
+                            <TextView
+                                android:id="@+id/heroDuration"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/spacing_16"
+                                android:layout_marginEnd="72dp"
+                                android:background="@drawable/v8_badge_dark"
+                                android:paddingStart="@dimen/spacing_8"
+                                android:paddingTop="@dimen/spacing_4"
+                                android:paddingEnd="@dimen/spacing_8"
+                                android:paddingBottom="@dimen/spacing_4"
+                                android:textColor="#FFFFFF"
+                                android:textSize="@dimen/text_badge"
+                                android:textStyle="bold"
+                                android:visibility="gone"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintTop_toTopOf="@id/heroThumb" />
+
+                            <!-- v9.1 #9: hero overflow (View copies /
+                                 Open channel), top-right corner. -->
+                            <ImageButton
+                                android:id="@+id/heroMore"
+                                android:layout_width="@dimen/icon_button_size"
+                                android:layout_height="@dimen/icon_button_size"
+                                android:layout_marginTop="@dimen/spacing_8"
+                                android:layout_marginEnd="@dimen/spacing_8"
+                                android:background="@drawable/bg_gesture_pill"
+                                android:contentDescription="@string/hero_menu_copies"
+                                android:src="@drawable/ic_more_vert"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintTop_toTopOf="@id/heroThumb"
+                                app:tint="#E3E3E3" />
 
                             <TextView
                                 android:id="@+id/heroTitle"
@@ -206,7 +308,7 @@
                         android:paddingBottom="@dimen/spacing_8"
                         android:text="@string/home_see_all"
                         android:textColor="@color/primary"
-                        android:textSize="13sp" />
+                        android:textSize="@dimen/text_action" />
                 </LinearLayout>
 
                 <!-- Continue Watching row: every in-progress episode
@@ -306,8 +408,14 @@
                 </LinearLayout>
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-        <!-- LIBRARY tab -->
+        <!-- LIBRARY tab — pull-to-refresh (v9.1 #6). -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/librarySwipeRefresh"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
         <androidx.core.widget.NestedScrollView
             android:id="@+id/libraryContainer"
             android:layout_width="match_parent"
@@ -319,6 +427,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
+
+                <!-- v9.1 #4: Library skeleton — shown while the first
+                     library page is still loading. -->
+                <FrameLayout
+                    android:id="@+id/librarySkeletonContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone">
+
+                    <GridLayout
+                        android:id="@+id/librarySkeletonGrid"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="@dimen/screen_margin"
+                        android:paddingEnd="@dimen/screen_margin" />
+
+                    <View
+                        android:id="@+id/libraryShimmerSweep"
+                        android:layout_width="160dp"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/v8_shimmer_sweep" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:id="@+id/libraryHeader"
@@ -346,6 +476,12 @@
                         android:contentDescription="@string/home_sort"
                         android:src="@drawable/ic_sort" />
                 </LinearLayout>
+
+                <!-- v9.1 #35: chip-row edge fade — the row fades out
+                     at the right edge instead of clipping hard. -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
 
                 <HorizontalScrollView
                     android:id="@+id/libraryFilterScroll"
@@ -418,7 +554,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/libChipSmart"
-                            style="@style/Widget.NobiStream.Chip.Filter"
+                            style="@style/Widget.NobiStream.Chip.Smart"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="@dimen/chip_gap"
@@ -427,6 +563,16 @@
                             android:text="@string/channel_filter_smart" />
                     </LinearLayout>
                 </HorizontalScrollView>
+
+                    <View
+                        android:id="@+id/libraryChipsFade"
+                        android:layout_width="16dp"
+                        android:layout_height="match_parent"
+                        android:layout_gravity="end"
+                        android:background="@drawable/fade_edge_right"
+                        android:clickable="false"
+                        android:focusable="false" />
+                </FrameLayout>
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/libraryRecycler"
@@ -482,6 +628,7 @@
                     android:visibility="gone" />
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
         <!-- Shown when no groups exist yet (either tab). -->
         <com.nobi.nobistream.ui.components.EmptyStateView

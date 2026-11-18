@@ -12,8 +12,9 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "2.5.0"
+        // v9.1: 2.5.1 / code 13 — all 35 audit items + lock corner fix.
+        versionCode = 13
+        versionName = "2.5.1"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the
@@ -99,6 +100,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.ktx)
+    // v9.1 #33: Android 12 animated splash. #6: pull-to-refresh.
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)

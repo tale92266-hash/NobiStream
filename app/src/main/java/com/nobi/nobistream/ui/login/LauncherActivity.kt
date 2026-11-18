@@ -3,6 +3,7 @@ package com.nobi.nobistream.ui.login
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
@@ -55,8 +56,18 @@ class LauncherActivity : AppCompatActivity() {
     private val locator get() = (application as NobiStreamApplication).serviceLocator
     private val repository get() = locator.repository
 
+    /**
+     * v9.1 #33: Android 12 animated splash (core-splashscreen). The
+     * splash stays on screen until the route is decided — the flag
+     * flips only in goMain()/goLogin(), so a slow TDLib init still
+     * shows the animated icon, never a login flash or a blank frame.
+     */
+    private var routeDecided = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition { !routeDecided }
         // No setContentView — the splash theme IS the first frame.
         if (!locator.credentialsStore.hasCredentials()) {
             goLogin()
@@ -88,11 +99,13 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     private fun goMain() {
+        routeDecided = true
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
 
     private fun goLogin() {
+        routeDecided = true
         startActivity(Intent(this, LoginActivity::class.java))
         finish()
     }

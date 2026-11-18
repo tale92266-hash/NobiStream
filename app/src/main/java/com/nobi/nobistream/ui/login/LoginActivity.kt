@@ -4,7 +4,12 @@ import android.animation.ObjectAnimator
 import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
@@ -43,6 +48,16 @@ class LoginActivity : AppCompatActivity() {
     private var resendTimer: CountDownTimer? = null
     private var resendSecondsLeft = 0
 
+    /** v9.1 #2: the six OTP boxes (lazy — the binding exists from onCreate). */
+    private val otpBoxes: List<EditText> by lazy {
+        listOf(
+            binding.otpBox0, binding.otpBox1, binding.otpBox2,
+            binding.otpBox3, binding.otpBox4, binding.otpBox5
+        )
+    }
+    /** Guard against TextWatcher recursion while distributing a paste. */
+    private var otpFilling = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -61,6 +76,9 @@ class LoginActivity : AppCompatActivity() {
         binding.verifyButton.setOnClickListener { sendCode() }
         binding.passwordButton.setOnClickListener { sendPassword() }
         binding.resendCodeButton.setOnClickListener { resendCode() }
+        // v9.1 #2: six OTP boxes — type flows forward, DEL on an
+        // empty box goes back, paste distributes the digits.
+        wireOtpBoxes()
         // Verification step: back to the phone step (change number).
         // The code length is never hardcoded — any code Telegram sent works,
         // and paste works through the standard EditText long-press menu.
@@ -133,11 +151,16 @@ class LoginActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         binding.phoneLayout.visibility = if (phone) View.VISIBLE else View.GONE
         binding.continueButton.visibility = if (phone) View.VISIBLE else View.GONE
-        binding.codeInputLayout.visibility = if (code) View.VISIBLE else View.GONE
+        binding.otpBoxesContainer.visibility = if (code) View.VISIBLE else View.GONE
         binding.verifyButton.visibility = if (code) View.VISIBLE else View.GONE
         binding.codeActions.visibility = if (code) View.VISIBLE else View.GONE
         binding.passwordInputLayout.visibility = if (password) View.VISIBLE else View.GONE
         binding.passwordButton.visibility = if (password) View.VISIBLE else View.GONE
+        if (code) {
+            // Fresh code step: focus the first box (empty or not —
+            // the user may be re-typing after a wrong code).
+            binding.otpBox0.requestFocus()
+        }
         setStep(when {
             password -> 2
             code -> 1
@@ -146,7 +169,9 @@ class LoginActivity : AppCompatActivity() {
     }
 
     /** v8 stepper: steps before the active one are done, the active
-     * one is accent, later ones stay muted. Numbers never change. */
+     * one is accent, later ones stay muted. Numbers never change.
+     * v9.1 #2: a DONE step shows a check ("✓") instead of its
+     * number, so the stepper reads as progress, not a static list. */
     private fun setStep(activeIndex: Int) {
         val circles = listOf(
             binding.stepCirclePhone to binding.stepLabelPhone,
@@ -159,12 +184,88 @@ class LoginActivity : AppCompatActivity() {
                 if (doneOrActive) R.drawable.bg_step_circle_active
                 else R.drawable.bg_step_circle
             )
+            circle.text = when {
+                index < activeIndex -> "✓"
+                else -> (index + 1).toString()
+            }
             label.setTextColor(
                 getColor(
                     if (doneOrActive) R.color.text_primary else R.color.text_secondary
                 )
             )
         }
+    }
+
+    /**
+     * v9.1 #2: six OTP boxes.
+     * - Typing a digit advances to the next box.
+     * - Pasting (or typing fast into one box) distributes the
+     *   digits from the current box onward.
+     * - DEL on an empty box moves back and clears the previous box.
+     * - DONE on the last box submits.
+     * No maxLength on the boxes — the watcher handles multi-digit
+     * input, so a paste is never clipped. The code length is never
+     * hardcoded: otpCode() joins whatever boxes are filled (a
+     * 5-digit Telegram code leaves the last box empty, and works).
+     */
+    private fun wireOtpBoxes() {
+        otpBoxes.forEachIndexed { index, box ->
+            box.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: Editable?) {
+                    if (otpFilling) return
+                    val text = s?.toString().orEmpty()
+                    if (text.length > 1) {
+                        // Paste / fast typing: distribute the digits.
+                        val digits = text.filter { it.isDigit() }
+                        otpFilling = true
+                        for (j in digits.indices) {
+                            val target = index + j
+                            if (target < otpBoxes.size) {
+                                otpBoxes[target].setText(digits[j].toString())
+                            }
+                        }
+                        otpFilling = false
+                        val nextEmpty = otpBoxes.indexOfFirst { it.text.isNullOrEmpty() }
+                        val focusIndex = if (nextEmpty >= 0) nextEmpty else otpBoxes.lastIndex
+                        otpBoxes[focusIndex].requestFocus()
+                        otpBoxes[focusIndex].setSelection(
+                            otpBoxes[focusIndex].text?.length ?: 0
+                        )
+                    } else if (text.length == 1) {
+                        if (index + 1 < otpBoxes.size) {
+                            otpBoxes[index + 1].requestFocus()
+                        }
+                    }
+                }
+            })
+            box.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_DEL &&
+                    event.action == KeyEvent.ACTION_DOWN &&
+                    box.text.isNullOrEmpty() && index > 0
+                ) {
+                    otpBoxes[index - 1].setText("")
+                    otpBoxes[index - 1].requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+        otpBoxes.last().setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                sendCode()
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /** v9.1 #2: the joined OTP — whatever boxes are filled, in order. */
+    private fun otpCode(): String {
+        return otpBoxes.joinToString("") { it.text?.toString().orEmpty() }
     }
 
     // ---- v8 resend-code countdown (30s) ----
@@ -229,7 +330,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun sendCode() {
-        val code = binding.codeEdit.text?.toString()?.trim().orEmpty()
+        val code = otpCode()
         if (code.isEmpty()) {
             showError("Enter the verification code.")
             return
@@ -252,10 +353,10 @@ class LoginActivity : AppCompatActivity() {
         runTelegramCall(block = { repository.sendPassword(password) })
     }
 
-    /** v8: short horizontal shake on the code field. */
+    /** v8: short horizontal shake on the code field (v9.1: the OTP box row). */
     private fun shakeCodeField() {
         val shake = ObjectAnimator.ofFloat(
-            binding.codeInputLayout, "translationX",
+            binding.otpBoxesContainer, "translationX",
             0f, -12f, 12f, -8f, 8f, 0f
         )
         shake.duration = 400

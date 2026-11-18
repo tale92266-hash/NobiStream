@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 #27: continue-row thumbnail backdrop — same 12dp rounded
+     corners as v8_thumb_rounded, plus a 1dp outline_variant stroke
+     so the card reads as a card edge, not a floating image. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <stroke
+        android:width="@dimen/card_stroke_width"
+        android:color="@color/outline_variant" />
+    <corners android:radius="@dimen/corner_thumb" />
+</shape>

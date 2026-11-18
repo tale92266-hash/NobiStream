@@ -27,4 +27,16 @@
         android:layout_weight="1"
         android:textColor="@color/text_primary"
         android:textSize="@dimen/text_body" />
+
+    <!-- v9.1 #12: option icon (sort options) — at the row's end,
+         after the label; the radio marks selection, the icon names
+         the sort. -->
+    <ImageView
+        android:id="@+id/optionIcon"
+        android:layout_width="@dimen/icon_size"
+        android:layout_height="@dimen/icon_size"
+        android:layout_marginStart="@dimen/spacing_12"
+        android:contentDescription="@null"
+        android:tint="@color/text_secondary"
+        android:visibility="gone" />
 </LinearLayout>

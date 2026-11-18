@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 #19: group long-press menu — text only (PopupMenu shows no
+     icons by default; text-only is the standard Material choice). -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/group_menu_open"
+        android:title="@string/home_group_menu_open" />
+    <item
+        android:id="@+id/group_menu_refresh"
+        android:title="@string/home_group_menu_refresh" />
+    <item
+        android:id="@+id/group_menu_remove"
+        android:title="@string/home_group_menu_remove" />
+</menu>

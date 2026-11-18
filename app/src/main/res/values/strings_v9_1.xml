@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9.1 strings (all 35 audit items). New strings live ONLY here —
+     strings.xml is frozen (see strings_v8_feeds.xml). -->
+<resources>
+    <!-- #3 Add Group: Paste button + resolving preview. -->
+    <string name="home_add_paste">Paste</string>
+    <string name="home_add_no_clipboard_link">No Telegram link on the clipboard</string>
+    <!-- #8 Library section header: channel unknown (never invented otherwise). -->
+    <string name="library_unknown_channel">Unknown channel</string>
+    <!-- #9 Hero: More overflow menu. -->
+    <string name="hero_menu_copies">View copies</string>
+    <string name="hero_menu_open_channel">Open channel</string>
+    <!-- #12 Sort: pill button text. -->
+    <string name="channel_sort_button">Sort: %1$s</string>
+    <!-- #15 Copies sheet: why this copy is Best. -->
+    <string name="smart_best_quality">Best • Highest quality</string>
+    <string name="smart_best_size">Best • Largest file</string>
+    <string name="smart_best_newest">Best • Newest</string>
+    <!-- #16 Search: result count + Paste hint. -->
+    <string name="search_results_count">%1$d results</string>
+    <string name="search_paste_hint">Copy a Telegram link first, then tap Paste</string>
+    <!-- #17 Buffering: seconds buffered ahead of the playhead. -->
+    <string name="player_buffered_ahead">%1$ds ahead</string>
+    <!-- #19 Groups: long-press menu. -->
+    <string name="home_group_menu_open">Open</string>
+    <string name="home_group_menu_refresh">Refresh</string>
+    <string name="home_group_menu_remove">Remove</string>
+    <!-- #24 Library error: Details action + details sheet. -->
+    <string name="common_details">Details</string>
+    <string name="library_error_details_title">Library error</string>
+    <string name="library_error_details_body">%1$s\n\nCrash log: Downloads/NobiStream-crash.txt</string>
+    <string name="library_error_unknown">Unknown error</string>
+    <!-- #27 Continue Watching header with count. -->
+    <string name="home_continue_watching_count">Continue Watching • %1$d</string>
+    <!-- #29 Player: decoder failure wording. -->
+    <string name="player_error_decoder_body">Couldn\'t decode this video on this device. Try another copy.</string>
+    <!-- #30 Player options: no subtitles for this video. -->
+    <string name="player_no_subtitles">No subtitles available for this video</string>
+    <!-- #11 Settings: cache used bar. -->
+    <string name="settings_cache_used">%1$s of %2$s used</string>
+</resources>

@@ -97,6 +97,17 @@ class ChannelActivity : AppCompatActivity() {
         chatId = intent.getLongExtra(EXTRA_CHAT_ID, 0L)
         binding.toolbar.title = intent.getStringExtra(EXTRA_TITLE).orEmpty()
         binding.toolbar.setNavigationOnClickListener { finish() }
+        // v9.1 #32: refresh lives in the toolbar menu now — the
+        // search row below is full-width.
+        binding.toolbar.inflateMenu(R.menu.channel_menu)
+        binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            if (menuItem.itemId == R.id.action_refresh) {
+                resetAndLoad()
+                true
+            } else {
+                false
+            }
+        }
         adapter = VideoAdapter(
             onClick = { item, thumb -> openPlayer(item, thumb) },
             onThumbNeeded = { item, view ->
@@ -156,7 +167,8 @@ class ChannelActivity : AppCompatActivity() {
         }
         // v8: sort is a bottom sheet with exactly 2 radio rows
         // (Newest first / Oldest first) — the old toggle + Snackbar
-        // echo is gone.
+        // echo is gone. v9.1 #12: the button shows the current sort
+        // ("Sort: Newest") with an icon per option.
         binding.sortButton.setOnClickListener {
             SortSheet.show(
                 this,
@@ -165,16 +177,19 @@ class ChannelActivity : AppCompatActivity() {
                     getString(R.string.channel_sort_newest),
                     getString(R.string.channel_sort_oldest)
                 ),
-                if (sortNewest) 0 else 1
-            ) { index ->
-                sortNewest = index == 0
-                binding.sortButton.contentDescription = getString(
-                    if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest
+                if (sortNewest) 0 else 1,
+                onPick = { index ->
+                    sortNewest = index == 0
+                    updateSortButton()
+                    applyFilter()
+                },
+                icons = listOf(
+                    R.drawable.ic_arrow_downward,
+                    R.drawable.ic_arrow_upward
                 )
-                applyFilter()
-            }
+            )
         }
-        binding.refreshButton.setOnClickListener { resetAndLoad() }
+        updateSortButton()
         binding.emptyState.apply {
             setIcon(R.drawable.ic_search)
             setTitle(getString(R.string.channel_no_videos))
@@ -494,17 +509,31 @@ class ChannelActivity : AppCompatActivity() {
         startActivity(intent, options.toBundle())
     }
 
+    /** v9.1 #12: the sort button always names the current sort. */
+    private fun updateSortButton() {
+        val label = getString(
+            if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest
+        )
+        binding.sortButton.text = getString(R.string.channel_sort_button, label)
+        binding.sortButton.contentDescription = label
+    }
+
     /** v5 Smart Filter: "N copies" badge → pick any copy of the episode. */
     private fun showCopies(best: VideoItem, thumb: ImageView) {
         val group = currentGroups.firstOrNull {
             it.best.chatId == best.chatId && it.best.messageId == best.messageId
         } ?: return
-        CopiesSheet.show(this, group) { copy ->
-            val playlist = displayedVideos.map { shown ->
-                if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
-                else shown
-            }
-            openPlayer(copy, thumb, playlist)
-        }
+        CopiesSheet.show(
+            this, group,
+            onPick = { copy ->
+                val playlist = displayedVideos.map { shown ->
+                    if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
+                    else shown
+                }
+                openPlayer(copy, thumb, playlist)
+            },
+            // v9.1 #15: group name per row = this channel's title.
+            groupNameProvider = { intent.getStringExtra(EXTRA_TITLE).orEmpty() }
+        )
     }
 }

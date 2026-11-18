@@ -20,7 +20,7 @@ import com.nobi.nobistream.ui.components.PressFeedback
  * same continueMeta the Home row uses).
  */
 class ContinueAllAdapter(
-    private val onClick: (VideoItem) -> Unit,
+    private val onClick: (VideoItem, ImageView) -> Unit,
     private val onThumbNeeded: (VideoItem, ImageView) -> Unit,
     private val metaProvider: (VideoItem) -> String
 ) : ListAdapter<VideoItem, ContinueAllAdapter.ViewHolder>(DIFF) {
@@ -57,7 +57,9 @@ class ContinueAllAdapter(
             binding.continueAllProgress.progress =
                 (item.progressFraction * 100).toInt()
             onThumbNeeded(item, binding.continueAllThumb)
-            binding.root.setOnClickListener { onClick(item) }
+            // v9.1 #1: shared-element transition into the player.
+            binding.continueAllThumb.transitionName = "video_thumb_${item.messageId}"
+            binding.root.setOnClickListener { onClick(item, binding.continueAllThumb) }
         }
     }
 

@@ -1,11 +1,16 @@
 package com.nobi.nobistream.ui.home
 
 import android.app.ActivityOptions
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageView
+import android.widget.PopupMenu
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.NestedScrollView
@@ -15,6 +20,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
@@ -33,18 +39,23 @@ import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.channel.ChannelActivity
 import com.nobi.nobistream.ui.channel.GridSpacingItemDecoration
 import com.nobi.nobistream.ui.channel.VideoAdapter
+import com.nobi.nobistream.ui.channel.VideoRow
 import com.nobi.nobistream.ui.components.BottomNavHelper
 import com.nobi.nobistream.ui.components.ConfirmSheet
+import com.nobi.nobistream.ui.components.InfoSheet
 import com.nobi.nobistream.ui.components.NavTab
+import com.nobi.nobistream.ui.components.Shimmer
 import com.nobi.nobistream.ui.components.SortSheet
 import com.nobi.nobistream.ui.login.LoginActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.FadeInAnimator
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * v8 Home: bottom navigation (Home / Search / Library / Settings)
@@ -109,6 +120,15 @@ class MainActivity : AppCompatActivity() {
     private var libraryGroupsSignature = ""
     private var libraryFirstPageFailed = false
     private var refreshing = false
+    /** v9.1 #24: the last library load error, for the Details action. */
+    private var libraryLastError: String? = null
+    /** v9.1 #19: last-seen video count per group (NEW dot source). */
+    private var lastSeenCounts: Map<Long, Int> = emptyMap()
+    /** v9.1 #4: shimmer animators for the Home / Library skeletons. */
+    private var homeShimmerAnimator: android.animation.ObjectAnimator? = null
+    private var libraryShimmerAnimator: android.animation.ObjectAnimator? = null
+    /** v9.1 #9: hero shimmer animator (stopped when the thumb lands). */
+    private var heroShimmerAnimator: android.animation.ObjectAnimator? = null
 
     private enum class LibrarySort {
         NEWEST, OLDEST, TITLE_AZ, TITLE_ZA, LONGEST, LARGEST
@@ -125,21 +145,29 @@ class MainActivity : AppCompatActivity() {
             return
         }
         binding.homeRefreshButton.setOnClickListener { refreshGroups() }
+        // v9.1 #6: pull-to-refresh on both tabs (same refreshGroups()).
+        binding.homeSwipeRefresh.setOnRefreshListener { refreshGroups() }
+        binding.librarySwipeRefresh.setOnRefreshListener { refreshGroups() }
         binding.continueSeeAll.setOnClickListener {
             startActivity(Intent(this, ContinueAllActivity::class.java))
         }
         binding.librarySortButton.setOnClickListener { showSortSheet() }
-        binding.heroCard.setOnClickListener { heroItem?.let { openContinue(it) } }
-        binding.heroResumeButton.setOnClickListener { heroItem?.let { openContinue(it) } }
+        binding.heroCard.setOnClickListener { heroItem?.let { openContinue(it, binding.heroThumb) } }
+        binding.heroResumeButton.setOnClickListener { heroItem?.let { openContinue(it, binding.heroThumb) } }
+        binding.heroMore.setOnClickListener { heroItem?.let { showHeroMenu(it) } }
         groupAdapter = GroupAdapter(
             onClick = { group -> openChannel(group) },
-            onLongClick = { group -> confirmRemove(group) }
+            onLongClick = { group, anchor -> showGroupMenu(group, anchor) },
+            // v9.1 #19: NEW dot when the count grew since the last open.
+            isNewProvider = { group ->
+                lastSeenCounts[group.chatId]?.let { it < group.videoCount } == true
+            }
         )
         binding.groupsRecycler.layoutManager = LinearLayoutManager(this)
         binding.groupsRecycler.adapter = groupAdapter
         binding.groupsRecycler.itemAnimator = SlideInUpAnimator()
         continueAdapter = ContinueAdapter(
-            onClick = { item -> openContinue(item) },
+            onClick = { item, thumb -> openContinue(item, thumb) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
             },
@@ -155,17 +183,30 @@ class MainActivity : AppCompatActivity() {
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
             },
-            onCopiesClick = { item, thumb -> showLibraryCopies(item, thumb) }
+            onCopiesClick = { item, thumb -> showLibraryCopies(item, thumb) },
+            // v9.1 #8: library cards lead with the channel name (2-line meta).
+            showChannelName = true,
+            channelNameProvider = { item ->
+                groups.firstOrNull { it.chatId == item.chatId }?.title.orEmpty()
+            }
         )
         val spanCount = gridSpanCount()
-        binding.libraryRecycler.layoutManager = GridLayoutManager(this, spanCount)
+        binding.libraryRecycler.layoutManager = GridLayoutManager(this, spanCount).apply {
+            // v9.1 #8: section headers span the full grid width.
+            spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                override fun getSpanSize(position: Int): Int {
+                    return if (libraryAdapter.isHeader(position)) spanCount else 1
+                }
+            }
+        }
         binding.libraryRecycler.adapter = libraryAdapter
         binding.libraryRecycler.itemAnimator = SlideInUpAnimator()
         binding.libraryRecycler.addItemDecoration(
             GridSpacingItemDecoration(
                 spanCount,
                 resources.getDimensionPixelSize(R.dimen.grid_gap_horizontal),
-                resources.getDimensionPixelSize(R.dimen.grid_gap_vertical)
+                resources.getDimensionPixelSize(R.dimen.grid_gap_vertical),
+                isFullSpan = { position -> libraryAdapter.isHeader(position) }
             )
         )
         binding.libraryFilterChips.setOnCheckedStateChangeListener { _, checkedIds ->
@@ -179,6 +220,8 @@ class MainActivity : AppCompatActivity() {
             applyLibraryFilter()
         }
         // v5 Smart Filter toggle (see ChannelActivity).
+        // v9.1 #35: the chip uses the Smart toggle style (outline
+        // when ON, quiet surface when OFF) — see activity_main.xml.
         binding.libChipSmart.setOnCheckedChangeListener { _, checked ->
             librarySmartOn = checked
             lifecycleScope.launch {
@@ -200,12 +243,15 @@ class MainActivity : AppCompatActivity() {
             setIcon(R.drawable.ic_search)
             setTitle(getString(R.string.home_library_empty))
             setBody(getString(R.string.home_library_empty_body))
-            hideAction()
+            // v9.1 #24: the empty library offers the fix — add a group.
+            setAction(getString(R.string.home_add_group)) { showAddChannelSheet() }
         }
         binding.libraryErrorState.apply {
             setTitle(getString(R.string.home_library_error_title))
             setBody(getString(R.string.home_library_error_body))
             setRetry { resetAndLoadLibrary() }
+            // v9.1 #24: Details shows the error + the crash-log path.
+            setDetails(getString(R.string.common_details)) { showLibraryErrorDetails() }
         }
         binding.addGroupButton.setOnClickListener { showAddChannelSheet() }
         binding.emptyState.apply {
@@ -214,6 +260,11 @@ class MainActivity : AppCompatActivity() {
             setBody(getString(R.string.home_no_groups_body))
             setAction(getString(R.string.home_add_group)) { showAddChannelSheet() }
         }
+        // v9.1 #4: skeleton grids (same 1-column margin fix as
+        // ChannelActivity — a single column must not double the
+        // outer margin).
+        layoutSkeletonGrid(binding.homeSkeletonGrid, 1)
+        layoutSkeletonGrid(binding.librarySkeletonGrid, gridSpanCount())
         // v9: quiet-state Add Group button (shown when 1–2 groups exist).
         binding.homeQuietAddButton.setOnClickListener { showAddChannelSheet() }
         // v8 bottom navigation. The starting tab comes from the
@@ -230,6 +281,7 @@ class MainActivity : AppCompatActivity() {
                     groups = items
                     groupAdapter.submitList(items)
                     groupsLoaded = true
+                    updateSkeletons()
                     // v9: quiet state under "Your Groups" when the
                     // list is short (1–2 groups). Zero groups is
                     // covered by the full-screen empty state instead.
@@ -249,7 +301,7 @@ class MainActivity : AppCompatActivity() {
                         libraryGroupsSignature = ""
                         libraryLoaded = false
                         allLibrary.clear()
-                        libraryAdapter.submitList(emptyList())
+                        libraryAdapter.submitVideos(emptyList())
                     }
                 }
             }
@@ -273,6 +325,13 @@ class MainActivity : AppCompatActivity() {
                         if (hasRow) View.VISIBLE else View.GONE
                     binding.continueRecycler.visibility =
                         if (hasRow) View.VISIBLE else View.GONE
+                    // v9.1 #27: the header carries the row count
+                    // ("Continue Watching • 12").
+                    if (hasRow) {
+                        binding.continueTitle.text = getString(
+                            R.string.home_continue_watching_count, items.size - 1
+                        )
+                    }
                     // v2: one-time redirect to the last-watched episode.
                     // Only on a fresh start (not rotation / return from player).
                     // The redirect target is the row's first item — the
@@ -305,6 +364,16 @@ class MainActivity : AppCompatActivity() {
                 binding.libraryFilterChips.check(chipId)
             }
         }
+        // v9.1 #19: NEW dots — re-submit the groups list when the
+        // last-seen map changes so dots appear / clear live.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.settingsStore.lastSeenVideoCounts.collect { counts ->
+                    lastSeenCounts = counts
+                    groupAdapter.submitList(groups)
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -318,6 +387,10 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         addSheet?.dismiss()
         addSheet = null
+        // v9.1 #4: never leak a running shimmer animator.
+        Shimmer.stop(homeShimmerAnimator)
+        Shimmer.stop(libraryShimmerAnimator)
+        Shimmer.stop(heroShimmerAnimator)
         super.onDestroy()
     }
 
@@ -354,6 +427,60 @@ class MainActivity : AppCompatActivity() {
         binding.emptyState.visibility =
             if (groupsLoaded && !hasGroups) View.VISIBLE else View.GONE
         setupBottomNav(if (tab == TAB_LIBRARY) NavTab.LIBRARY else NavTab.HOME)
+        updateSkeletons()
+    }
+
+    /**
+     * v9.1 #4: skeletons — the Home skeleton shows while the groups
+     * are still loading (cold start), the Library skeleton while
+     * the first library page is still loading. The shimmer only
+     * runs while its container is visible; stopping it also hides
+     * the sweep view.
+     */
+    private fun updateSkeletons() {
+        val showHome = currentTab == TAB_HOME && !groupsLoaded
+        binding.homeSkeletonContainer.visibility =
+            if (showHome) View.VISIBLE else View.GONE
+        if (showHome && homeShimmerAnimator == null) {
+            homeShimmerAnimator = Shimmer.start(binding.homeShimmerSweep, binding.homeSkeletonContainer)
+        } else if (!showHome) {
+            Shimmer.stop(homeShimmerAnimator)
+            homeShimmerAnimator = null
+        }
+        val showLibrary = currentTab == TAB_LIBRARY &&
+            !libraryLoaded && !libraryFirstPageFailed && groups.isNotEmpty()
+        binding.librarySkeletonContainer.visibility =
+            if (showLibrary) View.VISIBLE else View.GONE
+        if (showLibrary && libraryShimmerAnimator == null) {
+            libraryShimmerAnimator = Shimmer.start(
+                binding.libraryShimmerSweep, binding.librarySkeletonContainer
+            )
+        } else if (!showLibrary) {
+            Shimmer.stop(libraryShimmerAnimator)
+            libraryShimmerAnimator = null
+        }
+    }
+
+    /** v9.1 #4: fill a skeleton grid with 4 placeholder cards. */
+    private fun layoutSkeletonGrid(grid: android.widget.GridLayout, spanCount: Int) {
+        grid.columnCount = spanCount
+        grid.removeAllViews()
+        repeat(4) {
+            val card = layoutInflater.inflate(R.layout.item_skeleton, grid, false)
+            val params = android.widget.GridLayout.LayoutParams().apply {
+                width = 0
+                height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                columnSpec = android.widget.GridLayout.spec(
+                    android.widget.GridLayout.UNDEFINED, 1f
+                )
+                if (spanCount == 1) {
+                    // Single column: no horizontal margin (the
+                    // container already has the screen margin).
+                    setMargins(0, 0, 0, 0)
+                }
+            }
+            grid.addView(card, params)
+        }
     }
 
     /** Hero Spotlight content: title, "Channel • 12:34 left", Resume pill. */
@@ -372,7 +499,72 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.home_resume)
         }
-        ThumbLoader.load(lifecycleScope, repository, item, binding.heroThumb)
+        // v9.1 #9: duration + quality pills on the hero thumb.
+        if (item.durationSec > 0) {
+            binding.heroDuration.visibility = View.VISIBLE
+            binding.heroDuration.text = FormatUtils.formatDuration(item.durationSec)
+        } else {
+            binding.heroDuration.visibility = View.GONE
+        }
+        if (item.quality.label.isNotEmpty()) {
+            binding.heroQuality.visibility = View.VISIBLE
+            binding.heroQuality.text = item.quality.label
+        } else {
+            binding.heroQuality.visibility = View.GONE
+        }
+        // v9.1 #1: the hero thumb is the shared element into the player.
+        binding.heroThumb.transitionName = "video_thumb_${item.messageId}"
+        // v9.1 #9: hero shimmer until the thumbnail lands.
+        Shimmer.stop(heroShimmerAnimator)
+        heroShimmerAnimator = null
+        binding.heroShimmer.visibility = View.VISIBLE
+        heroShimmerAnimator = Shimmer.start(binding.heroShimmer, binding.heroThumb)
+        ThumbLoader.load(lifecycleScope, repository, item, binding.heroThumb) {
+            Shimmer.stop(heroShimmerAnimator)
+            heroShimmerAnimator = null
+            binding.heroShimmer.visibility = View.GONE
+        }
+    }
+
+    /** v9.1 #9: hero overflow — View copies / Open channel. */
+    private fun showHeroMenu(item: VideoItem) {
+        val popup = PopupMenu(this, binding.heroMore)
+        popup.menuInflater.inflate(R.menu.hero_menu, popup.menu)
+        val group = SmartFilter.groupEpisodes(continueItems).firstOrNull {
+            it.best.chatId == item.chatId && it.best.messageId == item.messageId
+        }
+        val hasCopies = group != null && group.copies.size > 1
+        popup.menu.findItem(R.id.hero_menu_copies).isVisible = hasCopies
+        popup.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.hero_menu_copies -> {
+                    if (group != null) {
+                        CopiesSheet.show(
+                            this, group,
+                            onPick = { copy ->
+                                val playlist = continueItems.map { shown ->
+                                    if (shown.chatId == item.chatId &&
+                                        shown.messageId == item.messageId
+                                    ) copy else shown
+                                }
+                                openContinue(copy, binding.heroThumb, playlist)
+                            },
+                            groupNameProvider = { video ->
+                                groups.firstOrNull { it.chatId == video.chatId }
+                                    ?.title.orEmpty()
+                            }
+                        )
+                    }
+                    true
+                }
+                R.id.hero_menu_open_channel -> {
+                    groups.firstOrNull { it.chatId == item.chatId }?.let { openChannel(it) }
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
     }
 
     /**
@@ -396,8 +588,10 @@ class MainActivity : AppCompatActivity() {
         libraryHasMore = true
         libraryLoaded = false
         libraryFirstPageFailed = false
-        libraryAdapter.submitList(emptyList())
+        libraryLastError = null
+        libraryAdapter.submitVideos(emptyList())
         binding.libraryErrorState.visibility = View.GONE
+        updateSkeletons()
         loadLibraryPage()
     }
 
@@ -419,6 +613,8 @@ class MainActivity : AppCompatActivity() {
                     libraryHasMore = page.hasMore
                     libraryLoaded = true
                     libraryFirstPageFailed = false
+                    libraryLastError = null
+                    updateSkeletons()
                     val seen = allLibrary.map { it.chatId to it.messageId }.toHashSet()
                     for (video in page.videos) {
                         if (seen.add(video.chatId to video.messageId)) {
@@ -429,13 +625,16 @@ class MainActivity : AppCompatActivity() {
                     binding.libraryFilterScroll.visibility = View.VISIBLE
                     applyLibraryFilter()
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     libraryLoading = false
                     binding.libraryLoadMoreFooter.visibility = View.GONE
                     updateLibraryLoadMoreButton()
+                    updateSkeletons()
                     if (firstPage) {
                         libraryFirstPageFailed = true
+                        // v9.1 #24: keep the message for the Details action.
+                        libraryLastError = e.message ?: e.javaClass.simpleName
                         binding.libraryHeader.visibility = View.VISIBLE
                         binding.libraryFilterScroll.visibility = View.VISIBLE
                         binding.libraryRecycler.visibility = View.GONE
@@ -485,12 +684,40 @@ class MainActivity : AppCompatActivity() {
             LibrarySort.LARGEST -> list.sortedByDescending { it.sizeBytes }
         }
         displayedLibrary = list
-        libraryAdapter.submitList(list)
+        // v9.1 #8: section the flat sorted list by channel, in the
+        // order the sections first appear in the current sort.
+        // Videos inside a section keep their sort order; the
+        // section order itself follows the sort (Newest = the
+        // section whose first video is newest comes first).
+        val rows = ArrayList<VideoRow>()
+        val byChannel = LinkedHashMap<Long, MutableList<VideoItem>>()
+        for (video in list) {
+            byChannel.getOrPut(video.chatId) { mutableListOf() }.add(video)
+        }
+        for ((chatId, videos) in byChannel) {
+            val name = groups.firstOrNull { it.chatId == chatId }?.title
+                ?: getString(R.string.library_unknown_channel)
+            rows.add(VideoRow.Header(name, videos.size))
+            for (video in videos) rows.add(VideoRow.Item(video))
+        }
+        libraryAdapter.submitLibraryRows(rows)
         val empty = list.isEmpty() && libraryLoaded
         binding.libraryEmptyState.visibility = if (empty) View.VISIBLE else View.GONE
         binding.libraryRecycler.visibility = if (empty) View.GONE else View.VISIBLE
         if (!empty) binding.libraryErrorState.visibility = View.GONE
         updateLibraryLoadMoreButton()
+    }
+
+    /** v9.1 #24: the library error's technical detail + crash-log path. */
+    private fun showLibraryErrorDetails() {
+        InfoSheet.show(
+            this,
+            getString(R.string.library_error_details_title),
+            getString(
+                R.string.library_error_details_body,
+                libraryLastError ?: getString(R.string.library_error_unknown)
+            )
+        )
     }
 
     /** v8: sort is a bottom sheet (§4.9), not a PopupMenu + Snackbar echo. */
@@ -511,7 +738,16 @@ class MainActivity : AppCompatActivity() {
             onPick = { index ->
                 librarySort = LibrarySort.entries[index]
                 applyLibraryFilter()
-            }
+            },
+            // v9.1 #12: one icon per sort option.
+            icons = listOf(
+                R.drawable.ic_arrow_downward,
+                R.drawable.ic_arrow_upward,
+                R.drawable.ic_sort,
+                R.drawable.ic_sort,
+                R.drawable.ic_history,
+                R.drawable.ic_bars_desc
+            )
         )
     }
 
@@ -529,6 +765,9 @@ class MainActivity : AppCompatActivity() {
                 refreshing = false
                 binding.homeRefreshProgress.visibility = View.GONE
                 binding.homeRefreshButton.visibility = View.VISIBLE
+                // v9.1 #6: stop both pull-to-refresh spinners.
+                binding.homeSwipeRefresh.isRefreshing = false
+                binding.librarySwipeRefresh.isRefreshing = false
                 if (result == null) {
                     Snackbar.make(
                         binding.root,
@@ -578,14 +817,69 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openChannel(group: GroupItem) {
+        // v9.1 #19: opening a channel marks its videos as seen —
+        // the NEW dot clears until new videos arrive.
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                repository.settingsStore.setLastSeenVideoCount(group.chatId, group.videoCount)
+            }
+        }
         val intent = Intent(this, ChannelActivity::class.java)
             .putExtra(ChannelActivity.EXTRA_CHAT_ID, group.chatId)
             .putExtra(ChannelActivity.EXTRA_TITLE, group.title)
         startActivity(intent)
     }
 
-    private fun openContinue(item: VideoItem) {
-        PlayerPlaylist.items = continueItems
+    /** v9.1 #19: long-press menu — Open / Refresh / Remove. */
+    private fun showGroupMenu(group: GroupItem, anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menuInflater.inflate(R.menu.group_menu, popup.menu)
+        popup.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.group_menu_open -> {
+                    openChannel(group)
+                    true
+                }
+                R.id.group_menu_refresh -> {
+                    refreshSingleGroup(group)
+                    true
+                }
+                R.id.group_menu_remove -> {
+                    confirmRemove(group)
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    /** v9.1 #19: refresh ONE group (title/photo/count) without a full reload. */
+    private fun refreshSingleGroup(group: GroupItem) {
+        if (refreshing) return
+        refreshing = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching { repository.refreshGroups(listOf(group)) }.getOrNull()
+            withContext(Dispatchers.Main) {
+                refreshing = false
+                Snackbar.make(
+                    binding.root,
+                    if (result != null && result.failed == 0) R.string.home_refreshed
+                    else R.string.home_refresh_failed,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    /**
+     * v9.1 #1: [thumb] is the shared element into the player (null
+     * = no transition — the one-time redirect). [playlistOverride]
+     * is the copies-picker path (the picked copy replaces the hero
+     * item in the playlist).
+     */
+    private fun openContinue(item: VideoItem, thumb: ImageView? = null, playlistOverride: List<VideoItem>? = null) {
+        PlayerPlaylist.items = playlistOverride ?: continueItems
         PlayerPlaylist.chatId = item.chatId
         // v8: Continue opens have no episode grouping (Room-only
         // slice) — the player's Copies pill falls back to its
@@ -597,7 +891,14 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
             .putExtra(PlayerActivity.EXTRA_MESSAGE_ID, item.messageId)
-        startActivity(intent)
+        if (thumb != null) {
+            val options = ActivityOptions.makeSceneTransitionAnimation(
+                this, thumb, "video_thumb_${item.messageId}"
+            )
+            startActivity(intent, options.toBundle())
+        } else {
+            startActivity(intent)
+        }
     }
 
     private fun openLibraryPlayer(item: VideoItem, thumb: ImageView) {
@@ -633,13 +934,20 @@ class MainActivity : AppCompatActivity() {
         val group = libraryGroups.firstOrNull {
             it.best.chatId == best.chatId && it.best.messageId == best.messageId
         } ?: return
-        CopiesSheet.show(this, group) { copy ->
-            val playlist = displayedLibrary.map { shown ->
-                if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
-                else shown
+        CopiesSheet.show(
+            this, group,
+            onPick = { copy ->
+                val playlist = displayedLibrary.map { shown ->
+                    if (shown.chatId == best.chatId && shown.messageId == best.messageId) copy
+                    else shown
+                }
+                openLibraryPlayer(copy, thumb, playlist)
+            },
+            // v9.1 #15: group name per row.
+            groupNameProvider = { video ->
+                groups.firstOrNull { it.chatId == video.chatId }?.title.orEmpty()
             }
-            openLibraryPlayer(copy, thumb, playlist)
-        }
+        )
     }
 
     /**
@@ -661,6 +969,10 @@ class MainActivity : AppCompatActivity() {
         }
         addSheet = dialog
         var adding = false
+        // v9.1 #3: resolving preview — debounced, one resolve per
+        // username; the job is cancelled on every keystroke.
+        var previewJob: Job? = null
+        var lastPreviewUsername: String? = null
 
         fun setAdding(value: Boolean) {
             adding = value
@@ -670,17 +982,87 @@ class MainActivity : AppCompatActivity() {
             sheetBinding.addChannelEdit.isEnabled = !value
         }
 
+        /** v9.1 #3: field error state — red error text + a shake,
+         * so an invalid / duplicate / failed link is impossible to
+         * miss. Cleared on the next keystroke (see the watcher). */
+        fun setFieldError(message: String) {
+            sheetBinding.addChannelInputLayout.error = message
+            val layout = sheetBinding.addChannelInputLayout
+            android.animation.ObjectAnimator.ofFloat(
+                layout, "translationX", 0f, -12f, 12f, -8f, 8f, 0f
+            ).apply {
+                duration = 400
+                interpolator = AccelerateDecelerateInterpolator()
+            }.start()
+        }
+
+        /** v9.1 #3: the resolving preview — avatar + title + count
+         * while the user types, hidden when the text is not a link. */
+        fun schedulePreview() {
+            previewJob?.cancel()
+            val username = extractUsername(
+                sheetBinding.addChannelEdit.text?.toString().orEmpty()
+            )
+            if (username == null || username == lastPreviewUsername) {
+                if (username == null) {
+                    lastPreviewUsername = null
+                    sheetBinding.addChannelPreview.visibility = View.GONE
+                }
+                return
+            }
+            lastPreviewUsername = username
+            sheetBinding.addChannelPreview.visibility = View.VISIBLE
+            sheetBinding.addChannelPreviewTitle.visibility = View.GONE
+            sheetBinding.addChannelPreviewSubtitle.visibility = View.GONE
+            sheetBinding.addChannelPreviewLoading.visibility = View.VISIBLE
+            previewJob = lifecycleScope.launch(Dispatchers.IO) {
+                kotlinx.coroutines.delay(500)
+                val resolved = runCatching {
+                    repository.resolveGroupPreview(
+                        sheetBinding.addChannelEdit.text?.toString().orEmpty()
+                    )
+                }.getOrNull()
+                withContext(Dispatchers.Main) {
+                    if (!dialog.isShowing) return@withContext
+                    sheetBinding.addChannelPreviewLoading.visibility = View.GONE
+                    if (resolved == null) {
+                        // Not resolvable (yet) — hide the preview,
+                        // the submit error will explain on Add.
+                        sheetBinding.addChannelPreview.visibility = View.GONE
+                        return@withContext
+                    }
+                    val photoPath = resolved.photoLocalPath
+                    if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
+                        sheetBinding.addChannelPreviewAvatar.load(File(photoPath)) {
+                            placeholder(R.drawable.ic_video_placeholder)
+                            error(R.drawable.ic_video_placeholder)
+                            crossfade(200)
+                        }
+                    } else {
+                        sheetBinding.addChannelPreviewAvatar.setImageResource(
+                            R.drawable.ic_video_placeholder
+                        )
+                    }
+                    sheetBinding.addChannelPreviewTitle.text = resolved.title
+                    sheetBinding.addChannelPreviewTitle.visibility = View.VISIBLE
+                    sheetBinding.addChannelPreviewSubtitle.text = getString(
+                        R.string.home_videos_count, resolved.videoCount
+                    )
+                    sheetBinding.addChannelPreviewSubtitle.visibility = View.VISIBLE
+                }
+            }
+        }
+
         fun submit() {
             if (adding) return
             val link = sheetBinding.addChannelEdit.text?.toString()?.trim().orEmpty()
             val username = extractUsername(link)
             if (username == null) {
-                sheetBinding.addChannelInputLayout.error =
-                    getString(R.string.home_add_link_invalid)
+                setFieldError(getString(R.string.home_add_link_invalid))
                 return
             }
             if (groups.any { it.username.equals(username, ignoreCase = true) }) {
-                sheetBinding.addChannelInputLayout.error = getString(R.string.home_add_exists)
+                setFieldError(getString(R.string.home_add_exists))
                 return
             }
             sheetBinding.addChannelInputLayout.error = null
@@ -700,14 +1082,41 @@ class MainActivity : AppCompatActivity() {
                             setAdding(false)
                             // Generic message only — never a technical
                             // exception string in the UI.
-                            sheetBinding.addChannelInputLayout.error =
-                                getString(R.string.home_add_failed)
+                            setFieldError(getString(R.string.home_add_failed))
                         }
                     }
                 }
             }
         }
 
+        // v9.1 #3: Paste — fills the field with the clipboard's
+        // t.me link (same check as Search's paste chip).
+        sheetBinding.pasteButton.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString().orEmpty()
+            val link = if (clip.contains("t.me/")) clip.trim() else null
+            if (link == null) {
+                Snackbar.make(
+                    sheetBinding.root,
+                    R.string.home_add_no_clipboard_link,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            } else {
+                sheetBinding.addChannelEdit.setText(link)
+                sheetBinding.addChannelEdit.setSelection(link.length)
+                schedulePreview()
+            }
+        }
+        sheetBinding.addChannelEdit.addTextChangedListener(
+            object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    sheetBinding.addChannelInputLayout.error = null
+                    schedulePreview()
+                }
+            }
+        )
         sheetBinding.addChannelButton.setOnClickListener { submit() }
         sheetBinding.addChannelEdit.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -718,11 +1127,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
         sheetBinding.addChannelCancelButton.setOnClickListener { dialog.dismiss() }
-        dialog.setOnDismissListener { if (addSheet == dialog) addSheet = null }
+        dialog.setOnDismissListener {
+            previewJob?.cancel()
+            if (addSheet == dialog) addSheet = null
+        }
         dialog.show()
         if (!prefillLink.isNullOrBlank()) {
             sheetBinding.addChannelEdit.setText(prefillLink)
             sheetBinding.addChannelEdit.setSelection(prefillLink.length)
+            schedulePreview()
         }
     }
 

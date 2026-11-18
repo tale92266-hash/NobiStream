@@ -38,6 +38,19 @@
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 
+    <!-- v9.1 #33: Android 12 animated splash (core-splashscreen).
+         The launcher icon is the animated icon, the splash stays on
+         screen until LauncherActivity's session check decides the
+         route (setKeepOnScreenCondition), then the app theme takes
+         over. The old Launcher theme (static bg_splash) is kept for
+         reference but no longer used by the manifest. -->
+    <style name="Theme.NobiStream.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <item name="postSplashScreenTheme">@style/Theme.NobiStream</item>
+    </style>
+
     <!-- Dialogs: 24dp radius, 24dp padding (layout), heading 20sp, body 14sp,
          actions 48dp. Applied app-wide via materialAlertDialogTheme. -->
     <style name="Widget.NobiStream.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
@@ -103,6 +116,16 @@
         <item name="android:textColor">@color/error</item>
     </style>
 
+    <!-- v9.1 #10: filled destructive button for confirm sheets —
+         the destructive action must read as the primary action, not
+         as an outline that competes with Cancel. -->
+    <style name="Widget.NobiStream.Button.DangerFilled" parent="Widget.Material3.Button">
+        <item name="android:minHeight">@dimen/button_height</item>
+        <item name="android:backgroundTint">@color/error</item>
+        <item name="android:textColor">@color/on_error</item>
+        <item name="cornerRadius">@dimen/corner_full</item>
+    </style>
+
     <style name="Widget.NobiStream.IconButton" parent="Widget.Material3.Button.IconButton">
         <item name="android:minWidth">@dimen/icon_button_size</item>
         <item name="android:minHeight">@dimen/icon_button_size</item>
@@ -145,15 +168,40 @@
         <item name="ensureMinTouchTargetSize">true</item>
     </style>
 
+    <!-- v9.1 #35: Smart toggle chip — outline when ON, filled when
+         OFF is backwards for a toggle: ON is an outline with accent
+         text (a switch, not a selected filter), OFF is the quiet
+         surface. Never filled accent. -->
+    <style name="Widget.NobiStream.Chip.Smart" parent="Widget.Material3.Chip.Filter">
+        <item name="android:minHeight">@dimen/chip_height</item>
+        <item name="chipMinHeight">@dimen/chip_height</item>
+        <item name="chipStartPadding">@dimen/chip_padding</item>
+        <item name="chipEndPadding">@dimen/chip_padding</item>
+        <item name="chipBackgroundColor">@color/chip_smart_background</item>
+        <item name="chipStrokeColor">@color/chip_smart_stroke</item>
+        <item name="chipStrokeWidth">@dimen/card_stroke_width</item>
+        <item name="android:textColor">@color/chip_smart_text</item>
+        <item name="chipCornerRadius">@dimen/corner_full</item>
+        <item name="ensureMinTouchTargetSize">true</item>
+    </style>
+
     <!-- ============ Inputs ============ -->
 
-    <style name="Widget.NobiStream.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+    <!-- v9.1 #23: ONE box style for every input — FilledBox (the
+         same filled graphite box the Settings dropdowns already
+         use), 16dp corners, clear-text end icon everywhere. The
+         password fields override endIconMode with password_toggle
+         in their own layouts; the Search style keeps its pill
+         corners + clear_text. -->
+    <style name="Widget.NobiStream.TextInputLayout" parent="Widget.Material3.TextInputLayout.FilledBox">
+        <item name="boxBackgroundColor">@color/surface_variant</item>
         <item name="boxStrokeColor">@color/outline</item>
         <item name="hintTextColor">@color/text_secondary</item>
-        <item name="boxCornerRadiusTopStart">@dimen/corner_small</item>
-        <item name="boxCornerRadiusTopEnd">@dimen/corner_small</item>
-        <item name="boxCornerRadiusBottomStart">@dimen/corner_small</item>
-        <item name="boxCornerRadiusBottomEnd">@dimen/corner_small</item>
+        <item name="boxCornerRadiusTopStart">@dimen/corner_medium</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/corner_medium</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/corner_medium</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/corner_medium</item>
+        <item name="endIconMode">clear_text</item>
     </style>
 
     <style name="Widget.NobiStream.TextInputLayout.Search" parent="Widget.NobiStream.TextInputLayout">
@@ -290,8 +338,10 @@
         <item name="android:fontFamily">sans-serif-medium</item>
     </style>
 
+    <!-- v9.1 #11: section headers grow 11sp → 13sp so Settings /
+         sheet / recent sections read as headers, not captions. -->
     <style name="Text.NobiStream.SectionHeader" parent="TextAppearance.Material3.LabelLarge">
-        <item name="android:textSize">@dimen/text_overline</item>
+        <item name="android:textSize">@dimen/text_action</item>
         <item name="android:textColor">@color/text_secondary</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:letterSpacing">0.08</item>

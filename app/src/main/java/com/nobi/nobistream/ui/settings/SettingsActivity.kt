@@ -22,6 +22,7 @@ import com.nobi.nobistream.ui.components.InfoSheet
 import com.nobi.nobistream.ui.components.NavTab
 import com.nobi.nobistream.ui.login.LoginActivity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -52,9 +53,12 @@ class SettingsActivity : AppCompatActivity() {
     private val filterOptions = listOf("All", "480p", "720p", "1080p", "4K")
 
     // v6 subtitles: option lists (same hardcoded-list precedent as filterOptions).
+    // v9.1 #26: background is now an opacity choice inside the same
+    // dropdown ("Black 50%" / "Black 80%" / "Transparent") — no
+    // separate opacity setting.
     private val subtitleSizeOptions = listOf("Small", "Medium", "Large")
     private val subtitleColorOptions = listOf("White", "Yellow", "Cyan")
-    private val subtitleBackgroundOptions = listOf("Semi-black", "Black", "Transparent")
+    private val subtitleBackgroundOptions = listOf("Black 50%", "Black 80%", "Transparent")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,6 +78,22 @@ class SettingsActivity : AppCompatActivity() {
         binding.versionText.text =
             "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         updateStatus()
+        // v9.1 #26: one-shot migration — old background values map
+        // onto the new opacity options ("Semi-black" → "Black 50%",
+        // "Black" → "Black 80%"). New installs already store the
+        // new values, so this runs once and then no-ops.
+        lifecycleScope.launch {
+            val stored = repository.settingsStore.subtitleBackground.first()
+            val migrated = when (stored) {
+                "Semi-black" -> "Black 50%"
+                "Black" -> "Black 80%"
+                else -> null
+            }
+            if (migrated != null) {
+                repository.settingsStore.setSubtitleBackground(migrated)
+            }
+        }
+        refreshCacheUsed()
         binding.saveApiButton.setOnClickListener { saveApi() }
         binding.clearSavedButton.setOnClickListener {
             locator.credentialsStore.clearSaved()
@@ -99,6 +119,7 @@ class SettingsActivity : AppCompatActivity() {
                 lifecycleScope.launch(Dispatchers.IO) {
                     repository.clearCache()
                     withContext(Dispatchers.Main) {
+                        refreshCacheUsed()
                         Toast.makeText(
                             this@SettingsActivity,
                             R.string.settings_cache_cleared,
@@ -176,11 +197,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.licencesButton.setOnClickListener {
             // v8: licences text is an info bottom sheet (§4.9),
             // not a raw AlertDialog.
-            InfoSheet.show(
-                this,
-                getString(R.string.settings_licences),
-                getString(R.string.settings_licences_body)
-            )
+            // v9.1 #34: expandable sections, one per library.
+            InfoSheet.showLicences(this)
         }
         binding.logoutButton.setOnClickListener {
             // v8: Logout confirms via a bottom sheet with a
@@ -312,6 +330,38 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.settings_account_connected)
         } else {
             details.joinToString(" • ")
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // v9.1 #11: the cache-used bar can move while Settings is
+        // open (a download finishes in the background) — refresh
+        // on every return.
+        refreshCacheUsed()
+    }
+
+    /**
+     * v9.1 #11: cache-used bar — bytes actually used by the
+     * media3 / ExoPlayer / image caches, against the selected
+     * limit (500 MB / 1 GB). Read on IO (it walks the cache dirs).
+     */
+    private fun refreshCacheUsed() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val used = repository.getCacheUsedBytes()
+            val limitMb = repository.settingsStore.cacheSizeMb.first()
+            withContext(Dispatchers.Main) {
+                val limitBytes = limitMb * 1024L * 1024L
+                binding.cacheUsedBar.max = 100
+                binding.cacheUsedBar.progress =
+                    if (limitBytes > 0) ((used * 100L) / limitBytes).toInt().coerceIn(0, 100)
+                    else 0
+                binding.cacheUsedText.text = getString(
+                    R.string.settings_cache_used,
+                    com.nobi.nobistream.core.FormatUtils.formatSize(used),
+                    com.nobi.nobistream.core.FormatUtils.formatSize(limitBytes)
+                )
+            }
         }
     }
 
