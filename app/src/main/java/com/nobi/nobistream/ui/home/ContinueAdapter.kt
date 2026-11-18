@@ -7,6 +7,7 @@ import android.widget.ImageView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.nobi.nobistream.R
 import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ItemContinueBinding

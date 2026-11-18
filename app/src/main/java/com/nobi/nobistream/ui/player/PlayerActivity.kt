@@ -1505,14 +1505,15 @@ class PlayerActivity : AppCompatActivity() {
             this,
             getString(R.string.player_subtitle_chooser_title),
             options,
-            selected
-        ) { which ->
-            if (which == 0) {
-                setSubtitlesEnabled(false)
-            } else {
-                setSubtitlesEnabled(true, subtitleTracks[which - 1].language)
+            selected,
+            onPick = { which ->
+                if (which == 0) {
+                    setSubtitlesEnabled(false)
+                } else {
+                    setSubtitlesEnabled(true, subtitleTracks[which - 1].language)
+                }
             }
-        }
+        )
     }
 
     /**

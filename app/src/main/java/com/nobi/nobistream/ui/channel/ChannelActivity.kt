@@ -300,7 +300,7 @@ class ChannelActivity : AppCompatActivity() {
         hasMore = true
         firstPageAttempts = 0
         firstPageRetrying = false
-        adapter.submitList(emptyList())
+        adapter.submitVideos(emptyList())
         binding.errorState.visibility = View.GONE
         loadPage()
     }
@@ -466,7 +466,7 @@ class ChannelActivity : AppCompatActivity() {
         if (!sortNewest) list = list.reversed()
         displayedVideos = list
         // DiffUtil only — no full reload, scroll position preserved.
-        adapter.submitList(list)
+        adapter.submitVideos(list)
         // v4-fb4: empty only when a load SUCCEEDED and the list is
         // genuinely empty — never while loading or while a first-page
         // retry is still in flight (the shimmer owns that state).
