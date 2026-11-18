@@ -24,8 +24,8 @@ import kotlinx.coroutines.launch
 /**
  * v4 full Continue Watching list, opened from Home's "See all".
  * Every partially-watched video (no 10-item cap), newest first, with
- * progress bars; tap resumes. Reuses the Home ContinueAdapter cards
- * and the same Room resume data as the Home section.
+ * progress bars; tap resumes. v8: full-width rows via
+ * ContinueAllAdapter — NOT the Home 200dp carousel cards.
  */
 class ContinueAllActivity : AppCompatActivity() {
 
@@ -34,7 +34,7 @@ class ContinueAllActivity : AppCompatActivity() {
     private val locator get() = (application as NobiStreamApplication).serviceLocator
     private val repository get() = locator.repository
 
-    private lateinit var adapter: ContinueAdapter
+    private lateinit var adapter: ContinueAllAdapter
     private var allItems: List<VideoItem> = emptyList()
     private var groups: List<GroupItem> = emptyList()
 
@@ -45,7 +45,7 @@ class ContinueAllActivity : AppCompatActivity() {
         setContentView(binding.root)
         binding.toolbar.setNavigationOnClickListener { finish() }
 
-        adapter = ContinueAdapter(
+        adapter = ContinueAllAdapter(
             onClick = { item -> openContinue(item) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
@@ -97,6 +97,10 @@ class ContinueAllActivity : AppCompatActivity() {
     private fun openContinue(item: VideoItem) {
         PlayerPlaylist.items = allItems
         PlayerPlaylist.chatId = item.chatId
+        // v8: Continue opens have no episode grouping (Room-only
+        // slice) — reset any stash from an earlier open so the
+        // player's Copies pill can't match a stale group.
+        PlayerPlaylist.episodeGroups = emptyList()
         // v4-fb3: Continue items are a Room-only slice — the player
         // expands this to the channel's full filtered list.
         PlayerPlaylist.fromContinue = true

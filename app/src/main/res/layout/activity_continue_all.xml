@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v4 full Continue Watching list ("See all"): toolbar + the same
-     ContinueAdapter row cards as Home, newest first, progress bars,
-     tap resumes. EmptyState when nothing is unfinished. -->
+<!-- v4 full Continue Watching list ("See all"): toolbar + v8
+     full-width rows (ContinueAllAdapter), newest first, progress
+     bars, tap resumes. EmptyState when nothing is unfinished. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -24,8 +24,8 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingStart="@dimen/spacing_8"
-        android:paddingEnd="@dimen/spacing_8"
+        android:paddingStart="@dimen/screen_margin"
+        android:paddingEnd="@dimen/screen_margin"
         android:paddingBottom="@dimen/spacing_8"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 

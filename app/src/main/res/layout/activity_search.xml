@@ -11,12 +11,12 @@
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
+    <!-- v8: Search is a top-level bottom-nav tab — no back button. -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="@dimen/toolbar_height"
         android:background="@color/background"
-        app:navigationIcon="@drawable/ic_back"
         app:title="@string/search_title"
         app:titleTextColor="@color/text_primary" />
 
@@ -46,6 +46,21 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>
+
+    <!-- v8: "Paste Telegram link" chip — only when the field is
+         empty and the clipboard holds a t.me link (see
+         SearchActivity.updatePasteChip). Tap adds the link as a
+         group via MainActivity. -->
+    <com.google.android.material.chip.Chip
+        android:id="@+id/pasteLinkChip"
+        style="@style/Widget.NobiStream.Chip.Filter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/spacing_8"
+        android:checkable="false"
+        android:text="@string/v8_paste_link"
+        android:visibility="gone" />
 
     <!-- Recent searches, shown only while the query is empty. -->
     <LinearLayout
@@ -93,48 +108,66 @@
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
     </LinearLayout>
 
-    <!-- Shimmer skeleton in the SAME 2-column grid as the real cards. -->
-    <GridLayout
+    <!-- v8 shimmer skeleton in the SAME grid as the real cards.
+         The FrameLayout is the visibility toggle; the GridLayout
+         columnCount is set from gridSpanCount() in code (1 on
+         mobile — never hardcoded 2). Outer padding is the 16dp
+         screen margin; item margins are the 12dp/16dp grid gaps
+         (6dp/8dp half-gaps). -->
+    <FrameLayout
         android:id="@+id/skeletonContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:columnCount="2"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
         android:visibility="gone">
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
+        <GridLayout
+            android:id="@+id/skeletonGrid"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
+            android:columnCount="1"
+            android:paddingStart="@dimen/screen_margin"
+            android:paddingEnd="@dimen/screen_margin">
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
-    </GridLayout>
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
+
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
+        </GridLayout>
+
+        <View
+            android:id="@+id/shimmerSweep"
+            android:layout_width="160dp"
+            android:layout_height="match_parent"
+            android:background="@drawable/v8_shimmer_sweep"
+            android:translationX="-160dp" />
+    </FrameLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/resultsRecycler"
@@ -160,5 +193,12 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:visibility="gone" />
+
+    <!-- v8 bottom navigation (Search is a top-level tab). -->
+    <include
+        android:id="@+id/bottomNav"
+        layout="@layout/layout_bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
 </LinearLayout>

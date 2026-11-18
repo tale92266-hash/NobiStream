@@ -1,5 +1,6 @@
 package com.nobi.nobistream.playback
 
+import com.nobi.nobistream.core.EpisodeGroup
 import com.nobi.nobistream.core.VideoItem
 
 /**
@@ -10,6 +11,18 @@ import com.nobi.nobistream.core.VideoItem
 object PlayerPlaylist {
     var items: List<VideoItem> = emptyList()
     var chatId: Long = 0L
+
+    /**
+     * v8 §4.4: the full episode grouping (best + hidden copies) the
+     * playlist was built from, stashed by the opener (Channel /
+     * Library). The playlist itself holds only best copies when
+     * Smart Filter is on, so the player's Copies pill reads the
+     * group from here instead of rebuilding from the playlist —
+     * rebuilding would list a single copy. Empty for Continue /
+     * Search opens, where no grouping exists (the pill then falls
+     * back to the rebuild and hides when it finds one copy).
+     */
+    var episodeGroups: List<EpisodeGroup> = emptyList()
 
     /**
      * v4-fb3: true when the playlist came from Continue Watching

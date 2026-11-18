@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 hero scrim: transparent at the top, ~90% navy at the bottom,
+     covering the lower 55% of the Hero Spotlight card so the title,
+     channel and Resume pill stay readable over any frame. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#E60B1220"
+        android:startColor="#000B1220"
+        android:type="linear" />
+</shape>

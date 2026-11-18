@@ -41,8 +41,8 @@ object ThumbLoader {
         val local = item.thumbLocalPath
         if (!local.isNullOrBlank() && File(local).exists()) {
             imageView.load(File(local)) {
-                placeholder(R.drawable.ic_video_placeholder)
-                error(R.drawable.ic_video_placeholder)
+                placeholder(R.drawable.bg_thumb_placeholder)
+                error(R.drawable.bg_thumb_placeholder)
                 // Thumbnail fade 200ms (animation token); Coil already
                 // sizes the decode to the view, so no oversized bitmaps.
                 crossfade(200)
@@ -50,7 +50,7 @@ object ThumbLoader {
             return
         }
         val thumbId = item.thumbFileId
-        imageView.setImageResource(R.drawable.ic_video_placeholder)
+        imageView.setImageResource(R.drawable.bg_thumb_placeholder)
         scope.launch {
             var path: String? = null
             // (2) Stored thumbnail id — the fast path for fresh items
@@ -76,8 +76,8 @@ object ThumbLoader {
                 }
                 if (imageView.tag == itemKey) {
                     imageView.load(File(finalPath)) {
-                        placeholder(R.drawable.ic_video_placeholder)
-                        error(R.drawable.ic_video_placeholder)
+                        placeholder(R.drawable.bg_thumb_placeholder)
+                        error(R.drawable.bg_thumb_placeholder)
                         crossfade(200)
                     }
                 }

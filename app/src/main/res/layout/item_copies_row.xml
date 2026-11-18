@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 copies picker row (spec §4.9): dark quality pill + file size
+     and date; the best copy gets the amber "Best" pill (black text)
+     + an accent checkmark. Single tap plays. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/settings_row_min_height"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/spacing_16"
+    android:paddingTop="@dimen/spacing_12"
+    android:paddingEnd="@dimen/spacing_16"
+    android:paddingBottom="@dimen/spacing_12">
+
+    <TextView
+        android:id="@+id/copyQuality"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/v8_badge_dark"
+        android:paddingStart="@dimen/spacing_8"
+        android:paddingTop="@dimen/spacing_4"
+        android:paddingEnd="@dimen/spacing_8"
+        android:paddingBottom="@dimen/spacing_4"
+        android:textColor="#FFFFFF"
+        android:textSize="@dimen/text_badge"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/copyMeta"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_12"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/text_body" />
+
+    <TextView
+        android:id="@+id/copyBest"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_8"
+        android:background="@drawable/bg_badge_quality"
+        android:paddingStart="@dimen/spacing_8"
+        android:paddingTop="@dimen/spacing_4"
+        android:paddingEnd="@dimen/spacing_8"
+        android:paddingBottom="@dimen/spacing_4"
+        android:text="@string/smart_copies_best"
+        android:textColor="@color/on_quality_badge"
+        android:textSize="@dimen/text_badge"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/copyCheck"
+        android:layout_width="@dimen/icon_size"
+        android:layout_height="@dimen/icon_size"
+        android:layout_marginStart="@dimen/spacing_8"
+        android:contentDescription="@string/smart_copies_best"
+        android:src="@drawable/ic_check"
+        android:tint="@color/primary"
+        android:visibility="gone" />
+</LinearLayout>

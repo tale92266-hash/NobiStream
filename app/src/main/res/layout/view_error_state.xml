@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Reusable error state (inflated by ErrorStateView): icon, title, body, retry action. -->
+<!-- v8 reusable error state (inflated by ErrorStateView): 96dp tonal
+     circle (#1B2740) holding a 48dp icon, 18sp medium title, 14sp
+     secondary body (max 280dp wide), 48dp primary retry button. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -7,12 +9,19 @@
     android:orientation="vertical"
     android:padding="@dimen/spacing_24">
 
-    <ImageView
-        android:id="@+id/errorIcon"
-        android:layout_width="@dimen/icon_size_large"
-        android:layout_height="@dimen/icon_size_large"
-        android:src="@drawable/ic_error"
-        android:contentDescription="@null" />
+    <FrameLayout
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:background="@drawable/v8_state_circle">
+
+        <ImageView
+            android:id="@+id/errorIcon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_error"
+            android:contentDescription="@null" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/errorTitle"
@@ -24,17 +33,18 @@
 
     <TextView
         android:id="@+id/errorBody"
-        style="@style/Text.NobiStream.Caption"
+        style="@style/Text.NobiStream.BodySecondary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_8"
-        android:gravity="center" />
+        android:gravity="center"
+        android:maxWidth="280dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/errorRetry"
         style="@style/Widget.NobiStream.Button.Primary.Small"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="@dimen/button_height_small"
         android:layout_marginTop="@dimen/spacing_16"
         android:text="@string/common_retry" />
 

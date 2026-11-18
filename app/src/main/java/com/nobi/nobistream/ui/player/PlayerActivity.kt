@@ -8,12 +8,14 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.util.Rational
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -22,9 +24,9 @@ import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -39,6 +41,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
+import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.chip.Chip
 import com.nobi.nobistream.NobiStreamApplication
@@ -51,6 +55,9 @@ import com.nobi.nobistream.databinding.ActivityPlayerBinding
 import com.nobi.nobistream.databinding.LayoutBottomSheetPlayerBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.playback.TdlibDataSource
+import com.nobi.nobistream.ui.CopiesSheet
+import com.nobi.nobistream.ui.ThumbLoader
+import com.nobi.nobistream.ui.components.SortSheet
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -118,6 +125,12 @@ class PlayerActivity : AppCompatActivity() {
         private const val SCROLL_NONE = 0
         private const val SCROLL_VERTICAL = 1
         private const val SCROLL_HORIZONTAL = 2
+
+        /** v8 §4.4: Up Next countdown length. */
+        private const val UP_NEXT_COUNTDOWN_SEC = 5
+
+        /** v8 §4.4: press-and-hold delay before 2x kicks in. */
+        private const val HOLD_2X_DELAY_MS = 400L
     }
 
     private lateinit var binding: ActivityPlayerBinding
@@ -214,6 +227,25 @@ class PlayerActivity : AppCompatActivity() {
 
     private var optionsSheet: BottomSheetDialog? = null
 
+    // v8 player redesign (§4.4) — Up Next card, portrait details
+    // panel, hold-to-2x, seekbar preview, double-tap feedback.
+    /** Saved-group title for the details-panel meta; null = unknown, omitted. */
+    private var channelName: String? = null
+    /** Language of the currently enabled subtitle track, for the chooser's selected row. */
+    private var currentSubtitleLanguage: String? = null
+    private val upNextHandler = Handler(Looper.getMainLooper())
+    private var upNextRemainingSec = 0
+    private var upNextTargetIndex = -1
+    private val upNextTickRunnable = Runnable { tickUpNextCountdown() }
+    private val holdHandler = Handler(Looper.getMainLooper())
+    private var holdPending = false
+    private var holdSpeedActive = false
+    private var speedIndexBeforeHold = -1
+    private val holdRunnable = Runnable { startHold2x() }
+    private val doubleTapHideHandler = Handler(Looper.getMainLooper())
+    private val hideDoubleTapRunnable = Runnable { binding.doubleTapPill.visibility = View.GONE }
+    private var scrubStartPositionMs = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.requestFeature(Window.FEATURE_CONTENT_TRANSITIONS)
@@ -231,9 +263,12 @@ class PlayerActivity : AppCompatActivity() {
         postponeEnterTransition()
         feedbackHandler.postDelayed({ startPostponedEnterTransitionOnce() }, 1000L)
 
-        // Controller views first: setFullscreen() touches the fullscreen icon.
+        // Controller views first: applyOrientation() touches the fullscreen icon.
         findControllerViews()
-        setFullscreen(true)
+        // v8 §4.4: no forced orientation any more — the manifest is
+        // fullSensor, so the activity opens in the device's current
+        // orientation and applyOrientation() lays out for it.
+        applyOrientation(resources.configuration.orientation)
         // v4-player-UX: PlayerView NEVER drives visibility on its own
         // any more — no auto-show on play/pause, no own timeout, no
         // tap-toggle. isControlsVisible + setControlsVisible() are
@@ -245,6 +280,15 @@ class PlayerActivity : AppCompatActivity() {
         setControlsVisible(true, animate = false)
         wireControllerButtons()
         binding.lockOverlayButton.setOnClickListener { setLocked(false) }
+        // v8 §4.4: the "Tap to unlock" pill unlocks too; Up Next card
+        // buttons; portrait details-panel action pills.
+        binding.unlockPill.setOnClickListener { setLocked(false) }
+        binding.upNextCancel.setOnClickListener { hideUpNextCard() }
+        binding.upNextPlayNow.setOnClickListener { advanceToUpNext() }
+        binding.upNextPlay.setOnClickListener { advanceToUpNext() }
+        binding.detailsSubtitles.setOnClickListener { onSubtitlesButtonClicked() }
+        binding.detailsSpeed.setOnClickListener { setSpeed((currentSpeedIndex + 1) % speeds.size) }
+        binding.detailsAspect.setOnClickListener { cycleAspect() }
         binding.playerError.apply {
             setTitle(getString(R.string.player_error_title))
             setBody(getString(R.string.player_error_body))
@@ -265,6 +309,20 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         setupGestures()
+        setupSeekPreview()
+        // v8 §4.4: channel name for the portrait details-panel meta
+        // ("Channel • Date • Size • Quality") — read once from the
+        // saved groups; omitted when unknown, never invented.
+        lifecycleScope.launch(Dispatchers.IO) {
+            val name = runCatching {
+                repository.observeGroups().first()
+                    .firstOrNull { it.chatId == chatId }?.title
+            }.getOrNull()
+            withContext(Dispatchers.Main) {
+                channelName = name
+                refreshDetailsPanel()
+            }
+        }
         bufferHandler.post(bufferUpdater)
         // v6 Rule 6: caption style from Settings, applied once — the
         // same PlayerView (and its SubtitleView) serves every video.
@@ -348,34 +406,99 @@ class PlayerActivity : AppCompatActivity() {
         ctrlSubtitles.setOnClickListener { onSubtitlesButtonClicked() }
     }
 
-    /** Fullscreen = sensor landscape + immersive (system bars hidden). */
+    /**
+     * v8 §4.4: fullscreen is now an orientation NUDGE, not a lock.
+     * The manifest is fullSensor, so the user can rotate freely;
+     * this only asks the system to rotate, and the resulting
+     * onConfigurationChanged releases the request again (see
+     * applyOrientation) so the sensor governs afterwards. System
+     * bars, the icon and the layout all live in applyOrientation.
+     */
     private fun setFullscreen(fullscreen: Boolean) {
-        isFullscreen = fullscreen
+        requestedOrientation = if (fullscreen) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
+    /**
+     * v8 §4.4: the single place orientation layout happens. Called
+     * from onCreate and onConfigurationChanged (the activity is not
+     * recreated — configChanges covers orientation).
+     *
+     * Landscape = immersive fullscreen player, details panel gone,
+     * content allowed into the display cutout (SHORT_EDGES). Portrait
+     * = 16:9 player on top (dimensionRatio) + details panel below,
+     * system bars shown, default cutout mode.
+     */
+    private fun applyOrientation(orientation: Int) {
+        val landscape = orientation == Configuration.ORIENTATION_LANDSCAPE
+        isFullscreen = landscape
         val controller = WindowInsetsControllerCompat(window, window.decorView)
-        if (fullscreen) {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        if (landscape) {
             controller.hide(WindowInsetsCompat.Type.systemBars())
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             ctrlFullscreen.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             controller.show(WindowInsetsCompat.Type.systemBars())
             ctrlFullscreen.setImageResource(R.drawable.ic_fullscreen)
         }
+        // Display cutout: landscape fullscreen draws into the
+        // cutout area; portrait keeps the default. API 28+ only
+        // (minSdk 26) — guarded, never touched on older devices.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val attrs = window.attributes
+            attrs.layoutInDisplayCutoutMode = if (landscape) {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            } else {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            }
+            window.attributes = attrs
+        }
+        val lp = binding.playerView.layoutParams as ConstraintLayout.LayoutParams
+        if (landscape) {
+            lp.dimensionRatio = null
+            lp.bottomToTop = ConstraintLayout.LayoutParams.UNSET
+            lp.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.detailsPanel.visibility = View.GONE
+        } else {
+            lp.dimensionRatio = "16:9"
+            lp.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            lp.bottomToTop = R.id.detailsPanel
+            binding.detailsPanel.visibility = View.VISIBLE
+            refreshDetailsPanel()
+        }
+        binding.playerView.layoutParams = lp
+        // Release the orientation nudge: from here the sensor governs,
+        // so rotating the device rotates the player back.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOrientation(newConfig.orientation)
     }
 
     private fun setLocked(value: Boolean) {
         locked = value
+        // v8 §4.4: a hold-to-2x in progress must not outlive the lock.
+        cancelHoldPending()
+        if (holdSpeedActive) endHold2x()
         if (value) {
             // Locking hides the controls through the single source of
             // truth — never PlayerView directly.
             setControlsVisible(false)
             binding.lockOverlayButton.visibility = View.VISIBLE
+            // v8 §4.4: only the lock icon + the subtle "Tap to
+            // unlock" pill remain while locked.
+            binding.unlockPill.visibility = View.VISIBLE
             ctrlLock.setImageResource(R.drawable.ic_lock)
             Toast.makeText(this, getString(R.string.player_locked), Toast.LENGTH_SHORT).show()
         } else {
             binding.lockOverlayButton.visibility = View.GONE
+            binding.unlockPill.visibility = View.GONE
             ctrlLock.setImageResource(R.drawable.ic_lock_open)
             setControlsVisible(true)
             Toast.makeText(this, getString(R.string.player_unlocked), Toast.LENGTH_SHORT).show()
@@ -383,14 +506,13 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleAspect() {
-        aspectIndex = (aspectIndex + 1) % aspectModes.size
-        binding.playerView.resizeMode = aspectModes[aspectIndex]
-        showFeedback(R.drawable.ic_aspect_ratio, "Aspect: ${aspectLabels[aspectIndex]}")
+        setAspect((aspectIndex + 1) % aspectModes.size)
     }
 
     private fun setAspect(index: Int) {
         aspectIndex = index.coerceIn(aspectModes.indices)
         binding.playerView.resizeMode = aspectModes[aspectIndex]
+        binding.detailsAspect.text = aspectLabels[aspectIndex]
         showFeedback(R.drawable.ic_aspect_ratio, "Aspect: ${aspectLabels[aspectIndex]}")
     }
 
@@ -424,9 +546,23 @@ class PlayerActivity : AppCompatActivity() {
             binding.gestureFeedback.visibility = View.GONE
             binding.playerError.visibility = View.GONE
             binding.lockOverlayButton.visibility = View.GONE
+            // v8 §4.4: every floating overlay goes away in PiP too.
+            hideUpNextCard()
+            cancelHoldPending()
+            if (holdSpeedActive) endHold2x()
+            binding.holdSpeedPill.visibility = View.GONE
+            binding.seekPreviewPill.visibility = View.GONE
+            binding.doubleTapRipple.visibility = View.GONE
+            binding.doubleTapPill.visibility = View.GONE
+            binding.unlockPill.visibility = View.GONE
+            binding.detailsPanel.visibility = View.GONE
         } else if (locked) {
             binding.lockOverlayButton.visibility = View.VISIBLE
+            binding.unlockPill.visibility = View.VISIBLE
         } else {
+            // Leaving PiP: restore the layout for the current
+            // orientation (details panel included), then the controls.
+            applyOrientation(resources.configuration.orientation)
             setControlsVisible(true, animate = false)
         }
     }
@@ -490,11 +626,18 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setSpeed(index: Int) {
+        setSpeedQuiet(index)
+        showFeedback(R.drawable.ic_speed, "Speed ${speeds[currentSpeedIndex]}x")
+    }
+
+    /** Applies a speed without the feedback pill — used by hold-to-2x
+     * restore, where the pill would be noise on every release. */
+    private fun setSpeedQuiet(index: Int) {
         currentSpeedIndex = index.coerceIn(speeds.indices)
         val speed = speeds[currentSpeedIndex]
         player?.playbackParameters = PlaybackParameters(speed)
         ctrlSpeedLabel.text = "${speed}x"
-        showFeedback(R.drawable.ic_speed, "Speed ${speed}x")
+        binding.detailsSpeed.text = "${speed}x"
     }
 
     /**
@@ -562,12 +705,17 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun seekBy(deltaMs: Long) {
-        val exo = player ?: return
-        val target = (exo.currentPosition + deltaMs).coerceIn(0L, exo.duration.coerceAtLeast(0L))
-        exo.seekTo(target)
+        seekBySilent(deltaMs)
         val label = if (deltaMs < 0) "-${-deltaMs / 1000}s" else "+${deltaMs / 1000}s"
         val icon = if (deltaMs < 0) R.drawable.ic_replay_10 else R.drawable.ic_forward_10
         showFeedback(icon, label)
+    }
+
+    /** Seeks without the feedback pill — double-tap shows its own pill. */
+    private fun seekBySilent(deltaMs: Long) {
+        val exo = player ?: return
+        val target = (exo.currentPosition + deltaMs).coerceIn(0L, exo.duration.coerceAtLeast(0L))
+        exo.seekTo(target)
     }
 
     private fun startPlayer() {
@@ -636,7 +784,9 @@ class PlayerActivity : AppCompatActivity() {
                     binding.bufferingOverlay.visibility = View.GONE
                     cancelOfflineTimer()
                     savePositionNow()
-                    if (autoplay) playAt(index + 1)
+                    // v8 §4.4: no silent jump any more — the Up Next
+                    // card gets its 5s (or a static Play button) first.
+                    onVideoEnded()
                 }
                 else -> Unit
             }
@@ -862,7 +1012,7 @@ class PlayerActivity : AppCompatActivity() {
      * - Any load error on the resume path is classified as a STALL
      *   (spinner + background retry, Rule 1), never an error screen.
      */
-    private fun playAt(newIndex: Int, firstLoad: Boolean = false) {
+    private fun playAt(newIndex: Int, firstLoad: Boolean = false, saveCurrent: Boolean = true) {
         if (newIndex < 0 || newIndex >= playlist.size) {
             if (!firstLoad) {
                 Toast.makeText(
@@ -874,11 +1024,18 @@ class PlayerActivity : AppCompatActivity() {
             }
             return
         }
-        savePositionNow()
+        // v8: the Copies substitution path already saved the
+        // outgoing item and must not attribute its position to
+        // the incoming copy.
+        if (saveCurrent) savePositionNow()
+        // v8 §4.4: a manual Next/Previous (or a countdown firing)
+        // dismisses any Up Next card still showing.
+        hideUpNextCard()
         index = newIndex
         val item = playlist[index]
         ctrlTitle.text = item.title
         ctrlCounter.text = if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
+        refreshDetailsPanel()
         binding.playerError.visibility = View.GONE
         // v6: a new video cancels any pending stall retry / offline
         // timer and resets the stall budget; it also drops the
@@ -891,6 +1048,7 @@ class PlayerActivity : AppCompatActivity() {
         subtitleDiscoveryJob?.cancel()
         subtitleTracks = emptyList()
         subtitlesEnabled = false
+        currentSubtitleLanguage = null
         attachedSubtitleMessageId = -1L
         currentMediaItem = null
         updateCcButton()
@@ -1010,6 +1168,7 @@ class PlayerActivity : AppCompatActivity() {
                 index = newIndex
                 ctrlCounter.text =
                     if (playlist.size > 1) "${index + 1} / ${playlist.size}" else ""
+                refreshDetailsPanel()
             }
         }
     }
@@ -1089,19 +1248,33 @@ class PlayerActivity : AppCompatActivity() {
         showSubtitleChooser()
     }
 
+    /**
+     * v8 §4.9: the subtitle picker is the shared SortSheet bottom
+     * sheet now (radio rows, accent checkmark) — the raw AlertDialog
+     * is gone. Options are "Off" + one row per track; the selected
+     * row is Off when subtitles are off, else the enabled language.
+     */
     private fun showSubtitleChooser() {
-        val labels = subtitleTracks.map { displayLanguage(it) }.toMutableList()
-        labels.add(getString(R.string.player_subtitles_off))
-        AlertDialog.Builder(this)
-            .setTitle(R.string.player_subtitle_chooser_title)
-            .setItems(labels.toTypedArray()) { _, which ->
-                if (which == subtitleTracks.size) {
-                    setSubtitlesEnabled(false)
-                } else {
-                    setSubtitlesEnabled(true, subtitleTracks[which].language)
-                }
+        val options = mutableListOf(getString(R.string.player_subtitles_off))
+        options.addAll(subtitleTracks.map { displayLanguage(it) })
+        val selected = if (!subtitlesEnabled) {
+            0
+        } else {
+            val langIndex = subtitleTracks.indexOfFirst { it.language == currentSubtitleLanguage }
+            if (langIndex >= 0) langIndex + 1 else 1
+        }
+        SortSheet.show(
+            this,
+            getString(R.string.player_subtitle_chooser_title),
+            options,
+            selected
+        ) { which ->
+            if (which == 0) {
+                setSubtitlesEnabled(false)
+            } else {
+                setSubtitlesEnabled(true, subtitleTracks[which - 1].language)
             }
-            .show()
+        }
     }
 
     /**
@@ -1112,16 +1285,21 @@ class PlayerActivity : AppCompatActivity() {
     private fun setSubtitlesEnabled(enabled: Boolean, language: String? = null) {
         val exo = player ?: return
         subtitlesEnabled = enabled
+        currentSubtitleLanguage = if (enabled) language else null
         val params = exo.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
         if (enabled && language != null) params.setPreferredTextLanguage(language)
         exo.trackSelectionParameters = params.build()
         updateCcButton()
+        updateDetailsSubtitlesState()
     }
 
     private fun updateCcButton() {
         val hasTracks = subtitleTracks.isNotEmpty()
         ctrlSubtitles.visibility = if (hasTracks) View.VISIBLE else View.GONE
+        // v8 §4.4: the portrait Subtitles pill follows the CC button.
+        binding.detailsSubtitles.visibility =
+            if (hasTracks) View.VISIBLE else View.GONE
         if (!hasTracks) return
         if (subtitlesEnabled) {
             ctrlSubtitles.setColorFilter(getColor(R.color.primary))
@@ -1188,6 +1366,161 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    // ---- v8 §4.4: Up Next countdown card ----
+
+    /**
+     * An episode ended. If a next episode exists, show the floating
+     * Up Next card instead of jumping straight on: autoplay ON gives
+     * a 5s countdown (Cancel / Play Now), autoplay OFF a static card
+     * with a Play button only. If there is no next episode, the old
+     * behaviour stands (playAt toasts "last video" when autoplay is
+     * on, nothing when it is off). Cancel leaves the player paused
+     * at the end — it never advances.
+     */
+    private fun onVideoEnded() {
+        hideUpNextCard()
+        val nextIndex = index + 1
+        if (nextIndex >= playlist.size) {
+            if (autoplay) playAt(nextIndex)
+            return
+        }
+        // In PiP there is nothing to tap — keep the old silent
+        // behaviour instead of showing a card in a tiny window.
+        if (isInPictureInPictureMode) {
+            if (autoplay) playAt(nextIndex)
+            return
+        }
+        val next = playlist[nextIndex]
+        upNextTargetIndex = nextIndex
+        binding.upNextTitle.text = next.title
+        binding.upNextThumb.setImageResource(R.drawable.ic_video_placeholder)
+        ThumbLoader.load(lifecycleScope, repository, next, binding.upNextThumb)
+        if (autoplay) {
+            upNextRemainingSec = UP_NEXT_COUNTDOWN_SEC
+            binding.upNextCountdown.visibility = View.VISIBLE
+            binding.upNextCountdown.text =
+                getString(R.string.player_up_next_in, upNextRemainingSec)
+            binding.upNextCancel.visibility = View.VISIBLE
+            binding.upNextPlayNow.visibility = View.VISIBLE
+            binding.upNextPlay.visibility = View.GONE
+            upNextHandler.postDelayed(upNextTickRunnable, 1000L)
+        } else {
+            binding.upNextCountdown.visibility = View.GONE
+            binding.upNextCancel.visibility = View.GONE
+            binding.upNextPlayNow.visibility = View.GONE
+            binding.upNextPlay.visibility = View.VISIBLE
+        }
+        binding.upNextCard.visibility = View.VISIBLE
+    }
+
+    private fun tickUpNextCountdown() {
+        if (upNextTargetIndex < 0) return
+        upNextRemainingSec--
+        if (upNextRemainingSec <= 0) {
+            val target = upNextTargetIndex
+            hideUpNextCard()
+            playAt(target)
+        } else {
+            binding.upNextCountdown.text =
+                getString(R.string.player_up_next_in, upNextRemainingSec)
+            upNextHandler.postDelayed(upNextTickRunnable, 1000L)
+        }
+    }
+
+    private fun advanceToUpNext() {
+        val target = upNextTargetIndex
+        hideUpNextCard()
+        if (target >= 0) playAt(target)
+    }
+
+    private fun hideUpNextCard() {
+        upNextHandler.removeCallbacks(upNextTickRunnable)
+        upNextTargetIndex = -1
+        binding.upNextCard.visibility = View.GONE
+    }
+
+    // ---- v8 §4.4: portrait details panel ----
+
+    /**
+     * Portrait details panel: title, "Channel • Date • Size •
+     * Quality" meta (channel omitted when unknown — never invented),
+     * and the action pills. Subtitles pill follows the CC-button
+     * condition exactly (a track exists); Copies pill follows the
+     * current episode's rebuilt EpisodeGroup.
+     */
+    private fun refreshDetailsPanel() {
+        val item = playlist.getOrNull(index) ?: return
+        binding.detailsTitle.text = item.title
+        val parts = mutableListOf<String>()
+        channelName?.takeIf { it.isNotBlank() }?.let { parts += it }
+        FormatUtils.formatDate(item.dateEpochSec)
+            .takeIf { it.isNotEmpty() }?.let { parts += it }
+        if (item.sizeBytes > 0L) parts += FormatUtils.formatSize(item.sizeBytes)
+        if (item.quality.label.isNotEmpty()) parts += item.quality.label
+        binding.detailsMeta.text = parts.joinToString(" • ")
+        binding.detailsMeta.visibility =
+            if (parts.isEmpty()) View.GONE else View.VISIBLE
+        binding.detailsSubtitles.visibility =
+            if (subtitleTracks.isNotEmpty()) View.VISIBLE else View.GONE
+        updateDetailsSubtitlesState()
+        binding.detailsSpeed.text = "${speeds[currentSpeedIndex]}x"
+        binding.detailsAspect.text = aspectLabels[aspectIndex]
+        refreshCopiesPill()
+    }
+
+    private fun updateDetailsSubtitlesState() {
+        // Full opacity = subtitles on, dimmed = off (same state as
+        // the CC button's tint, which updateCcButton owns).
+        binding.detailsSubtitles.alpha = if (subtitlesEnabled) 1.0f else 0.55f
+    }
+
+    private fun refreshCopiesPill() {
+        val item = playlist.getOrNull(index) ?: return
+        // v8 coordinator fix: prefer the grouping stashed at open
+        // time (PlayerPlaylist.episodeGroups). The playlist itself
+        // holds only best copies when Smart Filter is on, so
+        // rebuilding from it would list a single copy. Fall back
+        // to the rebuild when no stash exists (Continue / Search).
+        // One copy means nothing to pick — the pill stays hidden.
+        // Match ANY copy in the group, not just best: after the
+        // user picks a non-best copy, the current item IS that
+        // copy, and the pill must stay visible so they can switch
+        // back. (The rebuild fallback can't do this — a substituted
+        // playlist holds only the one copy — but the stash can.)
+        val group = PlayerPlaylist.episodeGroups.firstOrNull { group ->
+            group.copies.any { it.chatId == item.chatId && it.messageId == item.messageId }
+        } ?: SmartFilter.groupEpisodes(playlist).firstOrNull {
+            it.best.chatId == item.chatId && it.best.messageId == item.messageId
+        }
+        if (group == null || group.copies.size <= 1) {
+            binding.detailsCopies.visibility = View.GONE
+            return
+        }
+        binding.detailsCopies.visibility = View.VISIBLE
+        binding.detailsCopies.text =
+            getString(R.string.player_details_copies_count, group.copies.size)
+        binding.detailsCopies.setOnClickListener {
+            CopiesSheet.show(this, group) { copy ->
+                val target = playlist.indexOfFirst {
+                    it.chatId == copy.chatId && it.messageId == copy.messageId
+                }
+                if (target >= 0) {
+                    if (target != index) playAt(target)
+                } else {
+                    // The copy isn't in the playlist (Smart Filter
+                    // hid it): substitute it for the current item,
+                    // the same way the list pickers do (v5). Save
+                    // the outgoing item's position first, and skip
+                    // playAt's own save so the position isn't
+                    // attributed to the incoming copy.
+                    savePositionNow()
+                    playlist = playlist.toMutableList().also { it[index] = copy }
+                    playAt(index, saveCurrent = false)
+                }
+            }
+        }
+    }
+
     private fun startSaveTicker() {
         stopSaveTicker()
         saveJob = lifecycleScope.launch {
@@ -1233,8 +1566,14 @@ class PlayerActivity : AppCompatActivity() {
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
                     if (locked) return true
+                    // v8 §4.4: a double-tap must never trigger the
+                    // hold-to-2x timer armed by its second DOWN.
+                    cancelHoldPending()
                     val width = binding.playerView.width
-                    if (e.x < width / 2f) seekBy(-10_000L) else seekBy(10_000L)
+                    val left = e.x < width / 2f
+                    val delta = if (left) -10_000L else 10_000L
+                    seekBySilent(delta)
+                    showDoubleTapFeedback(left, delta)
                     return true
                 }
 
@@ -1247,6 +1586,15 @@ class PlayerActivity : AppCompatActivity() {
                     if (locked) return true
                     val exo = player ?: return true
                     if (scrollMode == SCROLL_NONE) {
+                        // v8 §4.4: a swipe starting cancels a pending
+                        // hold-to-2x (and ends an active one) — the
+                        // swipe owns the gesture from here on.
+                        cancelHoldPending()
+                        if (holdSpeedActive) endHold2x()
+                        // §2E: subtle haptic when a swipe starts.
+                        binding.playerView.performHapticFeedback(
+                            HapticFeedbackConstants.KEYBOARD_TAP
+                        )
                         scrollMode = if (kotlin.math.abs(distanceX) > kotlin.math.abs(distanceY) * 1.5f) {
                             scrollStartPosition = exo.currentPosition
                             pendingSeekTarget = scrollStartPosition
@@ -1290,8 +1638,15 @@ class PlayerActivity : AppCompatActivity() {
                     scrollMode = SCROLL_NONE
                     pendingSeekTarget = -1L
                     scrollTotalDx = 0f
+                    // v8 §4.4: arm hold-to-2x. Cancelled on UP, on a
+                    // double-tap, on a swipe starting, and on lock —
+                    // so only a genuine press-and-hold fires it.
+                    holdPending = true
+                    holdHandler.postDelayed(holdRunnable, HOLD_2X_DELAY_MS)
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    cancelHoldPending()
+                    if (holdSpeedActive) endHold2x()
                     if (scrollMode == SCROLL_HORIZONTAL && pendingSeekTarget >= 0L) {
                         player?.seekTo(pendingSeekTarget)
                     }
@@ -1344,9 +1699,151 @@ class PlayerActivity : AppCompatActivity() {
         feedbackHandler.postDelayed(hideFeedback, 900L)
     }
 
+    // ---- v8 §4.4: double-tap seek feedback + hold-to-2x + seekbar preview ----
+
+    /**
+     * Double-tap seek feedback: a radial semi-transparent ripple +
+     * an animated "-10s / +10s" pill on the tapped half (bias 0.25
+     * left, 0.75 right), plus a subtle KEYBOARD_TAP haptic. The seek
+     * itself already happened in seekBySilent; the centred
+     * gestureFeedback pill stays out of it so there is exactly one
+     * pill on screen.
+     */
+    private fun showDoubleTapFeedback(left: Boolean, deltaMs: Long) {
+        binding.playerView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        val bias = if (left) 0.25f else 0.75f
+        val rippleLp = binding.doubleTapRipple.layoutParams as ConstraintLayout.LayoutParams
+        rippleLp.horizontalBias = bias
+        binding.doubleTapRipple.layoutParams = rippleLp
+        val pillLp = binding.doubleTapPill.layoutParams as ConstraintLayout.LayoutParams
+        pillLp.horizontalBias = bias
+        binding.doubleTapPill.layoutParams = pillLp
+        binding.doubleTapPillIcon.setImageResource(
+            if (deltaMs < 0) R.drawable.ic_replay_10 else R.drawable.ic_forward_10
+        )
+        binding.doubleTapPillText.text =
+            if (deltaMs < 0) "-${-deltaMs / 1000}s" else "+${deltaMs / 1000}s"
+        binding.doubleTapRipple.apply {
+            visibility = View.VISIBLE
+            alpha = 0.45f
+            animate().cancel()
+            animate().alpha(0f).setDuration(450L)
+                .withEndAction { visibility = View.GONE }.start()
+        }
+        binding.doubleTapPill.apply {
+            visibility = View.VISIBLE
+            alpha = 0f
+            scaleX = 0.85f
+            scaleY = 0.85f
+            animate().cancel()
+            animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160L).start()
+        }
+        doubleTapHideHandler.removeCallbacks(hideDoubleTapRunnable)
+        doubleTapHideHandler.postDelayed(hideDoubleTapRunnable, 700L)
+    }
+
+    private fun cancelHoldPending() {
+        if (holdPending) {
+            holdPending = false
+            holdHandler.removeCallbacks(holdRunnable)
+        }
+    }
+
+    /**
+     * Hold-to-2x: press-and-hold on the player surface temporarily
+     * plays at 2.0x with the top-center "2x Speed »" pill. Release
+     * restores the speed the user had selected (not always 1.0x).
+     * Only the bare surface arms it — control buttons are child
+     * views and never reach the PlayerView touch listener.
+     */
+    private fun startHold2x() {
+        holdPending = false
+        if (locked || player == null) return
+        if (scrollMode != SCROLL_NONE) return
+        speedIndexBeforeHold = currentSpeedIndex
+        holdSpeedActive = true
+        player?.playbackParameters = PlaybackParameters(2.0f)
+        ctrlSpeedLabel.text = "2.0x"
+        binding.holdSpeedPill.visibility = View.VISIBLE
+        binding.playerView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    }
+
+    private fun endHold2x() {
+        if (!holdSpeedActive) return
+        holdSpeedActive = false
+        binding.holdSpeedPill.visibility = View.GONE
+        val restore = speedIndexBeforeHold.coerceIn(speeds.indices)
+        speedIndexBeforeHold = -1
+        setSpeedQuiet(restore)
+    }
+
+    /**
+     * Seekbar floating preview on the stock Media3 DefaultTimeBar —
+     * no custom TimeBar. While scrubbing, a dark pill floats above
+     * the thumb with the exact target timestamp (mm:ss / total) and
+     * the delta vs the position where the scrub started (+02:15 /
+     * −01:10); it hides on scrub end.
+     */
+    private fun setupSeekPreview() {
+        val timeBar = binding.playerView.findViewById<DefaultTimeBar>(R.id.exo_progress)
+            ?: return
+        timeBar.addListener(object : TimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                scrubStartPositionMs = player?.currentPosition ?: 0L
+                showSeekPreview(timeBar, position)
+            }
+
+            override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                showSeekPreview(timeBar, position)
+            }
+
+            override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
+                binding.seekPreviewPill.visibility = View.GONE
+            }
+        })
+    }
+
+    private fun showSeekPreview(timeBar: TimeBar, positionMs: Long) {
+        val exo = player ?: return
+        val durationMs = exo.duration.coerceAtLeast(0L)
+        val target = positionMs.coerceIn(0L, durationMs)
+        val total = if (durationMs > 0) {
+            FormatUtils.formatDuration((durationMs / 1000L).toInt())
+        } else {
+            "--:--"
+        }
+        val deltaSec = ((target - scrubStartPositionMs) / 1000L).toInt()
+        val delta = if (deltaSec == 0) {
+            ""
+        } else {
+            val sign = if (deltaSec > 0) "+" else "−"
+            "  $sign${FormatUtils.formatDuration(kotlin.math.abs(deltaSec))}"
+        }
+        binding.seekPreviewPill.text =
+            "${FormatUtils.formatDuration((target / 1000L).toInt())} / $total$delta"
+        binding.seekPreviewPill.visibility = View.VISIBLE
+        // Slide the pill to sit above the thumb. The TimeBar lives
+        // inside the PlayerView, which spans the full width, so the
+        // thumb x maps 1:1 onto the activity root; clamp the shift so
+        // the pill never runs off-screen.
+        binding.seekPreviewPill.post {
+            val barView = timeBar as View
+            val fraction = if (durationMs > 0) target.toFloat() / durationMs else 0f
+            val thumbX = barView.left + fraction * barView.width
+            val halfPill = binding.seekPreviewPill.width / 2f
+            val center = binding.root.width / 2f
+            val shift = (thumbX - center)
+                .coerceIn(-center + halfPill + 8f, center - halfPill - 8f)
+            binding.seekPreviewPill.translationX = shift
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         savePositionNow()
+        // v8 §4.4: leaving the player (incl. PiP) cancels the Up Next
+        // countdown — it must never fire playAt while the user is gone.
+        hideUpNextCard()
         // Don't pause when entering picture-in-picture — the video keeps playing there.
         if (!isInPictureInPictureMode) player?.pause()
     }
@@ -1363,6 +1860,12 @@ class PlayerActivity : AppCompatActivity() {
         cancelStallRetry()
         cancelOfflineTimer()
         subtitleDiscoveryJob?.cancel()
+        // v8 §4.4: cancel the Up Next countdown, a pending/active
+        // hold-to-2x and the double-tap hide timer.
+        hideUpNextCard()
+        cancelHoldPending()
+        if (holdSpeedActive) endHold2x()
+        doubleTapHideHandler.removeCallbacks(hideDoubleTapRunnable)
         savePositionNow()
         stopSaveTicker()
         player?.release()

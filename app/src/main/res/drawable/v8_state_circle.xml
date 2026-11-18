@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 empty/error state tonal circle: 96dp container (#1B2740,
+     surface_variant) holding the 48dp state icon (spec §4.9). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/surface_variant" />
+</shape>

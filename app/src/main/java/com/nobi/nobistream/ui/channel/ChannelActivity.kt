@@ -6,6 +6,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.Window
+import android.view.animation.LinearInterpolator
+import android.widget.GridLayout
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -16,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
+import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.core.EpisodeGroup
 import com.nobi.nobistream.core.SmartFilter
@@ -23,6 +26,7 @@ import com.nobi.nobistream.databinding.ActivityChannelBinding
 import com.nobi.nobistream.playback.PlayerPlaylist
 import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
+import com.nobi.nobistream.ui.components.SortSheet
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * One group/channel: its videos in the SAME 2-column VideoCard grid as the
+ * One group/channel: its videos in the SAME boxless VideoCard grid as the
  * Home library (pixel spec §03/§05 — one card style, never a second
  * variant). Quality filter chips, search, sort, refresh — all v2 behaviour,
  * redesigned. Filter changes only re-run DiffUtil (no full reload, scroll
@@ -77,7 +81,12 @@ class ChannelActivity : AppCompatActivity() {
     private var currentGroups: List<EpisodeGroup> = emptyList()
     private var firstPageAttempts = 0
     private var firstPageRetrying = false
-    private var skeletonAnimator: ObjectAnimator? = null
+    /** v8: the 1200ms diagonal shimmer sweep animator (see showSkeleton). */
+    private var shimmerAnimator: ObjectAnimator? = null
+    /** v8 toolbar subtitle: total videos from the first page. */
+    private var totalVideoCount: Int? = null
+    /** v8 toolbar subtitle: group's last-updated time (0 = unknown). */
+    private var groupUpdatedEpochSec: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,9 +102,15 @@ class ChannelActivity : AppCompatActivity() {
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
             },
-            onCopiesClick = { item, thumb -> showCopies(item, thumb) }
+            onCopiesClick = { item, thumb -> showCopies(item, thumb) },
+            // v8: free cache read — shows the cached badge on fully
+            // downloaded videos. Never starts a download.
+            cachedProvider = { item ->
+                locator.gateway.getCachedFileState(item.fileId)?.isComplete == true
+            }
         )
         val spanCount = gridSpanCount()
+        layoutSkeletonGrid(spanCount)
         binding.videosRecycler.layoutManager = GridLayoutManager(this, spanCount)
         binding.videosRecycler.adapter = adapter
         binding.videosRecycler.itemAnimator = SlideInUpAnimator()
@@ -139,20 +154,27 @@ class ChannelActivity : AppCompatActivity() {
             query = text?.toString()?.trim().orEmpty()
             applyFilter()
         }
+        // v8: sort is a bottom sheet with exactly 2 radio rows
+        // (Newest first / Oldest first) — the old toggle + Snackbar
+        // echo is gone.
         binding.sortButton.setOnClickListener {
-            sortNewest = !sortNewest
-            binding.sortButton.contentDescription = getString(
-                if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest
-            )
-            applyFilter()
-            Snackbar.make(
-                binding.root,
-                if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest,
-                Snackbar.LENGTH_SHORT
-            ).show()
+            SortSheet.show(
+                this,
+                getString(R.string.channel_sort),
+                listOf(
+                    getString(R.string.channel_sort_newest),
+                    getString(R.string.channel_sort_oldest)
+                ),
+                if (sortNewest) 0 else 1
+            ) { index ->
+                sortNewest = index == 0
+                binding.sortButton.contentDescription = getString(
+                    if (sortNewest) R.string.channel_sort_newest else R.string.channel_sort_oldest
+                )
+                applyFilter()
+            }
         }
         binding.refreshButton.setOnClickListener { resetAndLoad() }
-        binding.loadMoreButton.setOnClickListener { loadPage() }
         binding.emptyState.apply {
             setIcon(R.drawable.ic_search)
             setTitle(getString(R.string.channel_no_videos))
@@ -184,6 +206,22 @@ class ChannelActivity : AppCompatActivity() {
             }
             resetAndLoad()
         }
+        // v8 toolbar subtitle: the group's last-updated time, from
+        // the stored groups (never invented — 0 means "unknown", and
+        // the subtitle then shows the count only).
+        lifecycleScope.launch {
+            val group = repository.observeGroups().first()
+                .firstOrNull { it.chatId == chatId }
+            groupUpdatedEpochSec = group?.lastUpdatedEpochSec ?: 0L
+            updateToolbarSubtitle()
+        }
+    }
+
+    override fun onDestroy() {
+        // v8: the shimmer animator must die with the activity —
+        // the old pulse animator leaked here (never cancelled).
+        stopShimmer()
+        super.onDestroy()
     }
 
     override fun onStop() {
@@ -194,15 +232,50 @@ class ChannelActivity : AppCompatActivity() {
     }
 
     /**
-     * Responsive grid (pixel spec): 2 columns compact, 3 columns on
-     * >=600dp, 4 columns on >=840dp. Cards never stretch — extra width
-     * becomes another column, not a wider card.
+     * v8 responsive grid (spec §2C): 1 column full-width 16:9 on
+     * mobile portrait (<600dp), 2 columns on 600–839dp, 3 columns
+     * on >=840dp. The old 2/3/4 grid made phone thumbnails small
+     * and titles unreadable.
      */
     private fun gridSpanCount(): Int {
         return when (resources.configuration.screenWidthDp) {
-            in 0..599 -> 2
-            in 600..839 -> 3
-            else -> 4
+            in 0..599 -> 1
+            in 600..839 -> 2
+            else -> 3
+        }
+    }
+
+    /** v8 toolbar subtitle: "N videos • Updated 12 Nov" (count only when the date is unknown). */
+    private fun updateToolbarSubtitle() {
+        val count = totalVideoCount ?: return
+        val date = FormatUtils.formatDate(groupUpdatedEpochSec)
+        binding.toolbar.subtitle = if (date.isEmpty()) {
+            getString(R.string.home_videos_count, count)
+        } else {
+            "${getString(R.string.home_videos_count, count)} • " +
+                getString(R.string.home_group_updated, date)
+        }
+    }
+
+    /**
+     * v8 skeleton grid: columnCount follows the feed span (1 on
+     * mobile — never a hardcoded 2), and with a single column the
+     * skeleton items span the full width like the real cards do
+     * (the decoration adds no side gaps at span 1, so the 6dp
+     * half-gap side margins would otherwise leave the skeleton
+     * 12dp narrower than the loaded cards — a layout shift).
+     */
+    private fun layoutSkeletonGrid(spanCount: Int) {
+        val grid = binding.skeletonGrid
+        grid.columnCount = spanCount
+        if (spanCount == 1) {
+            for (i in 0 until grid.childCount) {
+                val child = grid.getChildAt(i)
+                val params = child.layoutParams as GridLayout.LayoutParams
+                params.leftMargin = 0
+                params.rightMargin = 0
+                child.layoutParams = params
+            }
         }
     }
 
@@ -220,7 +293,6 @@ class ChannelActivity : AppCompatActivity() {
     private fun loadPage() {
         if (loading || !hasMore) return
         loading = true
-        updateLoadMoreButton()
         val firstPage = allVideos.isEmpty()
         if (firstPage) showSkeleton(true) else binding.loadMoreFooter.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
@@ -251,6 +323,12 @@ class ChannelActivity : AppCompatActivity() {
                     loading = false
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
+                    // v8: first page carries the channel total — the
+                    // toolbar subtitle ("N videos • Updated 12 Nov").
+                    if (firstPage) {
+                        totalVideoCount = page.totalCount
+                        updateToolbarSubtitle()
+                    }
                     if (page.videos.isNotEmpty()) {
                         allVideos.addAll(page.videos)
                     }
@@ -264,7 +342,6 @@ class ChannelActivity : AppCompatActivity() {
                     if (page.lastMessageId > 0L) fromMessageId = page.lastMessageId
                     hasMore = page.rawCount >= PAGE_SIZE
                     applyFilter()
-                    updateLoadMoreButton()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -285,7 +362,6 @@ class ChannelActivity : AppCompatActivity() {
                     loading = false
                     showSkeleton(false)
                     binding.loadMoreFooter.visibility = View.GONE
-                    updateLoadMoreButton()
                     if (firstPage) {
                         // Error state with Retry; the technical message
                         // stays out of the UI.
@@ -305,41 +381,47 @@ class ChannelActivity : AppCompatActivity() {
     }
 
     /**
-     * v4 explicit Load more button: visible whenever more videos may
-     * exist (hasMore), disabled with a loading label while a page
-     * loads. Auto-load-on-scroll stays, but the button is the
-     * guaranteed path — scrolling never has to be the only way.
+     * v8 skeleton: a 1200ms diagonal shimmer SWEEP (a translucent
+     * band translating across the skeleton container), not the old
+     * alpha pulse. The animator is cancelled whenever the skeleton
+     * hides AND in onDestroy — the old code never cancelled it in
+     * onDestroy, so it leaked on Channel.
      */
-    private fun updateLoadMoreButton() {
-        val show = hasMore && allVideos.isNotEmpty()
-        binding.loadMoreButton.visibility = if (show) View.VISIBLE else View.GONE
-        binding.loadMoreButton.isEnabled = !loading
-        binding.loadMoreButton.text = getString(
-            if (loading) R.string.channel_loading_more else R.string.channel_load_more
-        )
-    }
-
-    /** Shimmer skeleton: placeholder cards pulsing while the first page loads. */
     private fun showSkeleton(show: Boolean) {
         if (show) {
             binding.skeletonContainer.visibility = View.VISIBLE
             binding.videosRecycler.visibility = View.GONE
             binding.emptyState.visibility = View.GONE
             binding.errorState.visibility = View.GONE
-            skeletonAnimator = ObjectAnimator.ofFloat(
-                binding.skeletonContainer, View.ALPHA, 0.45f, 1f
-            ).apply {
-                duration = 900L
-                repeatMode = ObjectAnimator.REVERSE
-                repeatCount = ObjectAnimator.INFINITE
-                start()
-            }
+            startShimmer()
         } else {
-            skeletonAnimator?.cancel()
-            skeletonAnimator = null
+            stopShimmer()
             binding.skeletonContainer.visibility = View.GONE
             binding.videosRecycler.visibility = View.VISIBLE
         }
+    }
+
+    private fun startShimmer() {
+        stopShimmer()
+        val sweep = binding.shimmerSweep
+        sweep.post {
+            val width = binding.skeletonContainer.width
+            if (width == 0) return@post
+            shimmerAnimator = ObjectAnimator.ofFloat(
+                sweep, View.TRANSLATION_X,
+                -sweep.width.toFloat(), width.toFloat()
+            ).apply {
+                duration = 1200L
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
+            }
+        }
+    }
+
+    private fun stopShimmer() {
+        shimmerAnimator?.cancel()
+        shimmerAnimator = null
     }
 
     private fun applyFilter() {
@@ -348,8 +430,8 @@ class ChannelActivity : AppCompatActivity() {
         // filters the deduped list. So with the 1080p chip on, only
         // episodes whose BEST copy is 1080p show; an episode whose
         // best copy is 4K does not show under 1080p. Grouping runs
-        // over ALL loaded videos (not just this page), and Load More
-        // re-runs it, so a duplicate merged on page 1 never
+        // over ALL loaded videos (not just this page), and later
+        // pages re-run it, so a duplicate merged on page 1 never
         // reappears when page 2 loads.
         if (smartOn) {
             currentGroups = SmartFilter.groupEpisodes(list)
@@ -377,7 +459,6 @@ class ChannelActivity : AppCompatActivity() {
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
         binding.videosRecycler.visibility = if (empty) View.GONE else View.VISIBLE
         if (!empty) binding.errorState.visibility = View.GONE
-        updateLoadMoreButton()
     }
 
     private fun openPlayer(item: VideoItem, thumb: ImageView) {
@@ -397,6 +478,12 @@ class ChannelActivity : AppCompatActivity() {
     ) {
         PlayerPlaylist.items = playlistOverride ?: displayedVideos
         PlayerPlaylist.chatId = chatId
+        // v8 §4.4: stash the channel's episode grouping so the
+        // player's Copies pill can list the real copies — the
+        // playlist itself holds only best copies when Smart
+        // Filter is on. (When Smart is off currentGroups is
+        // empty and the pill falls back to its rebuild.)
+        PlayerPlaylist.episodeGroups = currentGroups
         PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, chatId)

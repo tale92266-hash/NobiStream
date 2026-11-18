@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Material Icons (outlined) : video_library, 24dp, #E3E3E3. Path verified by local render. -->
+    <path
+        android:fillColor="#E3E3E3"
+        android:pathData="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 16H8V4h12v16zM10 9l5 3-5 3V9z" />
+</vector>

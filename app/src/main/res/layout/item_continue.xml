@@ -1,65 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v3 Continue Watching row card: 16:9 thumb with progress on its bottom
-     edge, title, and channel + time-left meta below. -->
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    style="@style/Widget.NobiStream.Card"
+<!-- v8 Continue Watching Home row card: 200dp wide, boxless (no card,
+     no elevation — the v3 MaterialCardView box is gone). 16:9 thumb
+     with 12dp corners PROPERLY CLIPPED (rounded background +
+     clipToOutline), bottom-right dark duration pill, 3dp progress bar
+     on the thumb's bottom edge with the visible track, title 14sp
+     medium 2 lines, meta 12sp ("Channel • 12:34 left"). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="@dimen/continue_card_width"
     android:layout_height="wrap_content"
     android:layout_marginStart="@dimen/spacing_8"
     android:layout_marginTop="@dimen/spacing_4"
-    android:layout_marginBottom="@dimen/spacing_4">
+    android:layout_marginBottom="@dimen/spacing_4"
+    android:background="?attr/selectableItemBackground"
+    android:orientation="vertical">
 
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="@dimen/continue_thumb_height"
+        android:background="@drawable/v8_thumb_rounded"
+        android:clipToOutline="true">
 
-        <FrameLayout
+        <ImageView
+            android:id="@+id/continueThumb"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/continue_thumb_height">
-
-            <ImageView
-                android:id="@+id/continueThumb"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:contentDescription="@string/home_continue_watching"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_video_placeholder" />
-
-            <ProgressBar
-                android:id="@+id/continueProgress"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/progress_bar_height"
-                android:layout_gravity="bottom"
-                android:max="100"
-                android:progress="0"
-                android:progressDrawable="@drawable/progress_video" />
-        </FrameLayout>
+            android:layout_height="match_parent"
+            android:contentDescription="@string/home_continue_watching"
+            android:scaleType="centerCrop"
+            android:src="@drawable/bg_thumb_placeholder" />
 
         <TextView
-            android:id="@+id/continueTitle"
-            android:layout_width="match_parent"
+            android:id="@+id/continueDuration"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-medium"
-            android:maxLines="2"
-            android:paddingStart="@dimen/spacing_8"
-            android:paddingTop="@dimen/spacing_8"
-            android:paddingEnd="@dimen/spacing_8"
-            android:textColor="@color/text_primary"
-            android:textSize="@dimen/text_body" />
-
-        <TextView
-            android:id="@+id/continueMeta"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="@dimen/spacing_8"
+            android:background="@drawable/v8_badge_dark"
             android:paddingStart="@dimen/spacing_8"
             android:paddingTop="@dimen/spacing_4"
             android:paddingEnd="@dimen/spacing_8"
-            android:paddingBottom="@dimen/spacing_8"
-            android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_caption" />
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
+            android:paddingBottom="@dimen/spacing_4"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/text_badge"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/continueProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/progress_bar_height"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_video" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/continueTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="2"
+        android:paddingStart="@dimen/spacing_8"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_8"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/text_body" />
+
+    <TextView
+        android:id="@+id/continueMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:paddingStart="@dimen/spacing_8"
+        android:paddingTop="@dimen/spacing_4"
+        android:paddingEnd="@dimen/spacing_8"
+        android:paddingBottom="@dimen/spacing_8"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_caption" />
+</LinearLayout>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 thumbnail placeholder: subtle dark gradient (surface to
+     surface_variant) behind a centred soft play glyph. Replaces the
+     old flat grey box + blue triangle. Used by ThumbLoader and the
+     group-photo fallback. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:endColor="@color/surface_variant"
+                android:startColor="@color/surface"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item
+        android:width="36dp"
+        android:height="36dp"
+        android:drawable="@drawable/ic_play"
+        android:gravity="center" />
+</layer-list>

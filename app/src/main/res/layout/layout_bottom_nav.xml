@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 shared bottom navigation bar (Material 3 NavigationBar).
+     Included at the bottom of Main, Search and Settings screens.
+     Height 80dp with a 1dp hairline on top; the bar blends with the
+     gesture navigation bar under edge-to-edge (fitsSystemWindows). -->
+<com.google.android.material.navigation.NavigationBarView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/bottomNav"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/nav_bar_height"
+    android:background="@color/surface"
+    android:fitsSystemWindows="true"
+    app:itemActiveIndicatorColor="@color/nav_indicator"
+    app:itemIconTint="@color/nav_icon_tint"
+    app:itemTextColor="@color/nav_label_tint"
+    app:labelVisibilityMode="labeled"
+    app:menu="@menu/bottom_nav" />

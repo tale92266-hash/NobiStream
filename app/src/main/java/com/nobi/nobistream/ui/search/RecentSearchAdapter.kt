@@ -7,9 +7,10 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.nobi.nobistream.databinding.ItemRecentSearchBinding
 
-/** v4 recent-search rows: one query per row, tap runs it again. */
+/** v4 recent-search rows: one query per row, tap runs it again. v8: per-row X deletes one query. */
 class RecentSearchAdapter(
-    private val onClick: (String) -> Unit
+    private val onClick: (String) -> Unit,
+    private val onDelete: ((String) -> Unit)? = null
 ) : ListAdapter<String, RecentSearchAdapter.ViewHolder>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -29,6 +30,7 @@ class RecentSearchAdapter(
         fun bind(query: String) {
             binding.recentQuery.text = query
             binding.root.setOnClickListener { onClick(query) }
+            binding.recentDelete.setOnClickListener { onDelete?.invoke(query) }
         }
     }
 

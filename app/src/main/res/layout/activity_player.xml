@@ -3,7 +3,12 @@
      custom exo_player_control_view.xml. The buffering overlay makes the
      buffering state visible (spinner + %); the lock overlay is the only
      thing tappable while controls are locked. The error overlay (Retry /
-     Close) replaces the old toast-only playback failure. -->
+     Close) replaces the old toast-only playback failure.
+     v8 (§4.4): portrait shows a 16:9 PlayerView on top + a details panel
+     below (title / meta / action pills); landscape is fullscreen with the
+     panel gone. The Up Next countdown card, hold-to-2x pill, seekbar
+     preview pill, double-tap ripple/pill and "Tap to unlock" pill are
+     floating overlays owned by PlayerActivity. All pre-v8 ids are kept. -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -14,12 +19,128 @@
         android:id="@+id/playerView"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/detailsPanel"
+        app:layout_constraintDimensionRatio="16:9"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:show_buffering="never"
         app:use_controller="true" />
+
+    <!-- v8 §4.4: portrait details panel below the 16:9 player. GONE in
+         landscape (PlayerActivity switches the PlayerView bottom
+         constraint to the parent and hides this). -->
+    <LinearLayout
+        android:id="@+id/detailsPanel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/background"
+        android:orientation="vertical"
+        android:padding="@dimen/spacing_16"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/playerView">
+
+        <TextView
+            android:id="@+id/detailsTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/detailsMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_4"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_12"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/detailsSubtitles"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_gesture_pill"
+                android:clickable="true"
+                android:contentDescription="@string/player_subtitles"
+                android:drawableStart="@drawable/ic_closed_caption"
+                android:drawablePadding="@dimen/spacing_4"
+                android:focusable="true"
+                android:paddingStart="@dimen/spacing_12"
+                android:paddingTop="@dimen/spacing_8"
+                android:paddingEnd="@dimen/spacing_12"
+                android:paddingBottom="@dimen/spacing_8"
+                android:text="@string/player_subtitles"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/detailsSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_8"
+                android:background="@drawable/bg_gesture_pill"
+                android:clickable="true"
+                android:contentDescription="@string/player_speed"
+                android:drawableStart="@drawable/ic_speed"
+                android:drawablePadding="@dimen/spacing_4"
+                android:focusable="true"
+                android:paddingStart="@dimen/spacing_12"
+                android:paddingTop="@dimen/spacing_8"
+                android:paddingEnd="@dimen/spacing_12"
+                android:paddingBottom="@dimen/spacing_8"
+                android:text="1.0x"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/detailsAspect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_8"
+                android:background="@drawable/bg_gesture_pill"
+                android:clickable="true"
+                android:contentDescription="@string/player_aspect_ratio"
+                android:drawableStart="@drawable/ic_aspect_ratio"
+                android:drawablePadding="@dimen/spacing_4"
+                android:focusable="true"
+                android:paddingStart="@dimen/spacing_12"
+                android:paddingTop="@dimen/spacing_8"
+                android:paddingEnd="@dimen/spacing_12"
+                android:paddingBottom="@dimen/spacing_8"
+                android:text="Fit"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/detailsCopies"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_8"
+                android:background="@drawable/bg_gesture_pill"
+                android:clickable="true"
+                android:contentDescription="@string/player_details_copies"
+                android:focusable="true"
+                android:paddingStart="@dimen/spacing_12"
+                android:paddingTop="@dimen/spacing_8"
+                android:paddingEnd="@dimen/spacing_12"
+                android:paddingBottom="@dimen/spacing_8"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- Buffering overlay: loader + text + downloaded %. Kept from v2 —
          it is what tells buffering apart from a stuck frame. -->
@@ -106,6 +227,196 @@
             android:textSize="@dimen/text_body" />
     </LinearLayout>
 
+    <!-- v8 §4.4: double-tap seek feedback — a radial ripple + an
+         animated "-10s / +10s" pill on the tapped half of the video.
+         Both are centred on the PlayerView; PlayerActivity moves them
+         left/right with horizontalBias (0.25 / 0.75). -->
+    <View
+        android:id="@+id/doubleTapRipple"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:background="@drawable/player_double_tap_ripple"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/playerView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.25"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/playerView" />
+
+    <LinearLayout
+        android:id="@+id/doubleTapPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_gesture_pill"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/spacing_16"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_16"
+        android:paddingBottom="@dimen/spacing_8"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/playerView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.25"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/playerView">
+
+        <ImageView
+            android:id="@+id/doubleTapPillIcon"
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:src="@drawable/ic_forward_10" />
+
+        <TextView
+            android:id="@+id/doubleTapPillText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_8"
+            android:text="+10s"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/text_body" />
+    </LinearLayout>
+
+    <!-- v8 §4.4: hold-to-2x pill, top-center while the finger is held. -->
+    <TextView
+        android:id="@+id/holdSpeedPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16"
+        android:background="@drawable/bg_gesture_pill"
+        android:paddingStart="@dimen/spacing_12"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_12"
+        android:paddingBottom="@dimen/spacing_8"
+        android:text="@string/player_hold_2x"
+        android:textColor="#FFFFFF"
+        android:textSize="@dimen/text_body"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- v8 §4.4: seekbar floating preview — target timestamp + delta vs
+         the scrub start, floating above the thumb while scrubbing.
+         PlayerActivity slides it horizontally (translationX) to track
+         the thumb; vertically it sits above the seekbar. -->
+    <TextView
+        android:id="@+id/seekPreviewPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="88dp"
+        android:background="@drawable/bg_gesture_pill"
+        android:paddingStart="@dimen/spacing_12"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_12"
+        android:paddingBottom="@dimen/spacing_8"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/playerView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- v8 §4.4: Up Next countdown card — floating bottom-right of the
+         video when an episode ends and a next one exists. -->
+    <LinearLayout
+        android:id="@+id/upNextCard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/spacing_16"
+        android:layout_marginBottom="@dimen/spacing_16"
+        android:background="@drawable/player_up_next_card"
+        android:elevation="8dp"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_12"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/playerView"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/upNextThumb"
+            android:layout_width="96dp"
+            android:layout_height="54dp"
+            android:background="@drawable/player_up_next_thumb_bg"
+            android:clipToOutline="true"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_video_placeholder" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_12"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/upNextTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:maxWidth="220dp"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_body" />
+
+            <TextView
+                android:id="@+id/upNextCountdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_caption" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/upNextCancel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="@dimen/spacing_8"
+                    android:text="@string/player_up_next_cancel"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/upNextPlayNow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/spacing_8"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="@dimen/spacing_8"
+                    android:text="@string/player_up_next_play_now"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/upNextPlay"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/spacing_8"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="@dimen/spacing_8"
+                    android:text="@string/player_up_next_play"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Playback error state: what happened + Retry / Close. -->
     <com.nobi.nobistream.ui.components.ErrorStateView
         android:id="@+id/playerError"
@@ -130,5 +441,30 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- v8 §4.4: the subtle "Tap to unlock" pill shown with the lock
+         overlay while controls are locked; tapping it unlocks. -->
+    <TextView
+        android:id="@+id/unlockPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_12"
+        android:background="@drawable/bg_gesture_pill"
+        android:clickable="true"
+        android:contentDescription="@string/player_tap_to_unlock"
+        android:drawableStart="@drawable/ic_lock"
+        android:drawablePadding="@dimen/spacing_4"
+        android:focusable="true"
+        android:paddingStart="@dimen/spacing_12"
+        android:paddingTop="@dimen/spacing_8"
+        android:paddingEnd="@dimen/spacing_12"
+        android:paddingBottom="@dimen/spacing_8"
+        android:text="@string/player_tap_to_unlock"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/lockOverlayButton" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

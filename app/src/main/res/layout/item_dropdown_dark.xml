@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 custom dark dropdown item: surface_variant (#1B2740)
+     background, white text, 16dp padding. Replaces the stock
+     android.R.layout.simple_spinner_dropdown_item (white/odd in
+     dark mode). The android:id/text1 id is required by ArrayAdapter. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/text1"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface_variant"
+    android:padding="@dimen/spacing_16"
+    android:textColor="@color/text_primary"
+    android:textSize="@dimen/text_body" />

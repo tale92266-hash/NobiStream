@@ -78,6 +78,14 @@ interface TelegramGateway {
     /** Send the verification code Telegram sent to the account. */
     suspend fun sendCode(code: String)
 
+    /**
+     * v8: ask Telegram to send the login code again (TDLib
+     * ResendAuthenticationCode). Only valid while the client waits
+     * for a code; throws otherwise — the caller shows a generic
+     * message, never the TDLib error text.
+     */
+    suspend fun resendCode()
+
     /** Send the two-step verification password, when TDLib asks for it. */
     suspend fun sendPassword(password: String)
 

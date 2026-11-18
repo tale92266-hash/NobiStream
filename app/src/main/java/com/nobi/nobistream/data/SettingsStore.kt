@@ -89,6 +89,22 @@ class SettingsStore(context: Context) {
         dataStore.edit { it.remove(KEY_RECENT_SEARCHES) }
     }
 
+    /** v8: delete ONE recent search (per-row X); the rest keep their order. */
+    suspend fun removeRecentSearch(query: String) {
+        val clean = query.trim()
+        if (clean.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_RECENT_SEARCHES].orEmpty()
+                .split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+            val updated = current.filter { !it.equals(clean, ignoreCase = true) }
+            if (updated.isEmpty()) {
+                prefs.remove(KEY_RECENT_SEARCHES)
+            } else {
+                prefs[KEY_RECENT_SEARCHES] = updated.joinToString("\n")
+            }
+        }
+    }
+
     suspend fun setSmartFilter(value: Boolean) {
         dataStore.edit { it[KEY_SMART_FILTER] = value }
     }

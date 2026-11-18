@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NobiStream</string>
-    <string name="app_version_label">NobiStream v6 (2.3.0)</string>
+    <string name="app_version_label">NobiStream v8 (2.4.0)</string>
 
     <string name="login_title">Sign in with Telegram</string>
     <string name="login_subtitle">Use your own Telegram account to watch videos from groups and channels you can already read.</string>
@@ -20,6 +20,19 @@
     <string name="login_change_number">Use a different number</string>
     <string name="login_waiting">Connecting to Telegram…</string>
     <string name="login_error">Sign-in failed. Check the number and code and try again.</string>
+    <!-- v8 login stepper + resend -->
+    <string name="login_step_phone">Phone</string>
+    <string name="login_step_code">Code</string>
+    <string name="login_step_password">Password</string>
+    <string name="login_resend">Resend code</string>
+    <string name="login_resend_countdown">Resend code in %1$ds</string>
+    <string name="login_code_wrong">Wrong code. Check the code Telegram sent and try again.</string>
+    <string name="login_resend_failed">Couldn\'t resend the code. Try again.</string>
+    <string name="login_account_stays">Your Telegram account stays on this phone.</string>
+
+    <!-- v8 bottom navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_library">Library</string>
 
     <string name="home_title">NobiStream</string>
     <string name="home_add_group">Add Group / Channel</string>
@@ -180,7 +193,7 @@
     <string name="settings_version">Version</string>
     <string name="settings_licences">Open-source licences</string>
     <string name="settings_licences_body">NobiStream is built with open-source libraries:\n\n• TDLib (Telegram Database Library) — Boost Software License 1.0\n• ExoPlayer / Media3 — Apache License 2.0\n• Material Components for Android — Apache License 2.0\n• Room, DataStore, Lifecycle — Apache License 2.0\n• Coil — Apache License 2.0\n• recyclerview-animators — Apache License 2.0\n• EncryptedSharedPreferences (Security Crypto) — Apache License 2.0</string>
-    <string name="settings_about">About NobiStream v6. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
+    <string name="settings_about">About NobiStream v8. Videos stream from your own Telegram account with TDLib (MTProto). No videos are uploaded anywhere.</string>
     <string name="settings_privacy">NobiStream sends nothing to any server except Telegram, using your own account. Your groups and watch positions stay on this phone.</string>
 
     <string name="common_retry">Retry</string>

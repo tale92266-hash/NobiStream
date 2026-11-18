@@ -23,7 +23,7 @@
     <dimen name="screen_margin_compact">12dp</dimen>
 
     <!-- Section spacing -->
-    <dimen name="section_spacing">28dp</dimen>
+    <dimen name="section_spacing">24dp</dimen>
     <dimen name="section_spacing_large">40dp</dimen>
 
     <!-- Corners: card 16dp, small 10dp, featured 20dp, dialog/sheet 24dp -->
@@ -40,13 +40,15 @@
     <dimen name="text_display">24sp</dimen>
     <dimen name="text_title">20sp</dimen>
     <dimen name="text_section">18sp</dimen>
-    <dimen name="text_card_title">15sp</dimen>
+    <dimen name="text_card_title">14sp</dimen>
+    <dimen name="text_subhead">16sp</dimen>
+    <dimen name="text_action">13sp</dimen>
     <dimen name="text_featured_title">16sp</dimen>
     <dimen name="text_brand">19sp</dimen>
     <dimen name="text_body">14sp</dimen>
     <dimen name="text_caption">12sp</dimen>
     <dimen name="text_badge">11sp</dimen>
-    <dimen name="text_overline">12sp</dimen>
+    <dimen name="text_overline">11sp</dimen>
 
     <!-- Components: primary button 52dp, secondary 48dp, text field 56dp -->
     <dimen name="button_height">52dp</dimen>
@@ -86,7 +88,11 @@
     <dimen name="group_icon_size">56dp</dimen>
     <dimen name="progress_bar_height">3dp</dimen>
     <dimen name="grid_gap_horizontal">12dp</dimen>
-    <dimen name="grid_gap_vertical">20dp</dimen>
+    <dimen name="grid_gap_vertical">16dp</dimen>
+    <!-- v8 bottom nav + hero + see-all rows -->
+    <dimen name="nav_bar_height">80dp</dimen>
+    <dimen name="see_all_thumb_width">128dp</dimen>
+    <dimen name="hero_resume_icon">20dp</dimen>
 
     <!-- Elevation (used sparingly; tonal separation preferred) -->
     <dimen name="elevation_0">0dp</dimen>

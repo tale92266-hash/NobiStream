@@ -144,48 +144,67 @@
             android:src="@drawable/ic_refresh" />
     </LinearLayout>
 
-    <!-- Shimmer skeleton in the SAME 2-column grid as the real cards. -->
-    <GridLayout
+    <!-- v8 shimmer skeleton in the SAME grid as the real cards.
+         The FrameLayout is the visibility toggle; the GridLayout
+         columnCount is set from gridSpanCount() in code (1 on
+         mobile — never hardcoded 2). Outer padding is the 16dp
+         screen margin; item margins are the 12dp/16dp grid gaps
+         (6dp/8dp half-gaps). The sweep band translates across the
+         container for the 1200ms diagonal shimmer. -->
+    <FrameLayout
         android:id="@+id/skeletonContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:columnCount="2"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
         android:visibility="gone">
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
+        <GridLayout
+            android:id="@+id/skeletonGrid"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
+            android:columnCount="1"
+            android:paddingStart="@dimen/screen_margin"
+            android:paddingEnd="@dimen/screen_margin">
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
 
-        <include
-            layout="@layout/item_skeleton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_marginHorizontal="6dp"
-            android:layout_marginVertical="10dp" />
-    </GridLayout>
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
+
+            <include
+                layout="@layout/item_skeleton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginHorizontal="6dp"
+                android:layout_marginVertical="8dp" />
+        </GridLayout>
+
+        <View
+            android:id="@+id/shimmerSweep"
+            android:layout_width="160dp"
+            android:layout_height="match_parent"
+            android:background="@drawable/v8_shimmer_sweep"
+            android:translationX="-160dp" />
+    </FrameLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/videosRecycler"
@@ -220,20 +239,6 @@
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption" />
     </LinearLayout>
-
-    <!-- v4 explicit Load more button (48dp, Secondary): always visible
-         while more videos may exist; disabled + loading label mid-load. -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/loadMoreButton"
-        style="@style/Widget.NobiStream.Button.Secondary"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/button_height_small"
-        android:layout_marginStart="@dimen/screen_margin"
-        android:layout_marginTop="@dimen/spacing_8"
-        android:layout_marginEnd="@dimen/screen_margin"
-        android:layout_marginBottom="@dimen/spacing_8"
-        android:text="@string/channel_load_more"
-        android:visibility="gone" />
 
     <com.nobi.nobistream.ui.components.EmptyStateView
         android:id="@+id/emptyState"

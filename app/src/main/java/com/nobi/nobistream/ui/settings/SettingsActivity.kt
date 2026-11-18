@@ -6,7 +6,6 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -17,6 +16,10 @@ import com.nobi.nobistream.R
 import com.nobi.nobistream.core.AuthState
 import com.nobi.nobistream.core.TelegramUser
 import com.nobi.nobistream.databinding.ActivitySettingsBinding
+import com.nobi.nobistream.ui.components.BottomNavHelper
+import com.nobi.nobistream.ui.components.ConfirmSheet
+import com.nobi.nobistream.ui.components.InfoSheet
+import com.nobi.nobistream.ui.components.NavTab
 import com.nobi.nobistream.ui.login.LoginActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,6 +34,15 @@ import kotlinx.coroutines.withContext
  * confirmation. No setting removed, no fake setting invented.
  */
 class SettingsActivity : AppCompatActivity() {
+
+    companion object {
+        /**
+         * v8: when true, Settings was opened standalone from Login
+         * (not as a bottom-nav tab) — the bottom nav stays hidden
+         * and the toolbar back button stays visible.
+         */
+        const val EXTRA_STANDALONE = "standalone"
+    }
 
     private lateinit var binding: ActivitySettingsBinding
 
@@ -49,7 +61,16 @@ class SettingsActivity : AppCompatActivity() {
         enableEdgeToEdge()
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        binding.toolbar.setNavigationOnClickListener { finish() }
+        // v8: Settings is a top-level bottom-nav tab — no back
+        // button, bottom nav shown. EXCEPT standalone-from-Login:
+        // no bottom nav, back button stays.
+        if (intent.getBooleanExtra(EXTRA_STANDALONE, false)) {
+            binding.bottomNav.visibility = View.GONE
+            binding.toolbar.setNavigationOnClickListener { finish() }
+        } else {
+            binding.toolbar.navigationIcon = null
+            BottomNavHelper.setup(this, binding.bottomNav, NavTab.SETTINGS)
+        }
         binding.versionText.text =
             "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         updateStatus()
@@ -67,14 +88,23 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         binding.clearCacheButton.setOnClickListener {
-            lifecycleScope.launch(Dispatchers.IO) {
-                repository.clearCache()
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        this@SettingsActivity,
-                        R.string.settings_cache_cleared,
-                        Toast.LENGTH_SHORT
-                    ).show()
+            // v8: Clear Cache confirms via a bottom sheet with a
+            // destructive red CTA (not a raw dialog).
+            ConfirmSheet.show(
+                this,
+                getString(R.string.v8_clear_cache_title),
+                getString(R.string.v8_clear_cache_body),
+                getString(R.string.v8_clear_cache_confirm)
+            ) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    repository.clearCache()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@SettingsActivity,
+                            R.string.settings_cache_cleared,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         }
@@ -101,7 +131,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         val subtitleSizeAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.item_dropdown_dark,
             subtitleSizeOptions
         )
         binding.subtitleSizeInput.setAdapter(subtitleSizeAdapter)
@@ -112,7 +142,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         val subtitleColorAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.item_dropdown_dark,
             subtitleColorOptions
         )
         binding.subtitleColorInput.setAdapter(subtitleColorAdapter)
@@ -123,7 +153,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         val subtitleBackgroundAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.item_dropdown_dark,
             subtitleBackgroundOptions
         )
         binding.subtitleBackgroundInput.setAdapter(subtitleBackgroundAdapter)
@@ -134,7 +164,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         val filterAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.item_dropdown_dark,
             filterOptions
         )
         binding.defaultFilterInput.setAdapter(filterAdapter)
@@ -144,18 +174,23 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         binding.licencesButton.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.settings_licences)
-                .setMessage(R.string.settings_licences_body)
-                .setPositiveButton(R.string.common_ok, null)
-                .show()
+            // v8: licences text is an info bottom sheet (§4.9),
+            // not a raw AlertDialog.
+            InfoSheet.show(
+                this,
+                getString(R.string.settings_licences),
+                getString(R.string.settings_licences_body)
+            )
         }
         binding.logoutButton.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setMessage(R.string.settings_logout_confirm)
-                .setPositiveButton(R.string.common_ok) { _, _ -> doLogout() }
-                .setNegativeButton(R.string.home_cancel, null)
-                .show()
+            // v8: Logout confirms via a bottom sheet with a
+            // destructive red CTA (not a raw dialog).
+            ConfirmSheet.show(
+                this,
+                getString(R.string.v8_logout_title),
+                getString(R.string.settings_logout_confirm),
+                getString(R.string.v8_logout_confirm)
+            ) { doLogout() }
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -266,9 +301,12 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         binding.accountName.text = user.displayName
+        // v8: the account row shows the Telegram display name plus
+        // the PHONE NUMBER first (then @username) — the phone is
+        // what identifies the account; a bare @username is not.
         val details = listOfNotNull(
-            user.username?.takeIf { it.isNotBlank() }?.let { "@$it" },
-            user.phoneNumber?.takeIf { it.isNotBlank() }
+            user.phoneNumber?.takeIf { it.isNotBlank() },
+            user.username?.takeIf { it.isNotBlank() }?.let { "@$it" }
         )
         binding.accountStatus.text = if (details.isEmpty()) {
             getString(R.string.settings_account_connected)

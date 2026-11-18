@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 Continue Watching "See All" row (spec §4.8): full-width row,
+     NOT a 200dp card. Left: 128dp-wide 16:9 thumbnail (72dp tall =
+     128 x 9/16, 8dp radius, clipped) with a dark duration pill and a
+     3dp progress bar on it. Right: title (14sp medium, 2 lines) +
+     meta (12sp: "Channel • 12:34 left"). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="@dimen/spacing_8"
+    android:paddingBottom="@dimen/spacing_8">
+
+    <FrameLayout
+        android:layout_width="@dimen/see_all_thumb_width"
+        android:layout_height="72dp"
+        android:background="@drawable/v8_thumb_rounded_8"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/continueAllThumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/home_continue_watching"
+            android:scaleType="centerCrop"
+            android:src="@drawable/bg_thumb_placeholder" />
+
+        <TextView
+            android:id="@+id/continueAllDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="@dimen/spacing_8"
+            android:background="@drawable/v8_badge_dark"
+            android:paddingStart="@dimen/spacing_8"
+            android:paddingTop="@dimen/spacing_4"
+            android:paddingEnd="@dimen/spacing_8"
+            android:paddingBottom="@dimen/spacing_4"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/text_badge"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/continueAllProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/progress_bar_height"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_video" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_12"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/continueAllTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="2"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_body" />
+
+        <TextView
+            android:id="@+id/continueAllMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_4"
+            android:maxLines="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption" />
+    </LinearLayout>
+</LinearLayout>

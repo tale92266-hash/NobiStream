@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark scrim behind the player controls: dark at top and bottom, clear in the middle. -->
+<!-- v8 §4.4 — 3-stop legibility scrim behind the player controls:
+     top 60% black -> centre transparent -> bottom 60% black, so the
+     title and the controls stay readable over bright frames. The
+     centre stop is fully transparent so the video itself is never
+     dimmed where nothing sits on top of it. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <gradient
         android:angle="90"

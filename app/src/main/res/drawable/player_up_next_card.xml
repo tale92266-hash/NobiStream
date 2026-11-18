@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 §4.4 — Up Next countdown card surface: #131C2E, 16dp radius. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#131C2E" />
+    <corners android:radius="16dp" />
+</shape>

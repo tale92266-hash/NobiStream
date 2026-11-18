@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 feeds / sheets / settings strings (spec v2.0 §4.3/§4.5/§4.7/§4.9).
+     New strings live ONLY here — strings.xml is frozen. -->
+<resources>
+    <!-- Search: "Paste Telegram link" chip under the empty search field. -->
+    <string name="v8_paste_link">Paste Telegram link</string>
+    <!-- Recent search row: per-row delete icon. -->
+    <string name="v8_delete_recent_search">Delete this search</string>
+    <!-- Cached badge on a video thumbnail (fully downloaded locally). -->
+    <string name="v8_cached">Downloaded</string>
+    <!-- Settings: Logout confirmation bottom sheet. -->
+    <string name="v8_logout_title">Log out?</string>
+    <string name="v8_logout_confirm">Log out</string>
+    <!-- Settings: Clear cache confirmation bottom sheet. -->
+    <string name="v8_clear_cache_title">Clear cache?</string>
+    <string name="v8_clear_cache_body">Downloaded video data will be removed. Your groups and watch positions will stay.</string>
+    <string name="v8_clear_cache_confirm">Clear cache</string>
+</resources>

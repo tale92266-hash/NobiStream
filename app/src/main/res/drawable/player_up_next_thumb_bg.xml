@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 §4.4 — Up Next thumbnail backing: 8dp rounded rect so the
+     96dp 16:9 thumb clips to rounded corners (clipToOutline=true). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#1B2740" />
+    <corners android:radius="8dp" />
+</shape>

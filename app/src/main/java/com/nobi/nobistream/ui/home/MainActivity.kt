@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageView
-import android.widget.PopupMenu
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.NestedScrollView
@@ -34,10 +33,12 @@ import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.channel.ChannelActivity
 import com.nobi.nobistream.ui.channel.GridSpacingItemDecoration
 import com.nobi.nobistream.ui.channel.VideoAdapter
+import com.nobi.nobistream.ui.components.BottomNavHelper
+import com.nobi.nobistream.ui.components.ConfirmSheet
+import com.nobi.nobistream.ui.components.NavTab
+import com.nobi.nobistream.ui.components.SortSheet
 import com.nobi.nobistream.ui.login.LoginActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
-import com.nobi.nobistream.ui.search.SearchActivity
-import com.nobi.nobistream.ui.settings.SettingsActivity
 import jp.wasabeef.recyclerview.animators.FadeInAnimator
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
 import kotlinx.coroutines.Dispatchers
@@ -46,18 +47,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * v4 Home: custom 56dp app bar (brand icon + brand text + search,
- * refresh, settings), ONE Continue Watching section — the single
- * "Continue Watching" heading, then the small row of in-progress
- * episodes (all items, newest first) — then Your Groups, then
- * Your Library — recent videos from ALL groups merged newest
- * first in the same 2-column VideoCard grid as Channel Detail, with
- * the same quality filter chips and a sort control.
+ * v8 Home: bottom navigation (Home / Search / Library / Settings)
+ * + cleaned top bar (brand + Add Group + refresh; Search and
+ * Settings live in the bottom nav). Two tab containers share one
+ * FrameLayout:
  *
- * Sam's decision (2026-11-17 09:24 IST) supersedes the fb2 merge:
- * the BIG featured hero card is REMOVED entirely — only the small
- * Continue Watching row stays. There is no featured card, no
- * updateFeatured, no featuredItem anywhere in this file.
+ * - HOME: Hero Spotlight (the most recent Continue Watching video,
+ *   EXCLUDED from the row below — v4 lesson, hero + row never
+ *   duplicate) + Continue Watching row + Your Groups.
+ * - LIBRARY: the merged all-groups library in a 1-column grid
+ *   (2 on >=600dp, 3 on >=840dp), quality chips + Smart toggle +
+ *   sort sheet, footer spinner only (no Load More button).
  *
  * Refresh re-fetches each group's title/photo/count from Telegram
  * (only what TDLib returns — no invented statistics) and reloads
@@ -65,6 +65,17 @@ import kotlinx.coroutines.withContext
  * and merges by date; scrolling near the bottom loads more.
  */
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        /** Which tab to show (TAB_HOME / TAB_LIBRARY). */
+        const val EXTRA_TAB = "tab"
+        const val TAB_HOME = "home"
+        const val TAB_LIBRARY = "library"
+
+        /** v8: prefill the Add Group sheet with a clipboard link
+         * (from the Search paste-link chip). */
+        const val EXTRA_ADD_GROUP_LINK = "add_group_link"
+    }
 
     private lateinit var binding: ActivityMainBinding
 
@@ -78,6 +89,10 @@ class MainActivity : AppCompatActivity() {
     private var groups: List<GroupItem> = emptyList()
     private var redirectDone = false
     private var addSheet: BottomSheetDialog? = null
+    private var currentTab = TAB_HOME
+    private var groupsLoaded = false
+    /** v8 Hero Spotlight item (the row's first item, excluded). */
+    private var heroItem: VideoItem? = null
 
     // ---- Your Library state ----
     private val allLibrary = mutableListOf<VideoItem>()
@@ -109,18 +124,13 @@ class MainActivity : AppCompatActivity() {
             finish()
             return
         }
-        binding.homeSettingsButton.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-        binding.homeSearchButton.setOnClickListener {
-            startActivity(Intent(this, SearchActivity::class.java))
-        }
         binding.homeRefreshButton.setOnClickListener { refreshGroups() }
         binding.continueSeeAll.setOnClickListener {
             startActivity(Intent(this, ContinueAllActivity::class.java))
         }
-        binding.libraryLoadMoreButton.setOnClickListener { loadLibraryPage() }
-        binding.librarySortButton.setOnClickListener { showSortMenu() }
+        binding.librarySortButton.setOnClickListener { showSortSheet() }
+        binding.heroCard.setOnClickListener { heroItem?.let { openContinue(it) } }
+        binding.heroResumeButton.setOnClickListener { heroItem?.let { openContinue(it) } }
         groupAdapter = GroupAdapter(
             onClick = { group -> openChannel(group) },
             onLongClick = { group -> confirmRemove(group) }
@@ -176,7 +186,9 @@ class MainActivity : AppCompatActivity() {
             }
             applyLibraryFilter()
         }
-        binding.homeScroll.setOnScrollChangeListener(
+        // v8: the Library lives in its own tab container — the
+        // auto-load trigger moves from the Home scroll to it.
+        binding.libraryContainer.setOnScrollChangeListener(
             NestedScrollView.OnScrollChangeListener { v, _, scrollY, _, oldScrollY ->
                 // Only while the user scrolls down and nears the bottom.
                 if (scrollY <= oldScrollY) return@OnScrollChangeListener
@@ -202,22 +214,31 @@ class MainActivity : AppCompatActivity() {
             setBody(getString(R.string.home_no_groups_body))
             setAction(getString(R.string.home_add_group)) { showAddChannelSheet() }
         }
+        // v8 bottom navigation. The starting tab comes from the
+        // intent (Search/Settings navigate back with TAB_LIBRARY);
+        // the paste-link chip opens the Add Group sheet prefilled.
+        val startTab = intent.getStringExtra(EXTRA_TAB)
+            ?.takeIf { it == TAB_LIBRARY } ?: TAB_HOME
+        setupBottomNav(if (startTab == TAB_LIBRARY) NavTab.LIBRARY else NavTab.HOME)
+        showTab(startTab)
+        intent.getStringExtra(EXTRA_ADD_GROUP_LINK)?.let { showAddChannelSheet(it) }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.observeGroups().collect { items ->
                     groups = items
                     groupAdapter.submitList(items)
-                    val empty = items.isEmpty()
-                    binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
-                    binding.homeScroll.visibility = if (empty) View.GONE else View.VISIBLE
+                    groupsLoaded = true
+                    // Tab containers: exactly one visible; the empty
+                    // state covers both tabs when there are no groups.
+                    showTab(currentTab)
                     // Load the library once per set of groups; a group
                     // added/removed changes the signature and reloads.
                     // Count/title refreshes (same chatIds) do not.
                     val signature = items.map { it.chatId }.sorted().joinToString(",")
-                    if (!empty && signature != libraryGroupsSignature) {
+                    if (!items.isEmpty() && signature != libraryGroupsSignature) {
                         libraryGroupsSignature = signature
                         resetAndLoadLibrary()
-                    } else if (empty) {
+                    } else if (items.isEmpty()) {
                         libraryGroupsSignature = ""
                         libraryLoaded = false
                         allLibrary.clear()
@@ -230,12 +251,21 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 repository.observeContinueWatching().collect { items ->
                     continueItems = items
-                    // Small row only — every in-progress episode,
-                    // newest first. No hero card (Sam, 2026-11-17).
-                    continueAdapter.submitList(items)
-                    val hasAny = items.isNotEmpty()
-                    binding.continueHeader.visibility = if (hasAny) View.VISIBLE else View.GONE
-                    binding.continueRecycler.visibility = if (hasAny) View.VISIBLE else View.GONE
+                    // v8 Hero Spotlight: the most recent in-progress
+                    // episode is the hero; it is EXCLUDED from the
+                    // row below (v4 lesson — hero + row must never
+                    // show the same video twice).
+                    val hero = items.firstOrNull()
+                    heroItem = hero
+                    continueAdapter.submitList(items.drop(1))
+                    val hasRow = items.size > 1
+                    binding.heroSection.visibility =
+                        if (hero != null) View.VISIBLE else View.GONE
+                    if (hero != null) bindHero(hero)
+                    binding.continueHeader.visibility =
+                        if (hasRow) View.VISIBLE else View.GONE
+                    binding.continueRecycler.visibility =
+                        if (hasRow) View.VISIBLE else View.GONE
                     // v2: one-time redirect to the last-watched episode.
                     // Only on a fresh start (not rotation / return from player).
                     // The redirect target is the row's first item — the
@@ -270,22 +300,83 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // singleTop: tab switches from Search/Settings land here.
+        intent.getStringExtra(EXTRA_TAB)?.let { showTab(it) }
+        intent.getStringExtra(EXTRA_ADD_GROUP_LINK)?.let { showAddChannelSheet(it) }
+    }
+
     override fun onDestroy() {
         addSheet?.dismiss()
         addSheet = null
         super.onDestroy()
     }
 
+    // ---- v8 tabs + Hero Spotlight ----
+
+    private fun setupBottomNav(selected: NavTab) {
+        BottomNavHelper.setup(this, binding.bottomNav, selected) { tab ->
+            when (tab) {
+                NavTab.HOME -> {
+                    showTab(TAB_HOME)
+                    true
+                }
+                NavTab.LIBRARY -> {
+                    showTab(TAB_LIBRARY)
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     /**
-     * Responsive grid (pixel spec): 2 columns compact, 3 columns on
-     * >=600dp, 4 columns on >=840dp. Cards never stretch — extra width
+     * Show exactly one tab container. Before the first groups emit
+     * ([groupsLoaded] false) the Home container stays visible so
+     * the screen never flashes the empty state on a cold start.
+     */
+    private fun showTab(tab: String) {
+        currentTab = tab
+        val hasGroups = groups.isNotEmpty()
+        binding.homeScroll.visibility =
+            if (tab == TAB_HOME && (hasGroups || !groupsLoaded)) View.VISIBLE else View.GONE
+        binding.libraryContainer.visibility =
+            if (tab == TAB_LIBRARY && hasGroups) View.VISIBLE else View.GONE
+        binding.emptyState.visibility =
+            if (groupsLoaded && !hasGroups) View.VISIBLE else View.GONE
+        setupBottomNav(if (tab == TAB_LIBRARY) NavTab.LIBRARY else NavTab.HOME)
+    }
+
+    /** Hero Spotlight content: title, "Channel • 12:34 left", Resume pill. */
+    private fun bindHero(item: VideoItem) {
+        binding.heroTitle.text = item.title
+        binding.heroMeta.text = continueMeta(item)
+        val left = if (item.durationSec > 0) {
+            (item.durationSec - item.progressSec).coerceAtLeast(0L)
+        } else {
+            0L
+        }
+        binding.heroResumeButton.text = if (left > 0) {
+            "${getString(R.string.home_resume)} • " +
+                getString(R.string.home_left, FormatUtils.formatDuration(left.toInt()))
+        } else {
+            getString(R.string.home_resume)
+        }
+        ThumbLoader.load(lifecycleScope, repository, item, binding.heroThumb)
+    }
+
+    /**
+     * v8 responsive grid: 1 column compact, 2 columns on >=600dp,
+     * 3 columns on >=840dp. Cards never stretch — extra width
      * becomes another column, not a wider card.
      */
     private fun gridSpanCount(): Int {
         return when (resources.configuration.screenWidthDp) {
-            in 0..599 -> 2
-            in 600..839 -> 3
-            else -> 4
+            in 0..599 -> 1
+            in 600..839 -> 2
+            else -> 3
         }
     }
 
@@ -355,18 +446,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v4 explicit Load more button: visible whenever more library
-     * videos may exist (libraryHasMore), disabled with a loading
-     * label mid-load. Auto-load-on-scroll stays as well.
+     * v8: the Load More button is gone — the footer spinner is the
+     * only loading indicator and loadLibraryPage() drives it
+     * directly. Kept as a no-op so the call sites stay unchanged.
      */
-    private fun updateLibraryLoadMoreButton() {
-        val show = libraryHasMore && allLibrary.isNotEmpty() && !libraryFirstPageFailed
-        binding.libraryLoadMoreButton.visibility = if (show) View.VISIBLE else View.GONE
-        binding.libraryLoadMoreButton.isEnabled = !libraryLoading
-        binding.libraryLoadMoreButton.text = getString(
-            if (libraryLoading) R.string.channel_loading_more else R.string.channel_load_more
-        )
-    }
+    private fun updateLibraryLoadMoreButton() = Unit
 
     /** Filter + sort only — DiffUtil, no full reload, scroll preserved. */
     private fun applyLibraryFilter() {
@@ -401,28 +485,26 @@ class MainActivity : AppCompatActivity() {
         updateLibraryLoadMoreButton()
     }
 
-    private fun showSortMenu() {
-        val menu = PopupMenu(this, binding.librarySortButton)
-        menu.menu.add(0, 1, 0, R.string.home_sort_newest)
-        menu.menu.add(0, 2, 0, R.string.home_sort_oldest)
-        menu.menu.add(0, 3, 0, R.string.home_sort_title_az)
-        menu.menu.add(0, 4, 0, R.string.home_sort_title_za)
-        menu.menu.add(0, 5, 0, R.string.home_sort_longest)
-        menu.menu.add(0, 6, 0, R.string.home_sort_largest)
-        menu.setOnMenuItemClickListener { item ->
-            librarySort = when (item.itemId) {
-                2 -> LibrarySort.OLDEST
-                3 -> LibrarySort.TITLE_AZ
-                4 -> LibrarySort.TITLE_ZA
-                5 -> LibrarySort.LONGEST
-                6 -> LibrarySort.LARGEST
-                else -> LibrarySort.NEWEST
+    /** v8: sort is a bottom sheet (§4.9), not a PopupMenu + Snackbar echo. */
+    private fun showSortSheet() {
+        val options = listOf(
+            getString(R.string.home_sort_newest),
+            getString(R.string.home_sort_oldest),
+            getString(R.string.home_sort_title_az),
+            getString(R.string.home_sort_title_za),
+            getString(R.string.home_sort_longest),
+            getString(R.string.home_sort_largest)
+        )
+        SortSheet.show(
+            activity = this,
+            title = getString(R.string.home_sort),
+            options = options,
+            selectedIndex = librarySort.ordinal,
+            onPick = { index ->
+                librarySort = LibrarySort.entries[index]
+                applyLibraryFilter()
             }
-            applyLibraryFilter()
-            Snackbar.make(binding.root, item.title.toString(), Snackbar.LENGTH_SHORT).show()
-            true
-        }
-        menu.show()
+        )
     }
 
     // ---- Home groups refresh ----
@@ -497,6 +579,10 @@ class MainActivity : AppCompatActivity() {
     private fun openContinue(item: VideoItem) {
         PlayerPlaylist.items = continueItems
         PlayerPlaylist.chatId = item.chatId
+        // v8: Continue opens have no episode grouping (Room-only
+        // slice) — the player's Copies pill falls back to its
+        // playlist rebuild and hides when it finds one copy.
+        PlayerPlaylist.episodeGroups = emptyList()
         // v4-fb3: Continue items are a Room-only slice — the player
         // expands this to the channel's full filtered list.
         PlayerPlaylist.fromContinue = true
@@ -518,6 +604,12 @@ class MainActivity : AppCompatActivity() {
     ) {
         PlayerPlaylist.items = playlistOverride ?: displayedLibrary
         PlayerPlaylist.chatId = item.chatId
+        // v8 §4.4: stash the library's episode grouping so the
+        // player's Copies pill can list the real copies — the
+        // playlist itself holds only best copies when Smart
+        // Filter is on. (When Smart is off libraryGroups is
+        // empty and the pill falls back to its rebuild.)
+        PlayerPlaylist.episodeGroups = libraryGroups
         PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)
@@ -547,8 +639,11 @@ class MainActivity : AppCompatActivity() {
      * 32x4dp handle, heading 20sp, input 56dp, button 52dp. Validates the
      * link, shows an inline loading state, blocks duplicates and double
      * submits. Closes only on success or explicit Cancel.
+     *
+     * [prefillLink] v8: the Search paste-link chip opens this sheet
+     * with the clipboard's t.me link already filled in.
      */
-    private fun showAddChannelSheet() {
+    private fun showAddChannelSheet(prefillLink: String? = null) {
         val sheetBinding = LayoutBottomSheetAddChannelBinding.inflate(layoutInflater)
         val dialog = BottomSheetDialog(this).apply {
             setContentView(sheetBinding.root)
@@ -617,6 +712,10 @@ class MainActivity : AppCompatActivity() {
         sheetBinding.addChannelCancelButton.setOnClickListener { dialog.dismiss() }
         dialog.setOnDismissListener { if (addSheet == dialog) addSheet = null }
         dialog.show()
+        if (!prefillLink.isNullOrBlank()) {
+            sheetBinding.addChannelEdit.setText(prefillLink)
+            sheetBinding.addChannelEdit.setSelection(prefillLink.length)
+        }
     }
 
     /**
@@ -634,16 +733,18 @@ class MainActivity : AppCompatActivity() {
         return segment
     }
 
+    /** v8: remove-group confirm is a bottom sheet (§4.9), not an AlertDialog. */
     private fun confirmRemove(group: GroupItem) {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.home_remove_group_title)
-            .setMessage(getString(R.string.home_remove_group_body, group.title))
-            .setPositiveButton(R.string.home_remove) { _, _ ->
+        ConfirmSheet.show(
+            activity = this,
+            title = getString(R.string.home_remove_group_title),
+            body = getString(R.string.home_remove_group_body, group.title),
+            confirmText = getString(R.string.home_remove),
+            onConfirm = {
                 lifecycleScope.launch(Dispatchers.IO) {
                     repository.removeGroup(group.chatId)
                 }
             }
-            .setNegativeButton(R.string.home_cancel, null)
-            .show()
+        )
     }
 }

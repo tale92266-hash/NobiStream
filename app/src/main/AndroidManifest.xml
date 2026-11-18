@@ -16,18 +16,28 @@
         android:usesCleartextTraffic="false">
 
         <activity
-            android:name=".ui.login.LoginActivity"
+            android:name=".ui.login.LauncherActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:noHistory="true"
+            android:theme="@style/Theme.NobiStream.Launcher">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
+        <!-- v8: no longer the launcher — LauncherActivity owns the
+             cold-start session check (spec §7) and only routes here
+             when there is no signed-in session. -->
+        <activity
+            android:name=".ui.login.LoginActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".ui.home.MainActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
@@ -39,17 +49,19 @@
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="fullSensor"
             android:supportsPictureInPicture="true" />
 
         <activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ui.search.SearchActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
         <activity

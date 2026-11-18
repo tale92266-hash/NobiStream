@@ -27,6 +27,17 @@
         <item name="android:windowAnimationStyle">@style/Theme.NobiStream.ActivityTransitions</item>
     </style>
 
+    <!-- v8 launcher (splash) theme: first frame is the plain navy
+         background with the app icon centred — never login UI. The
+         LauncherActivity replaces this with its own splash layout. -->
+    <style name="Theme.NobiStream.Launcher" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/bg_splash</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
     <!-- Dialogs: 24dp radius, 24dp padding (layout), heading 20sp, body 14sp,
          actions 48dp. Applied app-wide via materialAlertDialogTheme. -->
     <style name="Widget.NobiStream.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
@@ -202,6 +213,26 @@
         <item name="android:textSize">@dimen/text_card_title</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- v8: Subhead 16sp medium (hero title, group row title, portrait
+         player title) and Action 13sp medium (See all / Clear / Resend). -->
+    <style name="Text.NobiStream.Subhead" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textSize">@dimen/text_subhead</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="Text.NobiStream.Action" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">@dimen/text_action</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="Text.NobiStream.Badge" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">@dimen/text_badge</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
     </style>
 
     <style name="Text.NobiStream.FeaturedTitle" parent="TextAppearance.Material3.TitleMedium">

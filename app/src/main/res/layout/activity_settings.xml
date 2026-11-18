@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- v3 Settings: app bar 56dp (back + title 20sp), grouped rows
      (Playback / Startup / Telegram / Storage / Application). Rows are
-     min 64dp, icon 22dp, icon-text gap 16dp, text 14sp medium, desc 12sp,
+     min 64dp, icon 24dp (@dimen/icon_size), icon-text gap 16dp, text 14sp medium, desc 12sp,
      switch right. Section headings 12sp medium, section spacing 28dp.
      No setting removed, no fake setting invented — there is no Appearance
      section because the theme is fixed dark (see report). -->
@@ -54,8 +54,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
                     android:src="@drawable/ic_play" />
 
@@ -103,8 +103,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
                     android:src="@drawable/ic_sort" />
 
@@ -151,8 +151,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
                     android:src="@drawable/ic_sort" />
 
@@ -187,6 +187,7 @@
                 android:layout_marginStart="38dp">
 
                 <AutoCompleteTextView
+                    android:popupBackground="@color/surface_variant"
                     android:id="@+id/defaultFilterInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -215,8 +216,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
                     android:src="@drawable/ic_closed_caption" />
 
@@ -278,6 +279,7 @@
                 android:layout_marginTop="@dimen/spacing_8">
 
                 <AutoCompleteTextView
+                    android:popupBackground="@color/surface_variant"
                     android:id="@+id/subtitleSizeInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -308,6 +310,7 @@
                 android:layout_marginTop="@dimen/spacing_8">
 
                 <AutoCompleteTextView
+                    android:popupBackground="@color/surface_variant"
                     android:id="@+id/subtitleColorInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -338,6 +341,7 @@
                 android:layout_marginTop="@dimen/spacing_8">
 
                 <AutoCompleteTextView
+                    android:popupBackground="@color/surface_variant"
                     android:id="@+id/subtitleBackgroundInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -369,8 +373,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
                     android:src="@drawable/ic_history" />
 
@@ -421,8 +425,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="@dimen/icon_size"
+                    android:layout_height="@dimen/icon_size"
                     android:contentDescription="@null"
                     android:src="@drawable/ic_account_circle" />
 
@@ -635,4 +639,12 @@
                 android:text="@string/settings_licences" />
         </LinearLayout>
     </ScrollView>
+
+    <!-- v8 bottom navigation (Settings is a top-level tab; hidden
+         when opened standalone from Login — see SettingsActivity). -->
+    <include
+        android:id="@+id/bottomNav"
+        layout="@layout/layout_bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 </LinearLayout>

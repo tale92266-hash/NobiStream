@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 player redesign (§4.4) strings. All other player strings stay in
+     strings.xml — this file only holds strings new in v8. -->
+<resources>
+    <string name="player_up_next_title">Up Next</string>
+    <string name="player_up_next_in">Up next in %1$d s</string>
+    <string name="player_up_next_cancel">Cancel</string>
+    <string name="player_up_next_play_now">Play Now</string>
+    <string name="player_up_next_play">Play</string>
+    <string name="player_hold_2x">2x Speed »</string>
+    <string name="player_tap_to_unlock">Tap to unlock</string>
+    <string name="player_details_copies">Copies</string>
+    <string name="player_details_copies_count">Copies (%1$d)</string>
+</resources>

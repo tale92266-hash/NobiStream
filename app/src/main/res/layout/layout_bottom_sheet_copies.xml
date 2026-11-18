@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 copies picker bottom sheet (spec §4.9): 24dp top radius (app
+     bottom-sheet theme), 32x4dp handle, 20sp title ("Ep 361 •
+     3 copies"), rows added programmatically by CopiesSheet. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="@dimen/spacing_24">
+
+    <View
+        android:layout_width="@dimen/bottom_sheet_handle_width"
+        android:layout_height="@dimen/bottom_sheet_handle_height"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="@dimen/spacing_8"
+        android:background="@drawable/bg_handle" />
+
+    <TextView
+        android:id="@+id/copiesTitle"
+        style="@style/Text.NobiStream.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="@dimen/spacing_16"
+        android:paddingTop="@dimen/spacing_16"
+        android:paddingEnd="@dimen/spacing_16" />
+
+    <LinearLayout
+        android:id="@+id/copiesRowsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8"
+        android:orientation="vertical" />
+</LinearLayout>

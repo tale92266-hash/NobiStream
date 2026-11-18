@@ -2,10 +2,15 @@ package com.nobi.nobistream.ui.search
 
 import android.animation.ObjectAnimator
 import android.app.ActivityOptions
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.GridLayout
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +19,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.GridLayoutManager
+import com.google.android.material.snackbar.Snackbar
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.GroupItem
@@ -26,6 +32,10 @@ import com.nobi.nobistream.ui.CopiesSheet
 import com.nobi.nobistream.ui.ThumbLoader
 import com.nobi.nobistream.ui.channel.GridSpacingItemDecoration
 import com.nobi.nobistream.ui.channel.VideoAdapter
+import com.nobi.nobistream.ui.components.BottomNavHelper
+import com.nobi.nobistream.ui.components.ConfirmSheet
+import com.nobi.nobistream.ui.components.NavTab
+import com.nobi.nobistream.ui.home.MainActivity
 import com.nobi.nobistream.ui.player.PlayerActivity
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
 import kotlinx.coroutines.Dispatchers
@@ -64,23 +74,39 @@ class SearchActivity : AppCompatActivity() {
     private var smartOn = true
     private var searchGroups: List<EpisodeGroup> = emptyList()
     private var searchJob: Job? = null
-    private var skeletonAnimator: ObjectAnimator? = null
+    /** v8: the 1200ms diagonal shimmer sweep animator (see showSkeleton). */
+    private var shimmerAnimator: ObjectAnimator? = null
+    /** v8: t.me link currently on the clipboard (null = no link / field not empty). */
+    private var pasteLink: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         binding = ActivitySearchBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        binding.toolbar.setNavigationOnClickListener { finish() }
+        // v8: Search is a top-level bottom-nav tab now — no toolbar
+        // back button (the back stack never leads here from a tab).
+        binding.toolbar.navigationIcon = null
+        BottomNavHelper.setup(this, binding.bottomNav, NavTab.SEARCH)
 
         adapter = VideoAdapter(
             onClick = { item, thumb -> openPlayer(item, thumb) },
             onThumbNeeded = { item, view ->
                 ThumbLoader.load(lifecycleScope, repository, item, view)
             },
-            onCopiesClick = { item, thumb -> showCopies(item, thumb) }
+            onCopiesClick = { item, thumb -> showCopies(item, thumb) },
+            // v8: results mix channels, so the meta leads with the
+            // channel name; cached videos get the check badge.
+            showChannelName = true,
+            channelNameProvider = { item ->
+                groups.firstOrNull { it.chatId == item.chatId }?.title.orEmpty()
+            },
+            cachedProvider = { item ->
+                locator.gateway.getCachedFileState(item.fileId)?.isComplete == true
+            }
         )
         val spanCount = gridSpanCount()
+        layoutSkeletonGrid(spanCount)
         binding.resultsRecycler.layoutManager = GridLayoutManager(this, spanCount)
         binding.resultsRecycler.adapter = adapter
         binding.resultsRecycler.itemAnimator = SlideInUpAnimator()
@@ -92,16 +118,34 @@ class SearchActivity : AppCompatActivity() {
             )
         )
 
-        recentAdapter = RecentSearchAdapter { query ->
-            binding.searchEdit.setText(query)
-            binding.searchEdit.setSelection(query.length)
-            runSearch(query)
-        }
+        recentAdapter = RecentSearchAdapter(
+            onClick = { query ->
+                binding.searchEdit.setText(query)
+                binding.searchEdit.setSelection(query.length)
+                runSearch(query)
+            },
+            // v8: per-row X deletes just that query.
+            onDelete = { query ->
+                lifecycleScope.launch {
+                    repository.settingsStore.removeRecentSearch(query)
+                }
+            }
+        )
         binding.recentRecycler.adapter = recentAdapter
         binding.recentClearButton.setOnClickListener { confirmClearRecent() }
 
+        // v8: "Paste Telegram link" chip — tap it to add the
+        // clipboard's t.me link as a group (via MainActivity).
+        binding.pasteLinkChip.setOnClickListener {
+            val link = pasteLink ?: return@setOnClickListener
+            val intent = Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_ADD_GROUP_LINK, link)
+            startActivity(intent)
+        }
+
         binding.searchEdit.addTextChangedListener { text ->
             val query = text?.toString().orEmpty()
+            updatePasteChip()
             searchJob?.cancel()
             if (query.isBlank()) {
                 showStartState()
@@ -134,6 +178,7 @@ class SearchActivity : AppCompatActivity() {
             setRetry { runSearch(binding.searchEdit.text?.toString().orEmpty()) }
         }
         showStartState()
+        updatePasteChip()
 
         lifecycleScope.launch {
             groups = repository.observeGroups().first()
@@ -156,18 +201,80 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // v8 auto-focus: the field grabs focus and the keyboard
+        // opens on every arrival — including a return via bottom-nav
+        // REORDER_TO_FRONT, where onCreate does not run again.
+        binding.searchEdit.requestFocus()
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.showSoftInput(binding.searchEdit, InputMethodManager.SHOW_IMPLICIT)
+        updatePasteChip()
+    }
+
     override fun onDestroy() {
         searchJob?.cancel()
-        skeletonAnimator?.cancel()
+        stopShimmer()
         super.onDestroy()
     }
 
-    /** Responsive grid (pixel spec): 2 columns compact, 3 on >=600dp, 4 on >=840dp. */
+    /**
+     * v8 responsive grid (spec §2C): 1 column full-width 16:9 on
+     * mobile portrait (<600dp), 2 columns on 600–839dp, 3 columns
+     * on >=840dp.
+     */
     private fun gridSpanCount(): Int {
         return when (resources.configuration.screenWidthDp) {
-            in 0..599 -> 2
-            in 600..839 -> 3
-            else -> 4
+            in 0..599 -> 1
+            in 600..839 -> 2
+            else -> 3
+        }
+    }
+
+    /** v8 skeleton grid: columnCount follows the feed span (1 on mobile — never a hardcoded 2). */
+    private fun layoutSkeletonGrid(spanCount: Int) {
+        val grid = binding.skeletonGrid
+        grid.columnCount = spanCount
+        if (spanCount == 1) {
+            for (i in 0 until grid.childCount) {
+                val child = grid.getChildAt(i)
+                val params = child.layoutParams as GridLayout.LayoutParams
+                params.leftMargin = 0
+                params.rightMargin = 0
+                child.layoutParams = params
+            }
+        }
+    }
+
+    /**
+     * v8 "Paste Telegram link" chip: visible ONLY while the field
+     * is empty AND the clipboard holds a t.me link. Anything else
+     * on the clipboard (or a non-empty field) hides it.
+     */
+    private fun updatePasteChip() {
+        pasteLink = if (binding.searchEdit.text.isNullOrBlank()) {
+            readTelegramLinkFromClipboard()
+        } else {
+            null
+        }
+        binding.pasteLinkChip.visibility =
+            if (pasteLink != null) View.VISIBLE else View.GONE
+    }
+
+    private fun readTelegramLinkFromClipboard(): String? {
+        val clipboard =
+            getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
+        if (!clipboard.hasPrimaryClip()) return null
+        val text = clipboard.primaryClip?.getItemAt(0)
+            ?.coerceToText(this)?.toString()?.trim() ?: return null
+        val lower = text.lowercase()
+        return if (lower.startsWith("https://t.me/") ||
+            lower.startsWith("http://t.me/") ||
+            lower.startsWith("t.me/")
+        ) {
+            text
+        } else {
+            null
         }
     }
 
@@ -235,41 +342,61 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
-    /** Shimmer skeleton: placeholder cards pulsing while searching. */
+    /**
+     * v8 skeleton: a 1200ms diagonal shimmer SWEEP, not the old
+     * alpha pulse. Cancelled whenever the skeleton hides AND in
+     * onDestroy.
+     */
     private fun showSkeleton(show: Boolean) {
         if (show) {
             binding.skeletonContainer.visibility = View.VISIBLE
-            skeletonAnimator = ObjectAnimator.ofFloat(
-                binding.skeletonContainer, View.ALPHA, 0.45f, 1f
-            ).apply {
-                duration = 900L
-                repeatMode = ObjectAnimator.REVERSE
-                repeatCount = ObjectAnimator.INFINITE
-                start()
-            }
+            startShimmer()
         } else {
-            skeletonAnimator?.cancel()
-            skeletonAnimator = null
+            stopShimmer()
             binding.skeletonContainer.visibility = View.GONE
         }
     }
 
-    private fun confirmClearRecent() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.search_recent_clear_title)
-            .setMessage(R.string.search_recent_clear_body)
-            .setPositiveButton(R.string.common_clear) { _, _ ->
-                lifecycleScope.launch {
-                    repository.settingsStore.clearRecentSearches()
-                    com.google.android.material.snackbar.Snackbar.make(
-                        binding.root,
-                        R.string.search_recent_cleared,
-                        com.google.android.material.snackbar.Snackbar.LENGTH_SHORT
-                    ).show()
-                }
+    private fun startShimmer() {
+        stopShimmer()
+        val sweep = binding.shimmerSweep
+        sweep.post {
+            val width = binding.skeletonContainer.width
+            if (width == 0) return@post
+            shimmerAnimator = ObjectAnimator.ofFloat(
+                sweep, View.TRANSLATION_X,
+                -sweep.width.toFloat(), width.toFloat()
+            ).apply {
+                duration = 1200L
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
             }
-            .setNegativeButton(R.string.home_cancel, null)
-            .show()
+        }
+    }
+
+    private fun stopShimmer() {
+        shimmerAnimator?.cancel()
+        shimmerAnimator = null
+    }
+
+    /** v8: Clear-all recent searches confirms via a bottom sheet (not a raw dialog). */
+    private fun confirmClearRecent() {
+        ConfirmSheet.show(
+            this,
+            getString(R.string.search_recent_clear_title),
+            getString(R.string.search_recent_clear_body),
+            getString(R.string.common_clear)
+        ) {
+            lifecycleScope.launch {
+                repository.settingsStore.clearRecentSearches()
+                Snackbar.make(
+                    binding.root,
+                    R.string.search_recent_cleared,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     private fun openPlayer(item: VideoItem, thumb: ImageView) {
@@ -284,6 +411,10 @@ class SearchActivity : AppCompatActivity() {
     ) {
         PlayerPlaylist.items = playlistOverride ?: results
         PlayerPlaylist.chatId = item.chatId
+        // v8: Search opens have no episode grouping — reset any
+        // stash from an earlier open so the player's Copies pill
+        // can't match a stale group (it falls back to its rebuild).
+        PlayerPlaylist.episodeGroups = emptyList()
         PlayerPlaylist.fromContinue = false
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)

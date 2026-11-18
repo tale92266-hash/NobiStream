@@ -1,51 +1,67 @@
 package com.nobi.nobistream.ui
 
 import android.content.Context
-import androidx.appcompat.app.AlertDialog
+import android.view.LayoutInflater
+import android.view.View
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.nobi.nobistream.R
 import com.nobi.nobistream.core.EpisodeGroup
 import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.VideoItem
+import com.nobi.nobistream.databinding.ItemCopiesRowBinding
+import com.nobi.nobistream.databinding.LayoutBottomSheetCopiesBinding
 
 /**
- * v5 Smart Filter: the copies picker.
+ * v5 Smart Filter: the copies picker — v8 as a real bottom sheet
+ * (spec §4.9), not the old AlertDialog list.
  *
  * A best-copy card shows a "N copies" badge; tapping it opens this
- * small list of every posted copy of that episode with its quality,
- * size and date, so the user can play any copy manually — for
- * example when the best copy turns out to be corrupt. The best copy
- * is marked "Best" in the list.
+ * sheet with every posted copy of that episode — quality pill, file
+ * size and date per row. The best copy is marked with an amber
+ * "Best" pill (@color/quality_badge, black text) + an accent
+ * checkmark. Single tap plays that copy. The 24dp top radius,
+ * 32x4dp handle and 20sp title come from the app bottom-sheet
+ * theme / shared sheet layout, like SortSheet and ConfirmSheet.
+ *
+ * Public API is unchanged: show(context, group, onPick).
  */
 object CopiesSheet {
 
     fun show(context: Context, group: EpisodeGroup, onPick: (VideoItem) -> Unit) {
+        val dialog = BottomSheetDialog(context)
+        val binding = LayoutBottomSheetCopiesBinding.inflate(LayoutInflater.from(context))
         val best = group.best
-        val labels = group.copies.map { copy ->
-            val quality = copy.quality.label
+        binding.copiesTitle.text = context.getString(
+            R.string.smart_copies_title,
+            episodeLabel(group),
+            group.copies.size
+        )
+        group.copies.forEach { copy ->
+            val row = ItemCopiesRowBinding.inflate(
+                LayoutInflater.from(context), binding.copiesRowsContainer, false
+            )
+            row.copyQuality.text = copy.quality.label
             val size = FormatUtils.formatSize(copy.sizeBytes)
             val date = FormatUtils.formatDate(copy.dateEpochSec)
-            val parts = listOf(quality, size, date).filter { it.isNotEmpty() }
-            val label = parts.joinToString(" • ")
-            if (copy.chatId == best.chatId && copy.messageId == best.messageId) {
-                "$label • ${context.getString(R.string.smart_copies_best)}"
-            } else {
-                label
+            row.copyMeta.text =
+                listOf(size, date).filter { it.isNotEmpty() }.joinToString(" • ")
+            val isBest = copy.chatId == best.chatId && copy.messageId == best.messageId
+            row.copyBest.visibility = if (isBest) View.VISIBLE else View.GONE
+            row.copyCheck.visibility = if (isBest) View.VISIBLE else View.GONE
+            row.root.setOnClickListener {
+                dialog.dismiss()
+                onPick(copy)
             }
-        }.toTypedArray()
-        val episodeLabel = group.key?.let { key ->
+            binding.copiesRowsContainer.addView(row.root)
+        }
+        dialog.setContentView(binding.root)
+        dialog.show()
+    }
+
+    private fun episodeLabel(group: EpisodeGroup): String {
+        return group.key?.let { key ->
             if (key.season != null) "S${key.season} Ep ${key.episode}"
             else "Ep ${key.episode}"
-        } ?: best.title
-        AlertDialog.Builder(context)
-            .setTitle(
-                context.getString(
-                    R.string.smart_copies_title,
-                    episodeLabel,
-                    group.copies.size
-                )
-            )
-            .setItems(labels) { _, which -> onPick(group.copies[which]) }
-            .setNegativeButton(R.string.home_cancel, null)
-            .show()
+        } ?: group.best.title
     }
 }

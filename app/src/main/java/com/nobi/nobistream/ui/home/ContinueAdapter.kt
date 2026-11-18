@@ -1,11 +1,13 @@
 package com.nobi.nobistream.ui.home
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.nobi.nobistream.core.FormatUtils
 import com.nobi.nobistream.core.VideoItem
 import com.nobi.nobistream.databinding.ItemContinueBinding
 import com.nobi.nobistream.ui.components.PressFeedback
@@ -35,6 +37,14 @@ class ContinueAdapter(
         fun bind(item: VideoItem) {
             binding.continueTitle.text = item.title
             binding.continueMeta.text = metaProvider(item)
+            // v8: bottom-right dark duration pill on the thumbnail.
+            if (item.durationSec > 0) {
+                binding.continueDuration.visibility = View.VISIBLE
+                binding.continueDuration.text =
+                    FormatUtils.formatDuration(item.durationSec)
+            } else {
+                binding.continueDuration.visibility = View.GONE
+            }
             binding.continueProgress.progress = (item.progressFraction * 100).toInt()
             onThumbNeeded(item, binding.continueThumb)
             binding.root.setOnClickListener { onClick(item) }

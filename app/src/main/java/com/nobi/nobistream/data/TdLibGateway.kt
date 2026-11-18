@@ -234,6 +234,10 @@ class TdLibGateway(context: Context) : TelegramGateway {
         send(TdApi.CheckAuthenticationCode(code.trim()))
     }
 
+    override suspend fun resendCode() {
+        send(TdApi.ResendAuthenticationCode())
+    }
+
     override suspend fun sendPassword(password: String) {
         send(TdApi.CheckAuthenticationPassword(password))
     }

@@ -23,7 +23,28 @@ class VideoAdapter(
      * caller can show the copies picker with the shared-element
      * transition. Null where no copies picker exists.
      */
-    private val onCopiesClick: ((VideoItem, ImageView) -> Unit)? = null
+    private val onCopiesClick: ((VideoItem, ImageView) -> Unit)? = null,
+    /**
+     * v8: when true the meta line leads with the channel name
+     * ("Channel Name • 12 Nov • 1.4 GB") — Search / Library, where
+     * cards mix channels. Channel itself leaves this off (the
+     * channel name would just repeat on every card).
+     */
+    private val showChannelName: Boolean = false,
+    /**
+     * v8: resolves a channel name for a video. Only read when
+     * [showChannelName] is true; blank means "no name, fall back
+     * to the plain date • size meta".
+     */
+    private val channelNameProvider: ((VideoItem) -> String)? = null,
+    /**
+     * v8: true when the video file is fully cached locally — the
+     * card then shows the cached check badge (top-left). Callers
+     * pass a free cache read
+     * (locator.gateway.getCachedFileState(item.fileId)?.isComplete),
+     * never a download, so bind stays cheap.
+     */
+    private val cachedProvider: ((VideoItem) -> Boolean)? = null
 ) : ListAdapter<VideoItem, VideoAdapter.ViewHolder>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -46,7 +67,18 @@ class VideoAdapter(
             binding.videoTitle.text = item.title
             val date = FormatUtils.formatDate(item.dateEpochSec)
             val size = FormatUtils.formatSize(item.sizeBytes)
-            binding.videoMeta.text = if (date.isEmpty()) size else "$date • $size"
+            val dateSize = if (date.isEmpty()) size else "$date • $size"
+            // v8: Search / Library cards lead with the channel name.
+            val channelName = if (showChannelName) {
+                channelNameProvider?.invoke(item).orEmpty()
+            } else {
+                ""
+            }
+            binding.videoMeta.text = if (channelName.isNotEmpty()) {
+                "$channelName • $dateSize"
+            } else {
+                dateSize
+            }
             if (item.quality != VideoQuality.UNKNOWN) {
                 binding.qualityBadge.visibility = View.VISIBLE
                 binding.qualityBadge.text = item.quality.label
@@ -60,6 +92,11 @@ class VideoAdapter(
                 binding.durationBadge.visibility = View.GONE
             }
             binding.watchedBadge.visibility = if (item.watched) View.VISIBLE else View.GONE
+            // v8: cached badge — only when the file is FULLY
+            // downloaded locally (isComplete). A partial / streaming
+            // file shows no badge.
+            binding.cachedBadge.visibility =
+                if (cachedProvider?.invoke(item) == true) View.VISIBLE else View.GONE
             // v5 Smart Filter: "N copies" badge on the thumbnail's
             // top-right corner (quality sits top-left, duration
             // bottom-right). Tapping it opens the copies picker; the

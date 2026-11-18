@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v8 info bottom sheet (§4.9): handle, 20sp title, scrollable 14sp
+     body, OK text button. Replaces the last raw AlertDialog (the
+     open-source licences text) so no system dialog remains. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/spacing_20"
+    android:paddingTop="@dimen/spacing_12"
+    android:paddingEnd="@dimen/spacing_20"
+    android:paddingBottom="@dimen/spacing_24">
+
+    <View
+        android:layout_width="@dimen/bottom_sheet_handle_width"
+        android:layout_height="@dimen/bottom_sheet_handle_height"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_handle" />
+
+    <TextView
+        android:id="@+id/infoTitle"
+        style="@style/Text.NobiStream.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_16" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="320dp"
+        android:layout_marginTop="@dimen/spacing_8">
+
+        <TextView
+            android:id="@+id/infoBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body" />
+    </ScrollView>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/infoOkButton"
+        style="@style/Widget.NobiStream.Button.Text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="@dimen/spacing_8"
+        android:text="@string/common_ok" />
+
+</LinearLayout>

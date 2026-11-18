@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v4 Home: custom app bar 56dp (brand icon 28dp + brand text 19sp +
-     search + refresh + settings, all 48dp), ONE unified Continue
-     Watching section (featured card + row + "See all" 13sp), then Your
-     Groups, then Your Library — the same 2-column VideoCard grid as
-     Channel Detail, with the same 36dp quality filter chips and a sort
-     control (Newest/Oldest/Title A-Z/Z-A/Longest/Largest, DiffUtil
-     only, scroll preserved). The whole content scrolls in one
-     NestedScrollView so the library grid can grow below the groups;
-     inner RecyclerViews don't scroll themselves. -->
+<!-- v8 Home: bottom navigation (Home / Search / Library / Settings)
+     + cleaned top bar (brand + Add Group + refresh only; Search and
+     Settings moved to the bottom nav). Two tab containers share one
+     FrameLayout: HOME (Hero Spotlight + Continue Watching row minus
+     the hero item + Your Groups) and LIBRARY (chips + 1-column grid
+     + footer spinner, no Load More button). The hero shows the most
+     recent Continue Watching video; that video is EXCLUDED from the
+     row below (Sam's v4 lesson: hero + row must never duplicate). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -15,7 +14,8 @@
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
-    <!-- App bar: 56dp, brand icon 28dp, brand text 19sp, actions 48dp. -->
+    <!-- App bar: 56dp, brand icon 28dp, brand text 20sp, Add Group
+         button + refresh. Search and Settings live in the bottom nav. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="@dimen/toolbar_height"
@@ -38,13 +38,13 @@
             android:layout_weight="1"
             android:text="@string/home_title" />
 
-        <ImageButton
-            android:id="@+id/homeSearchButton"
-            android:layout_width="@dimen/icon_button_size"
-            android:layout_height="@dimen/icon_button_size"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/home_search"
-            android:src="@drawable/ic_search" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/addGroupButton"
+            style="@style/Widget.NobiStream.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/button_height_small"
+            android:text="@string/home_add_group"
+            app:icon="@drawable/ic_add" />
 
         <ImageButton
             android:id="@+id/homeRefreshButton"
@@ -62,305 +62,381 @@
             android:layout_marginEnd="@dimen/spacing_8"
             android:indeterminateTint="@color/primary"
             android:visibility="gone" />
-
-        <ImageButton
-            android:id="@+id/homeSettingsButton"
-            android:layout_width="@dimen/icon_button_size"
-            android:layout_height="@dimen/icon_button_size"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/home_open_settings"
-            android:src="@drawable/ic_settings" />
     </LinearLayout>
 
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/homeScroll"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="false">
+        android:layout_weight="1">
 
-        <LinearLayout
+        <!-- HOME tab -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/homeScroll"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:layout_height="match_parent"
+            android:fillViewport="false">
 
-            <!-- v4-fb2: ONE Continue Watching section. Layout order is
-                 the visual order: the single "Continue Watching"
-                 heading (+ See all) FIRST, then the featured card
-                 (most recent episode), then the row (the rest).
-                 The featured card used to carry its own caps
-                 "CONTINUE WATCHING" overline AND sit above the
-                 heading, so the name showed twice — that is gone:
-                 the heading appears exactly once on Home. -->
-            <!-- Continue Watching header: title + "See all" (13sp medium). -->
-            <LinearLayout
-                android:id="@+id/continueHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:paddingStart="@dimen/screen_margin"
-                android:paddingTop="@dimen/spacing_16"
-                android:paddingEnd="@dimen/spacing_8"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/continueTitle"
-                    style="@style/Text.NobiStream.Section"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/home_continue_watching" />
-
-                <TextView
-                    android:id="@+id/continueSeeAll"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingStart="@dimen/spacing_12"
-                    android:paddingTop="@dimen/spacing_8"
-                    android:paddingEnd="@dimen/spacing_12"
-                    android:paddingBottom="@dimen/spacing_8"
-                    android:text="@string/home_see_all"
-                    android:textColor="@color/primary"
-                    android:textSize="13sp" />
-            </LinearLayout>
-
-            <!-- Continue Watching: small row only. The big featured
-                 hero card was REMOVED (Sam, 2026-11-17 09:24 IST) —
-                 this row is the only Continue Watching section. -->
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/continueRecycler"
-                android:layout_width="match_parent"
-                android:layout_height="196dp"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:clipToPadding="false"
-                android:nestedScrollingEnabled="false"
-                android:orientation="horizontal"
-                android:paddingStart="@dimen/spacing_8"
-                android:paddingEnd="@dimen/spacing_8"
-                android:visibility="gone"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
-            <!-- Your Groups header + compact Add action. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="@dimen/screen_margin"
-                android:paddingEnd="@dimen/screen_margin">
+                android:orientation="vertical">
 
-                <TextView
-                    style="@style/Text.NobiStream.Section"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/home_groups" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/addGroupButton"
-                    style="@style/Widget.NobiStream.Button.Secondary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="@dimen/button_height_small"
-                    android:text="@string/home_add_group"
-                    app:icon="@drawable/ic_add" />
-            </LinearLayout>
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/groupsRecycler"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:nestedScrollingEnabled="false"
-                android:paddingBottom="@dimen/spacing_8"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
-            <!-- Your Library: same VideoCard grid + filter chips as Channel. -->
-            <LinearLayout
-                android:id="@+id/libraryHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="@dimen/screen_margin"
-                android:paddingEnd="@dimen/spacing_8"
-                android:visibility="gone">
-
-                <TextView
-                    style="@style/Text.NobiStream.Section"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/home_library" />
-
-                <ImageButton
-                    android:id="@+id/librarySortButton"
-                    android:layout_width="@dimen/icon_button_size"
-                    android:layout_height="@dimen/icon_button_size"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/home_sort"
-                    android:src="@drawable/ic_sort" />
-            </LinearLayout>
-
-            <HorizontalScrollView
-                android:id="@+id/libraryFilterScroll"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:scrollbars="none"
-                android:visibility="gone">
-
-                <!-- v5: same Smart toggle as Channel Detail — beside
-                     the quality ChipGroup, never inside it (see
-                     activity_channel.xml). -->
+                <!-- Hero Spotlight: the most recent Continue Watching
+                     video. 16:9 thumb, scrim, title + meta over the
+                     image, Resume pill bottom-left. This video is
+                     excluded from the row below. -->
                 <LinearLayout
-                    android:layout_width="wrap_content"
+                    android:id="@+id/heroSection"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="@dimen/screen_margin"
+                    android:paddingTop="@dimen/spacing_16"
+                    android:paddingEnd="@dimen/screen_margin"
+                    android:visibility="gone">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/heroCard"
+                        style="@style/Widget.NobiStream.Card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToOutline="true">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+
+                            <ImageView
+                                android:id="@+id/heroThumb"
+                                android:layout_width="0dp"
+                                android:layout_height="0dp"
+                                android:contentDescription="@string/home_continue_watching"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_video_placeholder"
+                                app:layout_constraintDimensionRatio="16:9"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <View
+                                android:id="@+id/heroScrim"
+                                android:layout_width="0dp"
+                                android:layout_height="0dp"
+                                android:background="@drawable/bg_hero_scrim"
+                                app:layout_constraintBottom_toBottomOf="@id/heroThumb"
+                                app:layout_constraintEnd_toEndOf="@id/heroThumb"
+                                app:layout_constraintStart_toStartOf="@id/heroThumb"
+                                app:layout_constraintTop_toTopOf="@id/heroThumb" />
+
+                            <TextView
+                                android:id="@+id/heroTitle"
+                                style="@style/Text.NobiStream.Subhead"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="@dimen/spacing_16"
+                                android:layout_marginEnd="@dimen/spacing_16"
+                                android:ellipsize="end"
+                                android:maxLines="2"
+                                android:textColor="@color/text_primary"
+                                app:layout_constraintBottom_toTopOf="@id/heroMeta"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/heroMeta"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="@dimen/spacing_16"
+                                android:layout_marginEnd="@dimen/spacing_16"
+                                android:layout_marginBottom="@dimen/spacing_12"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="#E3E3E3"
+                                android:textSize="@dimen/text_caption"
+                                app:layout_constraintBottom_toTopOf="@id/heroResumeButton"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/heroResumeButton"
+                                style="@style/Widget.NobiStream.Button.Primary.Small"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:layout_marginStart="@dimen/spacing_16"
+                                android:layout_marginBottom="@dimen/spacing_16"
+                                app:cornerRadius="20dp"
+                                app:icon="@drawable/ic_play"
+                                app:layout_constraintBottom_toBottomOf="@id/heroThumb"
+                                app:layout_constraintStart_toStartOf="parent" />
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+
+                <!-- Continue Watching header: title + "See all" (13sp medium). -->
+                <LinearLayout
+                    android:id="@+id/continueHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:paddingStart="@dimen/screen_margin"
+                    android:paddingTop="@dimen/spacing_16"
+                    android:paddingEnd="@dimen/spacing_8"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/continueTitle"
+                        style="@style/Text.NobiStream.Section"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/home_continue_watching" />
+
+                    <TextView
+                        android:id="@+id/continueSeeAll"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:fontFamily="sans-serif-medium"
+                        android:paddingStart="@dimen/spacing_12"
+                        android:paddingTop="@dimen/spacing_8"
+                        android:paddingEnd="@dimen/spacing_12"
+                        android:paddingBottom="@dimen/spacing_8"
+                        android:text="@string/home_see_all"
+                        android:textColor="@color/primary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Continue Watching row: every in-progress episode
+                     EXCEPT the hero item. -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/continueRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="196dp"
+                    android:layout_marginTop="@dimen/spacing_8"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="horizontal"
+                    android:paddingStart="@dimen/spacing_8"
+                    android:paddingEnd="@dimen/spacing_8"
+                    android:visibility="gone"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+                <!-- Your Groups header. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_16"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingStart="@dimen/screen_margin"
-                    android:paddingTop="@dimen/spacing_8"
                     android:paddingEnd="@dimen/screen_margin">
 
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/libraryFilterChips"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:chipSpacingHorizontal="@dimen/chip_gap"
-                    app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/libChipAll"
-                        style="@style/Widget.NobiStream.Chip.Filter"
-                        android:layout_width="wrap_content"
+                    <TextView
+                        style="@style/Text.NobiStream.Section"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:checkable="true"
-                        android:checked="true"
-                        android:text="@string/channel_filter_all" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/libChip480"
-                        style="@style/Widget.NobiStream.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="true"
-                        android:text="480p" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/libChip720"
-                        style="@style/Widget.NobiStream.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="true"
-                        android:text="720p" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/libChip1080"
-                        style="@style/Widget.NobiStream.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="true"
-                        android:text="1080p" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/libChip4k"
-                        style="@style/Widget.NobiStream.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="true"
-                        android:text="4K" />
-                </com.google.android.material.chip.ChipGroup>
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/libChipSmart"
-                        style="@style/Widget.NobiStream.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="@dimen/chip_gap"
-                        android:checkable="true"
-                        android:checked="true"
-                        android:text="@string/channel_filter_smart" />
+                        android:layout_weight="1"
+                        android:text="@string/home_groups" />
                 </LinearLayout>
-            </HorizontalScrollView>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/libraryRecycler"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:clipToPadding="false"
-                android:nestedScrollingEnabled="false"
-                android:paddingStart="@dimen/screen_margin"
-                android:paddingEnd="@dimen/screen_margin"
-                android:paddingBottom="@dimen/spacing_8" />
-
-            <!-- Loading-more footer while later library pages load. -->
-            <LinearLayout
-                android:id="@+id/libraryLoadMoreFooter"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:orientation="horizontal"
-                android:padding="@dimen/spacing_12"
-                android:visibility="gone">
-
-                <ProgressBar
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:indeterminateTint="@color/primary" />
-
-                <TextView
-                    android:layout_width="wrap_content"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/groupsRecycler"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_8"
-                    android:text="@string/channel_loading_more"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="@dimen/text_caption" />
+                    android:layout_marginTop="@dimen/spacing_8"
+                    android:nestedScrollingEnabled="false"
+                    android:paddingBottom="@dimen/spacing_8"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
             </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
 
-            <com.nobi.nobistream.ui.components.EmptyStateView
-                android:id="@+id/libraryEmptyState"
+        <!-- LIBRARY tab -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/libraryContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="false"
+            android:visibility="gone">
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="@dimen/spacing_24"
-                android:paddingBottom="@dimen/spacing_24"
-                android:visibility="gone" />
+                android:orientation="vertical">
 
-            <!-- v4 explicit Load more button (48dp, Secondary): always
-                 visible while more videos may exist; disabled + loading
-                 label mid-load. Auto-load-on-scroll stays as well. -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/libraryLoadMoreButton"
-                style="@style/Widget.NobiStream.Button.Secondary"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/button_height_small"
-                android:layout_marginStart="@dimen/screen_margin"
-                android:layout_marginTop="@dimen/spacing_8"
-                android:layout_marginEnd="@dimen/screen_margin"
-                android:layout_marginBottom="@dimen/spacing_8"
-                android:text="@string/channel_load_more"
-                android:visibility="gone" />
+                <LinearLayout
+                    android:id="@+id/libraryHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_16"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="@dimen/screen_margin"
+                    android:paddingEnd="@dimen/spacing_8"
+                    android:visibility="gone">
 
-            <com.nobi.nobistream.ui.components.ErrorStateView
-                android:id="@+id/libraryErrorState"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="@dimen/spacing_24"
-                android:paddingBottom="@dimen/spacing_24"
-                android:visibility="gone" />
+                    <TextView
+                        style="@style/Text.NobiStream.Section"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/home_library" />
 
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+                    <ImageButton
+                        android:id="@+id/librarySortButton"
+                        android:layout_width="@dimen/icon_button_size"
+                        android:layout_height="@dimen/icon_button_size"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/home_sort"
+                        android:src="@drawable/ic_sort" />
+                </LinearLayout>
 
-    <com.nobi.nobistream.ui.components.EmptyStateView
-        android:id="@+id/emptyState"
+                <HorizontalScrollView
+                    android:id="@+id/libraryFilterScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:visibility="gone">
+
+                    <!-- v5: same Smart toggle as Channel Detail — beside
+                         the quality ChipGroup, never inside it (see
+                         activity_channel.xml). -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="@dimen/screen_margin"
+                        android:paddingTop="@dimen/spacing_8"
+                        android:paddingEnd="@dimen/screen_margin">
+
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/libraryFilterChips"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            app:chipSpacingHorizontal="@dimen/chip_gap"
+                            app:selectionRequired="true"
+                            app:singleSelection="true">
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/libChipAll"
+                                style="@style/Widget.NobiStream.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkable="true"
+                                android:checked="true"
+                                android:text="@string/channel_filter_all" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/libChip480"
+                                style="@style/Widget.NobiStream.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkable="true"
+                                android:text="480p" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/libChip720"
+                                style="@style/Widget.NobiStream.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkable="true"
+                                android:text="720p" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/libChip1080"
+                                style="@style/Widget.NobiStream.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkable="true"
+                                android:text="1080p" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/libChip4k"
+                                style="@style/Widget.NobiStream.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkable="true"
+                                android:text="4K" />
+                        </com.google.android.material.chip.ChipGroup>
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/libChipSmart"
+                            style="@style/Widget.NobiStream.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="@dimen/chip_gap"
+                            android:checkable="true"
+                            android:checked="true"
+                            android:text="@string/channel_filter_smart" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/libraryRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_8"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:paddingStart="@dimen/screen_margin"
+                    android:paddingEnd="@dimen/screen_margin"
+                    android:paddingBottom="@dimen/spacing_8" />
+
+                <!-- v8: no Load More button — the footer spinner is the
+                     only loading indicator; scrolling near the bottom
+                     loads the next page. -->
+                <LinearLayout
+                    android:id="@+id/libraryLoadMoreFooter"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/spacing_12"
+                    android:visibility="gone">
+
+                    <ProgressBar
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:indeterminateTint="@color/primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/spacing_8"
+                        android:text="@string/channel_loading_more"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/text_caption" />
+                </LinearLayout>
+
+                <com.nobi.nobistream.ui.components.EmptyStateView
+                    android:id="@+id/libraryEmptyState"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="@dimen/spacing_24"
+                    android:paddingBottom="@dimen/spacing_24"
+                    android:visibility="gone" />
+
+                <com.nobi.nobistream.ui.components.ErrorStateView
+                    android:id="@+id/libraryErrorState"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="@dimen/spacing_24"
+                    android:paddingBottom="@dimen/spacing_24"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <!-- Shown when no groups exist yet (either tab). -->
+        <com.nobi.nobistream.ui.components.EmptyStateView
+            android:id="@+id/emptyState"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <include
+        android:id="@+id/bottomNav"
+        layout="@layout/layout_bottom_nav"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:visibility="gone" />
-
+        android:layout_height="wrap_content" />
 </LinearLayout>

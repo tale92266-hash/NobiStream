@@ -30,4 +30,17 @@
         android:textColor="@color/text_primary"
         android:textSize="@dimen/text_body" />
 
+    <!-- v8: per-row delete (48dp touch target, 24dp icon inside). -->
+    <ImageView
+        android:id="@+id/recentDelete"
+        android:layout_width="@dimen/icon_button_size"
+        android:layout_height="@dimen/icon_button_size"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:contentDescription="@string/v8_delete_recent_search"
+        android:focusable="true"
+        android:padding="@dimen/spacing_12"
+        android:src="@drawable/ic_close"
+        android:tint="@color/text_secondary" />
+
 </LinearLayout>

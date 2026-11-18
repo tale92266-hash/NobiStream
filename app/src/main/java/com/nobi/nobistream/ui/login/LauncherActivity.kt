@@ -1,0 +1,76 @@
+package com.nobi.nobistream.ui.login
+
+import android.content.Intent
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.nobi.nobistream.NobiStreamApplication
+import com.nobi.nobistream.core.AuthState
+import com.nobi.nobistream.ui.home.MainActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+
+/**
+ * v8 login-flash fix (spec §7): the launcher activity.
+ *
+ * ROOT CAUSE: the old launcher was LoginActivity, which called
+ * setContentView() FIRST and only then ran the session check on a
+ * background thread — every cold start rendered the login form for
+ * the whole TDLib init + auth-state resolution, and a logged-in
+ * user saw the login screen flash before MainActivity opened.
+ *
+ * FIX: this activity renders NO login UI at all. Its theme paints
+ * the splash (navy + centred icon) as the window background, so
+ * the first frame is the splash, and the session check runs before
+ * any content view exists:
+ * - credentials missing / client won't start → LoginActivity
+ * - auth state resolves to READY → MainActivity
+ * - anything else (needs phone/code/password, or the 10s settle
+ *   timeout) → LoginActivity, whose own collector routes to Main
+ *   the moment READY arrives.
+ *
+ * It never stays in the back stack (finish() on every path +
+ * noHistory in the manifest), so Back from Main exits the app.
+ */
+class LauncherActivity : AppCompatActivity() {
+
+    private val locator get() = (application as NobiStreamApplication).serviceLocator
+    private val repository get() = locator.repository
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // No setContentView — the splash theme IS the first frame.
+        if (!locator.credentialsStore.hasCredentials()) {
+            goLogin()
+            return
+        }
+        lifecycleScope.launch {
+            val started = withContext(Dispatchers.IO) { repository.ensureStarted() }
+            if (!started) {
+                goLogin()
+                return@launch
+            }
+            // ensureStarted() only starts the client — the auth state
+            // resolves asynchronously after it. Wait for the first
+            // real state; on timeout fall through to Login, which
+            // re-routes to Main when READY arrives.
+            val state = withTimeoutOrNull(10_000L) {
+                repository.authState.first { it != AuthState.UNKNOWN }
+            }
+            if (state == AuthState.READY) goMain() else goLogin()
+        }
+    }
+
+    private fun goMain() {
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
+    }
+
+    private fun goLogin() {
+        startActivity(Intent(this, LoginActivity::class.java))
+        finish()
+    }
+}

@@ -44,6 +44,9 @@ class NobiRepository(
 
     suspend fun sendCode(code: String) = gateway.sendCode(code)
 
+    /** v8: ask Telegram to re-send the login code. */
+    suspend fun resendCode() = gateway.resendCode()
+
     suspend fun sendPassword(password: String) = gateway.sendPassword(password)
 
     suspend fun logout() {
