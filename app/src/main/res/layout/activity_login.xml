@@ -227,7 +227,6 @@
                     android:id="@+id/phoneEdit"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="@string/login_phone_hint"
                     android:inputType="phone"
                     android:minHeight="56dp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -246,7 +245,6 @@
                 android:id="@+id/codeEdit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/login_code_hint"
                 android:inputType="number"
                 android:minHeight="56dp" />
         </com.google.android.material.textfield.TextInputLayout>
@@ -290,7 +288,6 @@
                 android:id="@+id/passwordEdit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/login_password_hint"
                 android:inputType="textPassword"
                 android:minHeight="56dp" />
         </com.google.android.material.textfield.TextInputLayout>

@@ -9,6 +9,7 @@ import com.nobi.nobistream.data.db.AppDatabase
 import com.nobi.nobistream.data.db.SavedGroupEntity
 import com.nobi.nobistream.data.db.VideoPositionEntity
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -35,7 +36,15 @@ class NobiRepository(
         return try {
             gateway.start(credentialsStore.getApiId(), credentialsStore.getApiHash())
             true
-        } catch (_: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+            // v8.1: Client.create() can throw Error (e.g.
+            // UnsatisfiedLinkError from the native lib load) — an
+            // Exception-only catch let it escape and crash the
+            // caller. A failed start is NOT a crash: the client may
+            // still resolve later, and the launcher routes on the
+            // auth state, not on this return value.
             false
         }
     }
