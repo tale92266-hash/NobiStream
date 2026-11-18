@@ -2,8 +2,13 @@
 <!-- v8 shared bottom navigation bar (Material 3 NavigationBar).
      Included at the bottom of Main, Search and Settings screens.
      Height 80dp with a 1dp hairline on top; the bar blends with the
-     gesture navigation bar under edge-to-edge (fitsSystemWindows). -->
-<com.google.android.material.navigation.NavigationBarView xmlns:android="http://schemas.android.com/apk/res/android"
+     gesture navigation bar under edge-to-edge (fitsSystemWindows).
+     v8.2: MUST be BottomNavigationView (the concrete subclass).
+     v8 used the abstract NavigationBarView tag — LayoutInflater
+     needs a public (Context, AttributeSet) ctor, which the abstract
+     class does not have, so MainActivity crashed on inflate
+     (NoSuchMethodException, Sam's v8.1 crash log). -->
+<com.google.android.material.navigation.BottomNavigationView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/bottomNav"
     android:layout_width="match_parent"
