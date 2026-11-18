@@ -45,7 +45,8 @@
 
     <!-- Playback progress -->
     <color name="progress_played">#229ED9</color>
-    <color name="progress_track">#2E3D57</color>
+    <!-- v8: video progress track — 30% white over the thumbnail -->
+    <color name="progress_track">#4DFFFFFF</color>
     <color name="progress_buffered">#5B6B80</color>
 
     <!-- Scrims -->
@@ -66,8 +67,6 @@
 
     <!-- v8: dark translucent pills (quality / duration / cached badges) -->
     <color name="badge_dark_bg">#CC000000</color>
-    <!-- v8: video progress track — 30% white over the thumbnail -->
-    <color name="progress_track">#4DFFFFFF</color>
     <!-- v8: bottom-nav selected indicator — accent at 20% alpha -->
     <color name="nav_indicator">#33229ED9</color>
 </resources>
