@@ -472,9 +472,9 @@ class PlayerActivity : AppCompatActivity() {
         ctrlBack = view.findViewById(R.id.ctrlBack)
         ctrlOptions = view.findViewById(R.id.ctrlOptions)
         ctrlBottomRow = view.findViewById(R.id.ctrlBottomRow)
-        exoProgress = view.findViewById(R.id.exo_progress)
-        exoPosition = view.findViewById(R.id.exo_position)
-        exoDuration = view.findViewById(R.id.exo_duration)
+        exoProgress = view.findViewById(androidx.media3.ui.R.id.exo_progress)
+        exoPosition = view.findViewById(androidx.media3.ui.R.id.exo_position)
+        exoDuration = view.findViewById(androidx.media3.ui.R.id.exo_duration)
         // v9.5 Item A: while locked the seekbar shows progress only —
         // a touch on it is swallowed here so it can never scrub.
         // DefaultTimeBar also honours isEnabled=false; both together
