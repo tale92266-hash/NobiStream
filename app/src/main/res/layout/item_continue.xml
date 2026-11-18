@@ -28,6 +28,14 @@
             android:scaleType="centerCrop"
             android:src="@drawable/bg_thumb_placeholder" />
 
+        <!-- v9: bottom scrim so the duration pill never sits on
+             watermark text burned into the thumbnail. -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/bg_card_scrim" />
+
         <TextView
             android:id="@+id/continueDuration"
             android:layout_width="wrap_content"

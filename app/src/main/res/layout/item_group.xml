@@ -3,7 +3,7 @@
      row. Left 56dp CIRCULAR avatar (ShapeableImageView with the local
      Shape.NobiStream.Circle 50% shape), title 16sp Subhead,
      subtitle 12sp ("N videos • Updated 12 Nov"), right chevron
-     24dp #9AA8BC. 1dp inset divider (#24334A) starts after the
+     24dp secondary. 1dp inset divider starts after the
      avatar (16dp screen margin + 56dp avatar + 12dp gap = 84dp). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9 bottom scrim for video-card thumbnails: transparent at the
+     top fading to ~80% black at the bottom, so the quality /
+     duration pills never sit on top of watermark text burned into
+     the thumbnail. Placed behind the pills, above the image. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#CC000000"
+        android:startColor="#00000000"
+        android:type="linear" />
+</shape>

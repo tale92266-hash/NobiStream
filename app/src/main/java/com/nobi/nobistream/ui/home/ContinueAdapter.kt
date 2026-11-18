@@ -35,7 +35,8 @@ class ContinueAdapter(
         }
 
         fun bind(item: VideoItem) {
-            binding.continueTitle.text = item.title
+            // v9: headline hygiene — leading emoji stripped (display only).
+            binding.continueTitle.text = FormatUtils.stripLeadingEmoji(item.title)
             binding.continueMeta.text = metaProvider(item)
             // v8: bottom-right dark duration pill on the thumbnail.
             if (item.durationSec > 0) {

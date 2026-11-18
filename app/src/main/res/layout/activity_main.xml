@@ -102,7 +102,8 @@
                         style="@style/Widget.NobiStream.Card"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:clipToOutline="true">
+                        android:clipToOutline="true"
+                        app:cardCornerRadius="24dp">
 
                         <androidx.constraintlayout.widget.ConstraintLayout
                             android:layout_width="match_parent"
@@ -114,7 +115,7 @@
                                 android:layout_height="0dp"
                                 android:contentDescription="@string/home_continue_watching"
                                 android:scaleType="centerCrop"
-                                android:src="@drawable/ic_video_placeholder"
+                                android:src="@drawable/bg_thumb_placeholder"
                                 app:layout_constraintDimensionRatio="16:9"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent"
@@ -249,6 +250,60 @@
                     android:nestedScrollingEnabled="false"
                     android:paddingBottom="@dimen/spacing_8"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+                <!-- v9: designed quiet state when the group list is
+                     short (1–2 groups) — tonal icon in a 96dp circle
+                     + one line + Add Group button, instead of the
+                     blank dark space below the single group. -->
+                <LinearLayout
+                    android:id="@+id/homeQuietState"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingTop="@dimen/spacing_24"
+                    android:paddingBottom="@dimen/spacing_24"
+                    android:visibility="gone">
+
+                    <FrameLayout
+                        android:layout_width="96dp"
+                        android:layout_height="96dp"
+                        android:background="@drawable/v8_state_circle">
+
+                        <ImageView
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_add"
+                            android:tint="@color/text_secondary" />
+                    </FrameLayout>
+
+                    <TextView
+                        style="@style/Text.NobiStream.Section"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/spacing_12"
+                        android:gravity="center"
+                        android:text="@string/home_quiet_title" />
+
+                    <TextView
+                        style="@style/Text.NobiStream.BodySecondary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/spacing_8"
+                        android:gravity="center"
+                        android:maxWidth="280dp"
+                        android:text="@string/home_quiet_body" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/homeQuietAddButton"
+                        style="@style/Widget.NobiStream.Button.Primary.Small"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/button_height_small"
+                        android:layout_marginTop="@dimen/spacing_16"
+                        android:text="@string/home_add_group_short" />
+                </LinearLayout>
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 

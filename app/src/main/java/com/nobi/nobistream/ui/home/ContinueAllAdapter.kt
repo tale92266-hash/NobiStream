@@ -44,7 +44,8 @@ class ContinueAllAdapter(
         }
 
         fun bind(item: VideoItem) {
-            binding.continueAllTitle.text = item.title
+            // v9: headline hygiene — leading emoji stripped (display only).
+            binding.continueAllTitle.text = FormatUtils.stripLeadingEmoji(item.title)
             binding.continueAllMeta.text = metaProvider(item)
             if (item.durationSec > 0) {
                 binding.continueAllDuration.visibility = View.VISIBLE

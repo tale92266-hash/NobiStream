@@ -214,6 +214,8 @@ class MainActivity : AppCompatActivity() {
             setBody(getString(R.string.home_no_groups_body))
             setAction(getString(R.string.home_add_group)) { showAddChannelSheet() }
         }
+        // v9: quiet-state Add Group button (shown when 1–2 groups exist).
+        binding.homeQuietAddButton.setOnClickListener { showAddChannelSheet() }
         // v8 bottom navigation. The starting tab comes from the
         // intent (Search/Settings navigate back with TAB_LIBRARY);
         // the paste-link chip opens the Add Group sheet prefilled.
@@ -228,6 +230,11 @@ class MainActivity : AppCompatActivity() {
                     groups = items
                     groupAdapter.submitList(items)
                     groupsLoaded = true
+                    // v9: quiet state under "Your Groups" when the
+                    // list is short (1–2 groups). Zero groups is
+                    // covered by the full-screen empty state instead.
+                    binding.homeQuietState.visibility =
+                        if (items.size in 1..2) View.VISIBLE else View.GONE
                     // Tab containers: exactly one visible; the empty
                     // state covers both tabs when there are no groups.
                     showTab(currentTab)
@@ -351,7 +358,8 @@ class MainActivity : AppCompatActivity() {
 
     /** Hero Spotlight content: title, "Channel • 12:34 left", Resume pill. */
     private fun bindHero(item: VideoItem) {
-        binding.heroTitle.text = item.title
+        // v9: headline hygiene — leading emoji stripped (display only).
+        binding.heroTitle.text = FormatUtils.stripLeadingEmoji(item.title)
         binding.heroMeta.text = continueMeta(item)
         val left = if (item.durationSec > 0) {
             (item.durationSec - item.progressSec).coerceAtLeast(0L)

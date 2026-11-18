@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- v8 reusable error state (inflated by ErrorStateView): 96dp tonal
-     circle (#1B2740) holding a 48dp icon, 18sp medium title, 14sp
+     circle (surface_variant) holding a 48dp icon, 18sp medium title, 14sp
      secondary body (max 280dp wide), 48dp primary retry button. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"

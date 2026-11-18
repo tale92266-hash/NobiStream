@@ -26,14 +26,14 @@
     <dimen name="section_spacing">24dp</dimen>
     <dimen name="section_spacing_large">40dp</dimen>
 
-    <!-- Corners: card 16dp, small 10dp, featured 20dp, dialog/sheet 24dp -->
-    <dimen name="corner_small">10dp</dimen>
+    <!-- Corners: card 16dp, small 12dp, featured 20dp, dialog/sheet 28dp (v9 M3 Expressive) -->
+    <dimen name="corner_small">12dp</dimen>
     <dimen name="corner_medium">16dp</dimen>
     <dimen name="corner_large">16dp</dimen>
     <dimen name="corner_thumb">12dp</dimen>
     <dimen name="corner_featured">20dp</dimen>
-    <dimen name="corner_sheet">24dp</dimen>
-    <dimen name="corner_dialog">24dp</dimen>
+    <dimen name="corner_sheet">28dp</dimen>
+    <dimen name="corner_dialog">28dp</dimen>
     <dimen name="corner_full">999dp</dimen>
 
     <!-- Typography (native Roboto/system — no bundled font, see report) -->

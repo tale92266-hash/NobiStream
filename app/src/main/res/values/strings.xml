@@ -47,6 +47,9 @@
     <string name="home_cancel">Cancel</string>
     <string name="home_no_groups">No groups added yet</string>
     <string name="home_no_groups_body">Tap Add Group / Channel and paste a Telegram group or channel link to see its videos here.</string>
+    <!-- v9: quiet state shown under "Your Groups" when only 1–2 groups exist. -->
+    <string name="home_quiet_title">Add more groups to fill your Home</string>
+    <string name="home_quiet_body">Channels you add will show up here with their latest videos.</string>
     <string name="home_continue_watching">Continue Watching</string>
     <string name="home_resume">Resume</string>
     <string name="home_groups">Your Groups</string>

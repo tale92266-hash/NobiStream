@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v9 switch thumb tint: single accent only — white thumb on the
+     accent track when on, grey thumb when off. No purple anywhere. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="#FFFFFF" android:state_checked="true" />
+    <item android:color="#AAAAAA" />
+</selector>

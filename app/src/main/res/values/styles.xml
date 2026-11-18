@@ -27,7 +27,7 @@
         <item name="android:windowAnimationStyle">@style/Theme.NobiStream.ActivityTransitions</item>
     </style>
 
-    <!-- v8 launcher (splash) theme: first frame is the plain navy
+    <!-- v8 launcher (splash) theme: first frame is the plain graphite
          background with the app icon centred — never login UI. The
          LauncherActivity replaces this with its own splash layout. -->
     <style name="Theme.NobiStream.Launcher" parent="Theme.Material3.DayNight.NoActionBar">
@@ -68,9 +68,15 @@
 
     <!-- ============ Buttons ============ -->
 
+    <!-- v9: primary CTAs are white-filled with dark text
+         (YouTube-style) and fully pill-shaped. The accent never
+         fills a button — it marks selection and progress only. -->
     <style name="Widget.NobiStream.Button.Primary" parent="Widget.Material3.Button">
         <item name="android:minHeight">@dimen/button_height</item>
-        <item name="cornerRadius">@dimen/corner_small</item>
+        <item name="android:backgroundTint">@color/cta_fill</item>
+        <item name="android:textColor">@color/on_cta_fill</item>
+        <item name="iconTint">@color/on_cta_fill</item>
+        <item name="cornerRadius">@dimen/corner_full</item>
     </style>
 
     <style name="Widget.NobiStream.Button.Primary.Small" parent="Widget.NobiStream.Button.Primary">
@@ -80,7 +86,7 @@
 
     <style name="Widget.NobiStream.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:minHeight">@dimen/button_height_small</item>
-        <item name="cornerRadius">@dimen/corner_small</item>
+        <item name="cornerRadius">@dimen/corner_full</item>
         <item name="strokeColor">@color/outline</item>
         <item name="android:textColor">@color/text_primary</item>
     </style>
@@ -92,7 +98,7 @@
 
     <style name="Widget.NobiStream.Button.Danger" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:minHeight">@dimen/button_height</item>
-        <item name="cornerRadius">@dimen/corner_small</item>
+        <item name="cornerRadius">@dimen/corner_full</item>
         <item name="strokeColor">@color/error</item>
         <item name="android:textColor">@color/error</item>
     </style>
@@ -158,11 +164,30 @@
         <item name="endIconMode">clear_text</item>
     </style>
 
+    <!-- v9: real M3 exposed dropdown menus (Settings). Filled graphite
+         container, floating label (android:hint on the layout), the
+         current value as the field text, chevron end icon from the
+         ExposedDropdownMenu parent. Replaces the plain outlined boxes. -->
+    <style name="Widget.NobiStream.TextInputLayout.Dropdown" parent="Widget.Material3.TextInputLayout.FilledBox.ExposedDropdownMenu">
+        <item name="boxBackgroundColor">@color/surface_variant</item>
+        <item name="boxStrokeColor">@color/outline</item>
+        <item name="hintTextColor">@color/text_secondary</item>
+        <item name="boxCornerRadiusTopStart">@dimen/corner_medium</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/corner_medium</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/corner_medium</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/corner_medium</item>
+    </style>
+
     <!-- ============ Settings ============ -->
 
+    <!-- v9: single-accent switch — explicit thumb/track tints so the
+         "on" state is always the one accent (#229ED9), never the
+         default Material purple. White thumb on the accent track. -->
     <style name="Widget.NobiStream.Switch" parent="Widget.Material3.CompoundButton.Switch">
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">@dimen/text_body</item>
+        <item name="thumbTint">@color/switch_thumb_tint</item>
+        <item name="trackTint">@color/switch_track_tint</item>
     </style>
 
     <!-- ============ Bottom sheet (player options) ============ -->

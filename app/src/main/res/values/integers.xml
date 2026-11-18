@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Animation tokens (ms) — pixel spec. Natural easing; Material motion. -->
+    <!-- Animation tokens (ms) — v9 M3 Expressive: emphasized easing,
+         300–400ms transitions; 1200ms shimmer sweep. -->
     <integer name="anim_press">120</integer>
     <integer name="anim_filter">200</integer>
     <integer name="anim_fade_small">160</integer>
-    <integer name="anim_screen">250</integer>
-    <integer name="anim_bottom_sheet">250</integer>
-    <integer name="anim_dialog">200</integer>
+    <integer name="anim_screen">350</integer>
+    <integer name="anim_bottom_sheet">300</integer>
+    <integer name="anim_dialog">300</integer>
     <integer name="anim_thumbnail">200</integer>
     <integer name="anim_player_fade">180</integer>
     <integer name="anim_fast">120</integer>
-    <integer name="anim_medium">250</integer>
-    <integer name="anim_skeleton">900</integer>
+    <integer name="anim_medium">300</integer>
+    <integer name="anim_skeleton">1200</integer>
     <integer name="anim_gesture_feedback">900</integer>
 </resources>

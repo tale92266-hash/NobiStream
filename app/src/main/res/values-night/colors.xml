@@ -1,36 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  NobiStream v3 design tokens — dark-first streaming theme.
+  NobiStream v9 design tokens — clean graphite dark (YouTube-like).
   ONE accent (#229ED9, Telegram blue). No purple, no neon, no gradients.
   The night palette (values-night/colors.xml) is intentionally identical:
   this app is dark-only by decision, so both qualifiers resolve to the
   same tokens. All screens reference these names, never hardcoded hex.
+  v9: navy is DELETED — graphite only.
 -->
 <resources>
     <!-- Brand / accent -->
     <color name="primary">#229ED9</color>
     <color name="primary_dark">#1B7FB8</color>
-    <color name="primary_container">#12344A</color>
+    <color name="primary_container">#1A2630</color>
     <color name="on_primary_container">#BFE3F5</color>
     <color name="accent">#229ED9</color>
 
     <!-- Surfaces: background &lt; surface &lt; surface_variant &lt; surface_high -->
-    <color name="background">#0B1220</color>
-    <color name="surface">#131C2E</color>
-    <color name="surface_variant">#1B2740</color>
-    <color name="surface_high">#22304D</color>
-    <color name="surface_container">#16223A</color>
+    <color name="background">#0F0F0F</color>
+    <color name="surface">#212121</color>
+    <color name="surface_variant">#272727</color>
+    <color name="surface_high">#2C2C2C</color>
+    <color name="surface_container">#1E1E1E</color>
 
     <!-- Text -->
-    <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#9AA8BC</color>
-    <color name="on_surface_variant">#C4D0E0</color>
-    <color name="text_disabled">#5B6B80</color>
+    <color name="text_primary">#F1F1F1</color>
+    <color name="text_secondary">#AAAAAA</color>
+    <color name="on_surface_variant">#C7C7C7</color>
+    <color name="text_disabled">#717171</color>
 
     <!-- Lines -->
-    <color name="divider">#24334A</color>
-    <color name="outline">#2E3D57</color>
-    <color name="outline_variant">#22314A</color>
+    <color name="divider">#3D3D3D</color>
+    <color name="outline">#717171</color>
+    <color name="outline_variant">#3D3D3D</color>
 
     <!-- Semantic -->
     <color name="success">#34C77B</color>
@@ -45,8 +46,9 @@
 
     <!-- Playback progress -->
     <color name="progress_played">#229ED9</color>
+    <!-- v8: video progress track — 30% white over the thumbnail -->
     <color name="progress_track">#4DFFFFFF</color>
-    <color name="progress_buffered">#5B6B80</color>
+    <color name="progress_buffered">#717171</color>
 
     <!-- Scrims -->
     <color name="scrim">#CC000000</color>
@@ -54,15 +56,19 @@
     <color name="scrim_top">#99000000</color>
     <color name="scrim_bottom">#99000000</color>
 
-    <!-- Filter chips: selected = accent, unselected = quiet surface -->
+    <!-- v9: primary CTAs are white-filled with dark text (YouTube-style). -->
+    <color name="cta_fill">#F1F1F1</color>
+    <color name="on_cta_fill">#0F0F0F</color>
+
+    <!-- Filter chips: selected = accent with dark text, unselected = quiet surface -->
     <color name="chip_selected_bg">#229ED9</color>
-    <color name="chip_selected_text">#FFFFFF</color>
-    <color name="chip_unselected_bg">#1B2740</color>
-    <color name="chip_unselected_text">#C4D0E0</color>
-    <color name="chip_unselected_stroke">#2E3D57</color>
+    <color name="chip_selected_text">#0F0F0F</color>
+    <color name="chip_unselected_bg">#272727</color>
+    <color name="chip_unselected_text">#C7C7C7</color>
+    <color name="chip_unselected_stroke">#3D3D3D</color>
 
     <!-- Skeleton shimmer base -->
-    <color name="skeleton">#1B2740</color>
+    <color name="skeleton">#272727</color>
 
     <!-- v8: dark translucent pills (quality / duration / cached badges) -->
     <color name="badge_dark_bg">#CC000000</color>

@@ -44,4 +44,31 @@ object FormatUtils {
     fun formatResumePosition(positionSeconds: Long, durationSeconds: Int): String {
         return formatDuration(positionSeconds.toInt()) + " / " + formatDuration(durationSeconds)
     }
+
+    /**
+     * v9 headline hygiene: strip LEADING emoji / symbols / punctuation
+     * from a video title for DISPLAY only (hero + card titles). The
+     * caption itself is untouched in the player details. A title that
+     * starts with a letter or digit is returned unchanged; a title
+     * that is only emoji falls back to the original text.
+     */
+    fun stripLeadingEmoji(text: String): String {
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            val type = Character.getType(cp)
+            val isLetterOrDigit = type == Character.UPPERCASE_LETTER ||
+                type == Character.LOWERCASE_LETTER ||
+                type == Character.TITLECASE_LETTER ||
+                type == Character.MODIFIER_LETTER ||
+                type == Character.OTHER_LETTER ||
+                type == Character.DECIMAL_DIGIT_NUMBER ||
+                type == Character.LETTER_NUMBER ||
+                type == Character.OTHER_NUMBER
+            if (isLetterOrDigit) break
+            i += Character.charCount(cp)
+        }
+        val stripped = text.substring(i).trimStart()
+        return stripped.ifEmpty { text }
+    }
 }

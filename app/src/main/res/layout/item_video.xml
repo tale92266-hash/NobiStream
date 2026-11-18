@@ -37,6 +37,14 @@
             android:scaleType="centerCrop"
             android:src="@drawable/bg_thumb_placeholder" />
 
+        <!-- v9: bottom scrim so the quality / duration pills never
+             sit on top of watermark text burned into the thumbnail. -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/bg_card_scrim" />
+
         <!-- Cached: fully downloaded locally (top-left). -->
         <LinearLayout
             android:id="@+id/cachedBadge"

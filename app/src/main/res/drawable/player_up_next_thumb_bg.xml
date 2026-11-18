@@ -3,6 +3,6 @@
      96dp 16:9 thumb clips to rounded corners (clipToOutline=true). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#1B2740" />
+    <solid android:color="#272727" />
     <corners android:radius="8dp" />
 </shape>

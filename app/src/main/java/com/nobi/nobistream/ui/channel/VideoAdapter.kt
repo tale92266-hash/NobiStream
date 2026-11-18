@@ -64,7 +64,8 @@ class VideoAdapter(
         }
 
         fun bind(item: VideoItem) {
-            binding.videoTitle.text = item.title
+            // v9: headline hygiene — leading emoji stripped (display only).
+            binding.videoTitle.text = FormatUtils.stripLeadingEmoji(item.title)
             val date = FormatUtils.formatDate(item.dateEpochSec)
             val size = FormatUtils.formatSize(item.sizeBytes)
             val dateSize = if (date.isEmpty()) size else "$date • $size"

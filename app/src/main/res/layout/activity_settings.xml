@@ -143,48 +143,15 @@
                 android:layout_height="@dimen/divider_height"
                 android:background="@color/divider" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:minHeight="@dimen/settings_row_min_height"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="@dimen/icon_size"
-                    android:layout_height="@dimen/icon_size"
-                    android:contentDescription="@null"
-                    android:src="@drawable/ic_sort" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_16"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/Text.NobiStream.Body"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
-                        android:text="@string/settings_default_filter" />
-
-                    <TextView
-                        style="@style/Text.NobiStream.Caption"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_4"
-                        android:text="@string/settings_default_filter_desc" />
-                </LinearLayout>
-            </LinearLayout>
-
+            <!-- v9: real M3 exposed dropdown — filled graphite box,
+                 floating label, value as the field text, chevron. -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/defaultFilterLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="38dp">
+                android:layout_marginTop="@dimen/spacing_8"
+                android:hint="@string/settings_default_filter">
 
                 <AutoCompleteTextView
                     android:popupBackground="@color/surface_variant"
@@ -194,6 +161,13 @@
                     android:inputType="none"
                     android:textColor="@color/text_primary" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:text="@string/settings_default_filter_desc" />
 
             <!-- v6 Subtitles: always-show default + caption style
                  (size / colour / background, persisted in SettingsStore).
@@ -256,27 +230,13 @@
                 android:layout_height="@dimen/divider_height"
                 android:background="@color/divider" />
 
-            <TextView
-                style="@style/Text.NobiStream.Body"
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/subtitleSizeLayout"
+                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_16"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/settings_subtitles_size" />
-
-            <TextView
-                style="@style/Text.NobiStream.Caption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_subtitles_size_desc" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/subtitleSizeLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8">
+                android:hint="@string/settings_subtitles_size">
 
                 <AutoCompleteTextView
                     android:popupBackground="@color/surface_variant"
@@ -288,26 +248,19 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <TextView
-                style="@style/Text.NobiStream.Body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/settings_subtitles_color" />
-
-            <TextView
                 style="@style/Text.NobiStream.Caption"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_subtitles_color_desc" />
+                android:text="@string/settings_subtitles_size_desc" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/subtitleColorLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8">
+                android:layout_marginTop="@dimen/spacing_16"
+                android:hint="@string/settings_subtitles_color">
 
                 <AutoCompleteTextView
                     android:popupBackground="@color/surface_variant"
@@ -319,26 +272,19 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <TextView
-                style="@style/Text.NobiStream.Body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_16"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/settings_subtitles_background" />
-
-            <TextView
                 style="@style/Text.NobiStream.Caption"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_4"
-                android:text="@string/settings_subtitles_background_desc" />
+                android:text="@string/settings_subtitles_color_desc" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/subtitleBackgroundLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                style="@style/Widget.NobiStream.TextInputLayout.Dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8">
+                android:layout_marginTop="@dimen/spacing_16"
+                android:hint="@string/settings_subtitles_background">
 
                 <AutoCompleteTextView
                     android:popupBackground="@color/surface_variant"
@@ -348,6 +294,13 @@
                     android:inputType="none"
                     android:textColor="@color/text_primary" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                style="@style/Text.NobiStream.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_4"
+                android:text="@string/settings_subtitles_background_desc" />
 
             <TextView
                 style="@style/Text.NobiStream.Caption"
