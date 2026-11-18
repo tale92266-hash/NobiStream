@@ -28,7 +28,6 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -134,6 +133,28 @@ class PlayerActivity : AppCompatActivity() {
 
         /** v8 §4.4: press-and-hold delay before 2x kicks in. */
         private const val HOLD_2X_DELAY_MS = 400L
+
+        /**
+         * v9.5 Item B: swipe-to-seek rate. The old mapping scaled a
+         * full-width swipe to the FULL video duration (a 23-minute
+         * episode jumped 23 minutes per swipe) — far too fast. Now a
+         * full-width swipe seeks exactly this long (60s), whatever the
+         * video length; half-width = 30s, quarter-width = 15s.
+         */
+        private const val SWIPE_SEEK_FULL_WIDTH_MS = 60_000L
+
+        /**
+         * v9.5 Item D: top-edge gesture exclusion zone. A drag that
+         * starts within this many dp of the top of the PlayerView
+         * belongs to the system (notification shade pull-down) — the
+         * player must not read it as a brightness/volume swipe and
+         * must not consume it. Drags starting below the zone work
+         * exactly as before.
+         */
+        private const val TOP_EDGE_GESTURE_EXCLUSION_DP = 48
+
+        /** v9.5 Item C: saved-instance-state key for the fullscreen hold. */
+        private const val KEY_FULLSCREEN_HELD = "fullscreen_held"
     }
 
     private lateinit var binding: ActivityPlayerBinding
@@ -162,6 +183,8 @@ class PlayerActivity : AppCompatActivity() {
      */
     private var fullscreenHeld = false
     private var locked = false
+    /** v9.5: true while the activity is in picture-in-picture. */
+    private var inPip = false
     private var aspectIndex = 0
     private val aspectModes = intArrayOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -174,6 +197,8 @@ class PlayerActivity : AppCompatActivity() {
     private var scrollStartPosition = 0L
     private var pendingSeekTarget = -1L
     private var scrollTotalDx = 0f
+    /** v9.5 Item D: the current gesture started in the top-edge (system shade) zone. */
+    private var downInTopEdge = false
 
     /**
      * v6 Rule 1/2 — stall handling. A load/IO failure while playing
@@ -236,9 +261,6 @@ class PlayerActivity : AppCompatActivity() {
     private val bufferUpdater = object : Runnable {
         override fun run() {
             updateBufferingPercent()
-            // v9.1 audit #28: keep the lock overlay's time/progress
-            // live while locked (500ms tick, same as buffering %).
-            if (locked) updateLockTime()
             bufferHandler.postDelayed(this, 500L)
         }
     }
@@ -250,6 +272,14 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var ctrlTitle: TextView
     private lateinit var ctrlSpeedLabel: TextView
     private lateinit var ctrlCounter: TextView
+    /** v9.5 lock: top-bar / bottom-row chrome hidden while locked. */
+    private lateinit var ctrlBack: View
+    private lateinit var ctrlOptions: View
+    private lateinit var ctrlBottomRow: View
+    /** v9.5 lock: the seekbar block — visible (dimmed, not seekable) while locked. */
+    private lateinit var exoProgress: DefaultTimeBar
+    private lateinit var exoPosition: TextView
+    private lateinit var exoDuration: TextView
     /** v9.1 #13: the four secondary transport buttons (sized per orientation). */
     private lateinit var ctrlPrev: ImageButton
     private lateinit var ctrlRew: ImageButton
@@ -285,6 +315,11 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // v9.5 Item C: a recreated activity (dark-mode / display-size
+        // change) used to lose the fullscreen hold and open small in
+        // portrait — restore it so applyOrientation() re-asserts the
+        // hold below.
+        fullscreenHeld = savedInstanceState?.getBoolean(KEY_FULLSCREEN_HELD) ?: false
         window.requestFeature(Window.FEATURE_CONTENT_TRANSITIONS)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -316,36 +351,15 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.setControllerHideOnTouch(false)
         setControlsVisible(true, animate = false)
         wireControllerButtons()
-        // v9.1 lock (Sam 2026-11-18): the WHOLE corner cluster unlocks —
-        // button, pill, and the container itself (gaps / time / progress).
-        // The old centre button HAD its listeners wired, yet Sam's tap
-        // never unlocked: the tap evidently never reached the button —
-        // the PlayerView touch listener consumes every surface touch
-        // and its detector swallows locked taps (onSingleTapConfirmed
-        // returns true while locked), so a tap that lands on the
-        // surface instead of the button dies there. Two fixes: the
-        // container is clickable with elevation (topmost in dispatch),
-        // AND the detector unlocks on a tap inside the cluster rect
-        // as a fallback (see onSingleTapConfirmed). Both call
-        // setLocked(false); only one fires per tap.
-        binding.lockOverlayContainer.setOnClickListener { setLocked(false) }
-        binding.lockOverlayButton.setOnClickListener { setLocked(false) }
-        // v8 §4.4: the "Tap to unlock" pill unlocks too; Up Next card
-        // buttons; portrait details-panel action pills.
+        // v9.5 Item A (Sam 2026-11-18): when locked, ONLY the centred
+        // transparent "Tap to unlock" pill shows — no corner key, no
+        // time text, no progress bar. ONLY a tap ON the pill unlocks:
+        // the container is NOT clickable (taps around the pill fall
+        // through to the PlayerView, which toggles the pill's
+        // show/hide), and the gesture detector unlocks only for a tap
+        // inside the pill's own rect (see isTapOnLockCluster). The
+        // pill's own click listener is the single unlock path.
         binding.unlockPill.setOnClickListener { setLocked(false) }
-        // v9.1 lock: keep the corner cluster clear of the display
-        // cutout (punch-hole) — bump its top/end margins by the
-        // cutout insets. The 16dp XML margins are the fallback when
-        // no cutout is reported.
-        ViewCompat.setOnApplyWindowInsetsListener(binding.lockOverlayContainer) { view, insets ->
-            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            val density = resources.displayMetrics.density
-            val lp = view.layoutParams as ConstraintLayout.LayoutParams
-            lp.topMargin = (16 * density).toInt() + cutout.top
-            lp.marginEnd = (16 * density).toInt() + cutout.right
-            view.layoutParams = lp
-            insets
-        }
         binding.upNextCancel.setOnClickListener { hideUpNextCard() }
         binding.upNextPlayNow.setOnClickListener { advanceToUpNext() }
         binding.upNextPlay.setOnClickListener { advanceToUpNext() }
@@ -454,6 +468,18 @@ class PlayerActivity : AppCompatActivity() {
         ctrlFfwd = view.findViewById(R.id.ctrlFfwd)
         ctrlNext = view.findViewById(R.id.ctrlNext)
         seekTicksContainer = view.findViewById(R.id.seekTicks)
+        // v9.5 lock: chrome hidden while locked + seekbar block.
+        ctrlBack = view.findViewById(R.id.ctrlBack)
+        ctrlOptions = view.findViewById(R.id.ctrlOptions)
+        ctrlBottomRow = view.findViewById(R.id.ctrlBottomRow)
+        exoProgress = view.findViewById(R.id.exo_progress)
+        exoPosition = view.findViewById(R.id.exo_position)
+        exoDuration = view.findViewById(R.id.exo_duration)
+        // v9.5 Item A: while locked the seekbar shows progress only —
+        // a touch on it is swallowed here so it can never scrub.
+        // DefaultTimeBar also honours isEnabled=false; both together
+        // make a locked seekbar provably dead.
+        exoProgress.setOnTouchListener { _, _ -> locked }
     }
 
     private fun wireControllerButtons() {
@@ -582,6 +608,22 @@ class PlayerActivity : AppCompatActivity() {
         if (!landscape && !fullscreenHeld) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
+        // v9.5 Item C: self-healing hold. A portrait layout can still
+        // land while the hold is active — the in-code path is the PiP
+        // exit branch, which calls applyOrientation() with the
+        // device's current (often portrait) orientation — and nothing
+        // ever re-asserted the request afterwards: the value was
+        // already SENSOR_LANDSCAPE, so setting it again is a no-op
+        // and the player sat small until the user tapped fullscreen
+        // again. Toggle through UNSPECIFIED to force the
+        // WindowManager to re-evaluate and rotate back to landscape.
+        // A real exit clears fullscreenHeld first (Back handler /
+        // fullscreen button), so it is unaffected; onCreate with a
+        // restored hold (recreation) heals the same way.
+        if (fullscreenHeld && !landscape) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
     }
 
     /**
@@ -648,23 +690,14 @@ class PlayerActivity : AppCompatActivity() {
         cancelHoldPending()
         if (holdSpeedActive) endHold2x()
         if (value) {
-            // v9.4 Bug L: hide the controls SYNCHRONOUSLY — the old
-            // call used the 250ms fade whose withEndAction did the
-            // actual hideController(), so the seekbar could linger on
-            // screen after locking. With animate=false the controller
-            // (seekbar included) is gone at once.
-            setControlsVisible(false, animate = false)
-            // v9.1: the whole corner cluster shows/hides as one —
-            // never the button/pill individually (that split is what
-            // the old centre overlay did).
-            // v9.4 Bug L: the cluster shows on lock and auto-hides
-            // after 3s like the normal controls (it never had a
-            // timer — that is why the lock button, the "Tap to
-            // unlock" pill and its progress bar never left the
-            // screen). A tap anywhere brings it back for 3s.
+            // v9.5 Item A: lock = seekbar-only mode. The controller
+            // stays up with ONLY the seekbar visible (dimmed, not
+            // seekable) — the rest of the chrome hides. The centred
+            // transparent pill shows and auto-hides after 3s (v9.4);
+            // a tap anywhere brings it back for 3s.
+            applyLockedControls()
             showLockCluster()
             ctrlLock.setImageResource(R.drawable.ic_lock)
-            updateLockTime()
             Toast.makeText(this, getString(R.string.player_locked), Toast.LENGTH_SHORT).show()
         } else {
             hideLockCluster()
@@ -690,27 +723,56 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * v9.1 audit #28: current time + thin progress on the lock overlay
-     * ("12:34 / 23:06"). Called once on lock and every 500ms by the
-     * buffer ticker while locked; the progress bar hides when the
-     * duration is unknown.
+     * v9.5 Item A: the controller chrome that hides while locked —
+     * top bar, centre transport, bottom row. The seekbar block
+     * (time labels + bar + ticks) is NOT in this list: it stays
+     * visible while locked, dimmed and not seekable.
      */
-    private fun updateLockTime() {
-        val exo = player ?: return
-        val positionSec = (exo.currentPosition / 1000L).toInt()
-        val durationMs = exo.duration
-        binding.lockTimeText.text = if (durationMs > 0) {
-            "${FormatUtils.formatDuration(positionSec)} / ${FormatUtils.formatDuration((durationMs / 1000L).toInt())}"
-        } else {
-            FormatUtils.formatDuration(positionSec)
+    private fun setControllerChromeVisible(visible: Boolean) {
+        val v = if (visible) View.VISIBLE else View.GONE
+        ctrlBack.visibility = v
+        ctrlTitle.visibility = v
+        ctrlOptions.visibility = v
+        ctrlPrev.visibility = v
+        ctrlRew.visibility = v
+        ctrlPlayPause.visibility = v
+        ctrlFfwd.visibility = v
+        ctrlNext.visibility = v
+        ctrlBottomRow.visibility = v
+    }
+
+    /**
+     * v9.5 Item A: seekbar-only locked mode. The controller is shown
+     * with the chrome hidden and the seekbar block visible at half
+     * alpha with scrubbing disabled (isEnabled=false AND the touch
+     * guard in findControllerViews, so a locked seekbar is provably
+     * dead). Any in-flight fade-out is cancelled first — its
+     * withEndAction would otherwise hide the controller afterwards.
+     * The auto-hide timer is disarmed: the seekbar does not hide
+     * while locked (only the pill has a 3s timer).
+     */
+    private fun applyLockedControls() {
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        binding.playerView.findViewById<View>(R.id.playerControllerRoot)?.let { controller ->
+            controller.animate().cancel()
+            controller.alpha = 1f
         }
-        if (durationMs > 0) {
-            binding.lockProgress.visibility = View.VISIBLE
-            binding.lockProgress.progress =
-                ((exo.currentPosition * 100L) / durationMs).toInt().coerceIn(0, 100)
-        } else {
-            binding.lockProgress.visibility = View.GONE
-        }
+        setControllerChromeVisible(false)
+        exoProgress.alpha = 0.5f
+        exoProgress.isEnabled = false
+        exoPosition.alpha = 0.5f
+        exoDuration.alpha = 0.5f
+        isControlsVisible = true
+        binding.playerView.showController()
+    }
+
+    /** v9.5 Item A: undo the locked mode — chrome back, seekbar live. */
+    private fun restoreControllerChrome() {
+        setControllerChromeVisible(true)
+        exoProgress.alpha = 1f
+        exoProgress.isEnabled = true
+        exoPosition.alpha = 1f
+        exoDuration.alpha = 1f
     }
 
     private fun cycleAspect() {
@@ -746,6 +808,7 @@ class PlayerActivity : AppCompatActivity() {
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        inPip = isInPictureInPictureMode
         if (isInPictureInPictureMode) {
             // PiP hides the controls through the single source of
             // truth (no fade — the window is already shrinking).
@@ -764,6 +827,11 @@ class PlayerActivity : AppCompatActivity() {
             binding.doubleTapPill.visibility = View.GONE
             binding.detailsPanel.visibility = View.GONE
         } else if (locked) {
+            // v9.5 Item C: restore the layout too (the portrait
+            // branch of applyOrientation re-asserts a held
+            // fullscreen); then the locked seekbar-only mode.
+            applyOrientation(resources.configuration.orientation)
+            applyLockedControls()
             showLockCluster()
         } else {
             // Leaving PiP: restore the layout for the current
@@ -891,7 +959,16 @@ class PlayerActivity : AppCompatActivity() {
      * refused outright — the lock overlay is the only UI.
      */
     private fun setControlsVisible(visible: Boolean, animate: Boolean = true) {
+        // v9.5 Item A: while locked, every hide/show request just
+        // re-applies seekbar-only mode — the seekbar must never
+        // disappear (the old hide path took it with the controller).
+        // In PiP the controller hides normally instead (tiny window).
+        if (locked && !inPip) {
+            applyLockedControls()
+            return
+        }
         if (visible && locked) return
+        if (visible) restoreControllerChrome()
         val wasVisible = isControlsVisible
         isControlsVisible = visible
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
@@ -1838,18 +1915,21 @@ class PlayerActivity : AppCompatActivity() {
      * PlayerView coordinates; the cluster rect is converted from screen
      * coordinates via the PlayerView's own screen rect.
      */
+    // v9.5 Item A: the unlock hit-target is the PILL alone — the
+    // container, its gaps and (removed) time/progress no longer
+    // unlock. Taps around the pill fall through to the PlayerView
+    // and only toggle the pill's show/hide.
     private fun isTapOnLockCluster(e: MotionEvent): Boolean {
-        val container = binding.lockOverlayContainer
-        if (container.visibility != View.VISIBLE) return false
-        val clusterRect = Rect()
-        if (!container.getGlobalVisibleRect(clusterRect)) return false
+        if (binding.lockOverlayContainer.visibility != View.VISIBLE) return false
+        val pillRect = Rect()
+        if (!binding.unlockPill.getGlobalVisibleRect(pillRect)) return false
         val playerRect = Rect()
         if (!binding.playerView.getGlobalVisibleRect(playerRect)) return false
         val slack = (8 * resources.displayMetrics.density).toInt()
-        clusterRect.inset(-slack, -slack)
+        pillRect.inset(-slack, -slack)
         val x = (playerRect.left + e.x).toInt()
         val y = (playerRect.top + e.y).toInt()
-        return clusterRect.contains(x, y)
+        return pillRect.contains(x, y)
     }
 
     private fun setupGestures() {
@@ -1861,15 +1941,15 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                     if (locked) {
                         // v9.1 lock fallback (Sam 2026-11-18): a tap
-                        // inside the corner lock cluster unlocks even
-                        // if the PlayerView swallowed the touch before
-                        // the cluster's own click listener saw it —
-                        // the old centre button's tap never arrived,
-                        // and this detector is the one place that tap
-                        // is guaranteed to be seen (the PlayerView
+                        // on the unlock pill unlocks even if the
+                        // PlayerView swallowed the touch before the
+                        // pill's own click listener saw it — the old
+                        // centre button's tap never arrived, and this
+                        // detector is the one place that tap is
+                        // guaranteed to be seen (the PlayerView
                         // listener consumes every surface touch).
-                        // v9.4 Bug L: a tap OUTSIDE the cluster
-                        // toggles the cluster itself (Netflix-style):
+                        // v9.4 Bug L: a tap OUTSIDE the pill toggles
+                        // the pill itself (Netflix-style):
                         // hidden -> show for 3s; visible -> hide now.
                         // The old code swallowed these taps, so the
                         // cluster could neither be hidden nor brought
@@ -1913,6 +1993,16 @@ class PlayerActivity : AppCompatActivity() {
                 ): Boolean {
                     if (locked) return true
                     val exo = player ?: return true
+                    // v9.5 Item D: a scroll whose DOWN event started
+                    // in the top-edge zone belongs to the system
+                    // (notification shade) — ignore it entirely, so a
+                    // shade pull can never read as a brightness or
+                    // volume swipe. (The touch listener normally never
+                    // feeds such a gesture to the detector at all;
+                    // this is the second line of defence.)
+                    if (e1 != null && e1.y < TOP_EDGE_GESTURE_EXCLUSION_DP * resources.displayMetrics.density) {
+                        return true
+                    }
                     if (scrollMode == SCROLL_NONE) {
                         // v8 §4.4: a swipe starting cancels a pending
                         // hold-to-2x (and ends an active one) — the
@@ -1935,8 +2025,12 @@ class PlayerActivity : AppCompatActivity() {
                         val view = binding.playerView
                         scrollTotalDx -= distanceX
                         val duration = exo.duration.coerceAtLeast(0L)
-                        val delta = if (view.width > 0 && duration > 0) {
-                            (scrollTotalDx / view.width.toFloat() * duration).toLong()
+                        // v9.5 Item B: a full-width swipe seeks
+                        // SWIPE_SEEK_FULL_WIDTH_MS (60s), NOT the full
+                        // duration — the old mapping made a full-width
+                        // swipe jump a whole 23-minute episode.
+                        val delta = if (view.width > 0) {
+                            (scrollTotalDx / view.width.toFloat() * SWIPE_SEEK_FULL_WIDTH_MS).toLong()
                         } else {
                             0L
                         }
@@ -1960,6 +2054,21 @@ class PlayerActivity : AppCompatActivity() {
             }
         )
         binding.playerView.setOnTouchListener { _, event ->
+            // v9.5 Item D: a touch starting in the top-edge zone is a
+            // system gesture (notification shade pull-down) — do not
+            // feed it to the detector, do not arm hold-to-2x, and do
+            // not consume it, so the shade takes it untouched and
+            // brightness/volume stay exactly as they were.
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                downInTopEdge =
+                    event.y < TOP_EDGE_GESTURE_EXCLUSION_DP * resources.displayMetrics.density
+                if (downInTopEdge) {
+                    scrollMode = SCROLL_NONE
+                    pendingSeekTarget = -1L
+                    scrollTotalDx = 0f
+                    return@setOnTouchListener false
+                }
+            }
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     scrollMode = SCROLL_NONE
@@ -1974,12 +2083,17 @@ class PlayerActivity : AppCompatActivity() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     cancelHoldPending()
                     if (holdSpeedActive) endHold2x()
-                    if (scrollMode == SCROLL_HORIZONTAL && pendingSeekTarget >= 0L) {
+                    // v9.5 Item D: never commit a seek from a gesture
+                    // that started in the top-edge zone (belt and
+                    // braces — such a gesture never reaches the
+                    // detector in the first place).
+                    if (scrollMode == SCROLL_HORIZONTAL && pendingSeekTarget >= 0L && !downInTopEdge) {
                         player?.seekTo(pendingSeekTarget)
                     }
                     scrollMode = SCROLL_NONE
                     pendingSeekTarget = -1L
                     scrollTotalDx = 0f
+                    downInTopEdge = false
                 }
             }
             detector.onTouchEvent(event)
@@ -2180,6 +2294,14 @@ class PlayerActivity : AppCompatActivity() {
                 .coerceIn(-center + halfPill + 8f, center - halfPill - 8f)
             binding.seekPreviewPill.translationX = shift
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // v9.5 Item C: keep the fullscreen hold across recreation
+        // (dark-mode / display-size change) so the player re-opens
+        // fullscreen instead of small in portrait.
+        outState.putBoolean(KEY_FULLSCREEN_HELD, fullscreenHeld)
     }
 
     override fun onPause() {

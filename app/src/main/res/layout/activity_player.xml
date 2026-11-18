@@ -429,48 +429,32 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- v9.1 lock overlay (Sam 2026-11-18: lock beech me nahi, kone me
-         chahiye + tap par hide hona chahiye). Top-right corner cluster
-         clear of the video centre and the display cutout (margins are
-         bumped by the cutout insets in PlayerActivity). The WHOLE
-         container is clickable — button, pill, time row, gaps — so a
-         tap anywhere on the cluster unlocks; the gesture detector also
-         unlocks on a tap inside this rect as a fallback (see
-         PlayerActivity.onSingleTapConfirmed). Time + thin progress are
-         the audit #28 additions. -->
+    <!-- v9.5 lock overlay (Sam 2026-11-18): when locked, ONLY the
+         centred transparent "Tap to unlock" pill shows — no corner
+         key, no time text, no progress bar. The container is NOT
+         clickable: taps around the pill fall through to the
+         PlayerView (which toggles the pill's show/hide); ONLY a tap
+         on the pill itself unlocks (its click listener + the
+         isTapOnLockCluster fallback in PlayerActivity). The pill
+         carries the lock icon (drawableStart) with the text. -->
     <LinearLayout
         android:id="@+id/lockOverlayContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_16"
-        android:layout_marginEnd="@dimen/spacing_16"
-        android:clickable="true"
-        android:elevation="8dp"
-        android:focusable="true"
-        android:gravity="end"
+        android:clickable="false"
+        android:focusable="false"
         android:orientation="vertical"
         android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/playerView"
         app:layout_constraintEnd_toEndOf="@id/playerView"
+        app:layout_constraintStart_toStartOf="@id/playerView"
         app:layout_constraintTop_toTopOf="@id/playerView">
 
-        <ImageButton
-            android:id="@+id/lockOverlayButton"
-            android:layout_width="@dimen/icon_button_size"
-            android:layout_height="@dimen/icon_button_size"
-            android:layout_gravity="end"
-            android:background="@drawable/bg_gesture_pill"
-            android:contentDescription="@string/player_unlock"
-            android:src="@drawable/ic_lock" />
-
-        <!-- v8 §4.4: the subtle "Tap to unlock" pill shown with the lock
-             overlay while controls are locked; tapping it unlocks.
-             v9.1: 48dp min height (audit #28 touch target). -->
         <TextView
             android:id="@+id/unlockPill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_8"
-            android:background="@drawable/bg_gesture_pill"
+            android:background="@drawable/bg_lock_pill_transparent"
             android:clickable="true"
             android:contentDescription="@string/player_tap_to_unlock"
             android:drawableStart="@drawable/ic_lock"
@@ -483,27 +467,6 @@
             android:text="@string/player_tap_to_unlock"
             android:textColor="#FFFFFF"
             android:textSize="@dimen/text_action" />
-
-        <!-- Audit #28: current time + thin progress on the lock overlay. -->
-        <TextView
-            android:id="@+id/lockTimeText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:layout_marginTop="@dimen/spacing_8"
-            android:textColor="#FFFFFF"
-            android:textSize="@dimen/text_caption" />
-
-        <ProgressBar
-            android:id="@+id/lockProgress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="120dp"
-            android:layout_height="@dimen/progress_bar_height"
-            android:layout_gravity="end"
-            android:layout_marginTop="@dimen/spacing_4"
-            android:max="100"
-            android:progress="0"
-            android:progressDrawable="@drawable/progress_video" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
