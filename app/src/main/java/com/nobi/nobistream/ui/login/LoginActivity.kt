@@ -225,7 +225,7 @@ class LoginActivity : AppCompatActivity() {
             return
         }
         val phone = if (digits.startsWith("+")) digits else "+91$digits"
-        runTelegramCall { repository.sendPhoneNumber(phone) }
+        runTelegramCall(block = { repository.sendPhoneNumber(phone) })
     }
 
     private fun sendCode() {
@@ -249,7 +249,7 @@ class LoginActivity : AppCompatActivity() {
             showError("Enter your two-step verification password.")
             return
         }
-        runTelegramCall { repository.sendPassword(password) }
+        runTelegramCall(block = { repository.sendPassword(password) })
     }
 
     /** v8: short horizontal shake on the code field. */

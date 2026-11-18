@@ -65,11 +65,11 @@ class SettingsActivity : AppCompatActivity() {
         // button, bottom nav shown. EXCEPT standalone-from-Login:
         // no bottom nav, back button stays.
         if (intent.getBooleanExtra(EXTRA_STANDALONE, false)) {
-            binding.bottomNav.visibility = View.GONE
+            binding.bottomNav.root.visibility = View.GONE
             binding.toolbar.setNavigationOnClickListener { finish() }
         } else {
             binding.toolbar.navigationIcon = null
-            BottomNavHelper.setup(this, binding.bottomNav, NavTab.SETTINGS)
+            BottomNavHelper.setup(this, binding.bottomNav.root, NavTab.SETTINGS)
         }
         binding.versionText.text =
             "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"

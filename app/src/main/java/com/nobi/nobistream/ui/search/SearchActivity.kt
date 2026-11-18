@@ -87,7 +87,7 @@ class SearchActivity : AppCompatActivity() {
         // v8: Search is a top-level bottom-nav tab now — no toolbar
         // back button (the back stack never leads here from a tab).
         binding.toolbar.navigationIcon = null
-        BottomNavHelper.setup(this, binding.bottomNav, NavTab.SEARCH)
+        BottomNavHelper.setup(this, binding.bottomNav.root, NavTab.SEARCH)
 
         adapter = VideoAdapter(
             onClick = { item, thumb -> openPlayer(item, thumb) },

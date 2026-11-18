@@ -317,7 +317,7 @@ class MainActivity : AppCompatActivity() {
     // ---- v8 tabs + Hero Spotlight ----
 
     private fun setupBottomNav(selected: NavTab) {
-        BottomNavHelper.setup(this, binding.bottomNav, selected) { tab ->
+        BottomNavHelper.setup(this, binding.bottomNav.root, selected) { tab ->
             when (tab) {
                 NavTab.HOME -> {
                     showTab(TAB_HOME)

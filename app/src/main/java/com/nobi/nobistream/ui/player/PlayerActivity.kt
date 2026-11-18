@@ -1785,7 +1785,7 @@ class PlayerActivity : AppCompatActivity() {
      * −01:10); it hides on scrub end.
      */
     private fun setupSeekPreview() {
-        val timeBar = binding.playerView.findViewById<DefaultTimeBar>(R.id.exo_progress)
+        val timeBar = binding.playerView.findViewById<DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)
             ?: return
         timeBar.addListener(object : TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: TimeBar, position: Long) {
