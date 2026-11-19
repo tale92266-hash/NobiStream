@@ -160,6 +160,17 @@ fun ChannelScreen(
     var serverVideoCount by remember(chatId) { mutableStateOf<Int?>(null) }
     var loadJob by remember(chatId) { mutableStateOf<Job?>(null) }
     var timeoutJob by remember(chatId) { mutableStateOf<Job?>(null) }
+    // v2.6.3 (fix A): the silent background refresh's job — a new
+    // open / Refresh cancels any refresh still running.
+    var refreshJob by remember(chatId) { mutableStateOf<Job?>(null) }
+    // v2.6.3 (fix B): true only once the grouping pipeline has
+    // finished for the CURRENT allVideos — the load-more trigger
+    // must not fire while grouping is still running.
+    var groupingSettled by remember(chatId) { mutableStateOf(false) }
+    // v2.6.3 (fix D): true once the FIRST grouping pass has
+    // completed — the header count stays blank until then, so a
+    // fresh open never shows "Episodes (0)".
+    var hasGrouped by remember(chatId) { mutableStateOf(false) }
 
     var currentFilterOverride by remember(chatId) { mutableStateOf<VideoQuality?>(null) }
     val currentFilter = currentFilterOverride ?: VideoQuality.fromLabel(savedDefaultFilter)
@@ -171,6 +182,62 @@ fun ChannelScreen(
     var sheetGroup by remember(chatId) { mutableStateOf<EpisodeGroup?>(null) }
 
     val preferredMaxRank = SmartFilter.maxRankFor(preferredQuality)
+
+    // v2.6.3 (fix A): snapshot the current fully-loaded state into
+    // the repository's full-list session cache, so the next open
+    // restores the WHOLE history instantly. Called whenever a
+    // channel load completes or appends (loadFirstPage, loadMore).
+    fun snapshotFullList() {
+        repository.cacheFullList(
+            chatId, allVideos, fromMessageId, hasMore, serverVideoCount
+        )
+    }
+
+    // v2.6.3 (fix A): silent background refresh — pages the whole
+    // history from scratch into a scratch list and swaps it in
+    // atomically ONLY when complete. The visible list, the header
+    // count and the Best card never change mid-refresh; when
+    // nothing changed the swap is visually a no-op. A failure, an
+    // empty result or a cancellation leaves the visible list
+    // exactly as it was. `loading` is deliberately NOT set here:
+    // this is not a foreground load, so the Best card and the
+    // footer stay put while it runs.
+    fun refreshFullListInBackground() {
+        refreshJob?.cancel()
+        refreshJob = scope.launch {
+            val scratch = mutableListOf<VideoItem>()
+            var cursor = 0L
+            var lastId = 0L
+            var more = true
+            try {
+                while (true) {
+                    val page = withContext(Dispatchers.IO) {
+                        repository.loadVideos(chatId, cursor, PAGE_SIZE)
+                    }
+                    val seen = scratch.map { it.chatId to it.messageId }.toHashSet()
+                    scratch += page.videos.filter { seen.add(it.chatId to it.messageId) }
+                    if (page.lastMessageId > 0L) lastId = page.lastMessageId
+                    more = page.rawCount >= PAGE_SIZE
+                    if (!more || page.lastMessageId <= 0L) break
+                    if (cursor != 0L && page.lastMessageId >= cursor) break
+                    cursor = page.lastMessageId
+                }
+                if (scratch.isNotEmpty()) {
+                    allVideos = scratch.toList()
+                    fromMessageId = lastId
+                    hasMore = more
+                    sawMessages = true
+                    repository.cacheFullList(
+                        chatId, scratch.toList(), lastId, more, serverVideoCount
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Silent refresh must never disturb the visible list.
+            }
+        }
+    }
 
     // ---- First-page load: cached instant show, auto-page through
     // video-less windows, 60s timeout ----
@@ -216,6 +283,7 @@ fun ChannelScreen(
                         hasMore = page.rawCount >= PAGE_SIZE
                         sawMessages = true
                         loading = false
+                        snapshotFullList()
                         return@launch
                     }
                     if (page.rawCount > 0) {
@@ -229,6 +297,7 @@ fun ChannelScreen(
                             timeoutJob?.cancel()
                             hasMore = false
                             loading = false
+                            snapshotFullList()
                             return@launch
                         }
                         if (cursor != 0L && page.lastMessageId >= cursor) {
@@ -284,11 +353,29 @@ fun ChannelScreen(
     fun resetAndLoad() {
         loadJob?.cancel()
         timeoutJob?.cancel()
+        refreshJob?.cancel()
         firstPageTimedOut = false
+        firstPageError = false
+        // v2.6.3 (fix A): a fresh full-list session cache restores
+        // the WHOLE loaded history instantly — the visible list is
+        // NEVER wiped on re-open, so the header count and the Best
+        // card never step 0 -> 11 -> 50 -> 577. A silent background
+        // refresh then re-pages from scratch and swaps atomically
+        // when complete. The cold path below is unchanged.
+        repository.peekFullList(chatId)?.let { full ->
+            allVideos = full.videos
+            fromMessageId = full.lastMessageId
+            hasMore = full.hasMore
+            sawMessages = true
+            if (full.serverVideoCount != null) serverVideoCount = full.serverVideoCount
+            loading = false
+            fetchServerCount()
+            refreshFullListInBackground()
+            return
+        }
         allVideos = emptyList()
         fromMessageId = 0L
         hasMore = true
-        firstPageError = false
         sawMessages = false
         fetchServerCount()
         timeoutJob = scope.launch {
@@ -317,6 +404,7 @@ fun ChannelScreen(
                 if (page.lastMessageId > 0L) fromMessageId = page.lastMessageId
                 hasMore = page.rawCount >= PAGE_SIZE
                 if (page.rawCount > 0) sawMessages = true
+                snapshotFullList()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -346,6 +434,11 @@ fun ChannelScreen(
     LaunchedEffect(
         allVideos, smartOn, preferredMaxRank, currentFilter, hideFillers, fillerMarks, sortNewest
     ) {
+        // v2.6.3 (fix B): the grouping is NOT settled for the new
+        // inputs until this pass completes — the load-more trigger
+        // below must stay silent meanwhile, or it fires on the
+        // stale (empty) displayed list and cancels this very pass.
+        groupingSettled = false
         val computed = withContext(Dispatchers.Default) {
             val groups = if (smartOn) {
                 SmartFilter.groupEpisodes(allVideos, preferredMaxRank)
@@ -371,6 +464,11 @@ fun ChannelScreen(
             )
         }
         groupedLists = computed
+        // v2.6.3 (fixes B + D): the new list is in state now, so
+        // the load-more trigger may fire again, and the header may
+        // show its count — never before this first completed pass.
+        hasGrouped = true
+        groupingSettled = true
     }
     // v2.6.1 (#11): non-episode posts (news / announcements /
     // trailers ...) leave the episode rows for a separate "Other
@@ -424,6 +522,9 @@ fun ChannelScreen(
                     it
                 }
             }
+            // v2.6.3 (fix A): keep the cached full list's watched
+            // flags in step with the visible list.
+            snapshotFullList()
         }
     }
 
@@ -443,9 +544,23 @@ fun ChannelScreen(
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastVisible ->
-                if (lastVisible != null &&
-                    lastVisible >= displayedVideos.size + otherDisplayed.size - 5
-                ) {
+                if (lastVisible == null) return@collect
+                // v2.6.3 (fix B): fire ONLY when the grouping is
+                // SETTLED for the current allVideos. While grouping
+                // is still running, displayedVideos is the STALE
+                // list (empty on a fresh load), so the old
+                // `>= size - 5` check fired on ANY lastVisible and
+                // each append cancelled the grouping in flight —
+                // the starvation loop that auto-paged the whole
+                // history with no scrolling. The reads below go
+                // through the MutableState objects, so they are
+                // always current even though this effect never
+                // restarts; the deep-scroll effect below still
+                // calls loadMore() directly and is untouched.
+                if (!groupingSettled) return@collect
+                val total = groupedLists.episodes.size + groupedLists.other.size
+                if (total == 0) return@collect
+                if (lastVisible >= total - 5) {
                     loadMore()
                 }
             }
@@ -567,8 +682,13 @@ fun ChannelScreen(
 
         // Best-copy card: the selected episode's best copy, or the
         // group's best copy overall when nothing is selected yet.
+        // v2.6.3 (fix C): NO `!loading` gate any more — the old gate
+        // hid the card during EVERY page load, so it vanished and
+        // popped back on every open while the history auto-paged.
+        // The skeleton still covers a genuine cold first load (the
+        // card's group is null until the first grouping lands).
         val bestGroup = selectedGroup
-        if (bestGroup != null && !loading) {
+        if (bestGroup != null) {
             val reason = SmartFilter.bestReasonFor(bestGroup)
             Card(
                 modifier = Modifier
@@ -655,7 +775,10 @@ fun ChannelScreen(
                     // "50 videos": TDLib's first-page totalCount is a
                     // locally-known message total, unreliable on a
                     // cold sync.)
-                    text = "Episodes (${displayedVideos.size})",
+                    // v2.6.3 (fix D): BLANK until the first grouping
+                    // pass completes — a fresh open never shows
+                    // "Episodes (0)" for the empty in-flight list.
+                    text = if (hasGrouped) "Episodes (${displayedVideos.size})" else "",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.weight(1f)

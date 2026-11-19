@@ -88,6 +88,14 @@ class ChannelActivity : AppCompatActivity() {
         }
     }
 
+    // v2.6.3 (fix E): closing the channel is instant too — no
+    // slide back that draws Channel + Home at once. Covers the
+    // toolbar back (onBack -> finish()) and the system back key.
+    override fun finish() {
+        super.finish()
+        overridePendingTransition(0, 0)
+    }
+
     private fun openPlayer(item: VideoItem) {
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_CHAT_ID, item.chatId)

@@ -151,5 +151,9 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra(ChannelActivity.EXTRA_TARGET_MESSAGE_ID, targetMessageId)
         }
         startActivity(intent)
+        // v2.6.3 (fix E): NO transition animation — the system
+        // default slide drew Home + Channel at once (ghosting).
+        // Same precedent as BottomNavHelper tab switches.
+        overridePendingTransition(0, 0)
     }
 }

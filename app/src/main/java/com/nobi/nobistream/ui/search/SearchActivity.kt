@@ -112,5 +112,9 @@ class SearchActivity : AppCompatActivity() {
             intent.putExtra(ChannelActivity.EXTRA_TARGET_MESSAGE_ID, targetMessageId)
         }
         startActivity(intent)
+        // v2.6.3 (fix E): NO transition animation — the system
+        // default slide drew the previous screen + Channel at once
+        // (ghosting). Same precedent as BottomNavHelper tab switches.
+        overridePendingTransition(0, 0)
     }
 }

@@ -46,6 +46,52 @@ class NobiRepository(
     private data class CachedFirstPage(val page: VideoPage, val atMs: Long)
     private val firstPageCache = ConcurrentHashMap<Long, CachedFirstPage>()
 
+    /**
+     * v2.6.3: the FULL loaded list per channel (~5 min TTL, same
+     * as firstPageCache) — a re-opened channel shows the WHOLE
+     * loaded history instantly (videos, cursor, hasMore, server
+     * total), instead of only page 1. FirstPageCache alone was the
+     * flicker: on every open the screen wiped to empty, showed
+     * only page 1 (~11 episodes), then auto-paged the whole history
+     * while the header stepped 0 -> 11 -> 50 -> 577. Updated by
+     * ChannelScreen whenever a load completes/appends; read on
+     * channel open. An empty list is never cached — a failed or
+     * empty load must not wipe a good cache.
+     */
+    data class CachedFullList(
+        val videos: List<VideoItem>,
+        val lastMessageId: Long,
+        val hasMore: Boolean,
+        val serverVideoCount: Int?,
+        val atMs: Long
+    )
+    private val fullListCache = ConcurrentHashMap<Long, CachedFullList>()
+
+    /** v2.6.3: the full loaded list for this channel, if fresh. */
+    fun peekFullList(chatId: Long): CachedFullList? {
+        val cached = fullListCache[chatId] ?: return null
+        if (System.currentTimeMillis() - cached.atMs > FIRST_PAGE_CACHE_TTL_MS) {
+            fullListCache.remove(chatId)
+            return null
+        }
+        return cached.copy(videos = cached.videos.map { withCachedThumb(it) })
+    }
+
+    /** v2.6.3: snapshot a channel's fully-loaded state. */
+    fun cacheFullList(
+        chatId: Long,
+        videos: List<VideoItem>,
+        lastMessageId: Long,
+        hasMore: Boolean,
+        serverVideoCount: Int?
+    ) {
+        if (videos.isEmpty()) return
+        fullListCache[chatId] = CachedFullList(
+            videos, lastMessageId, hasMore, serverVideoCount,
+            System.currentTimeMillis()
+        )
+    }
+
     /** v2.6.1: thumbnail path remembered this session, if any. */
     fun cachedThumbPath(chatId: Long, messageId: Long): String? =
         thumbPathCache[chatId to messageId]?.takeIf { File(it).exists() }
