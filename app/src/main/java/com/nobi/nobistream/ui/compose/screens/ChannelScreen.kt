@@ -167,9 +167,10 @@ fun ChannelScreen(
     // finished for the CURRENT allVideos — the load-more trigger
     // must not fire while grouping is still running.
     var groupingSettled by remember(chatId) { mutableStateOf(false) }
-    // v2.6.3 (fix D): true once the FIRST grouping pass has
-    // completed — the header count stays blank until then, so a
-    // fresh open never shows "Episodes (0)".
+    // v2.6.3 (fix D) / v2.6.4: true once the FIRST grouping pass
+    // has completed. The header no longer reads it (v2.6.4: the
+    // header number is the server video total, not the grouped
+    // count) — it remains the first-grouping-pass signal.
     var hasGrouped by remember(chatId) { mutableStateOf(false) }
 
     var currentFilterOverride by remember(chatId) { mutableStateOf<VideoQuality?>(null) }
@@ -177,7 +178,14 @@ fun ChannelScreen(
     var smartOverride by remember(chatId) { mutableStateOf<Boolean?>(null) }
     val smartOn = smartOverride ?: savedSmart
     var hideFillers by remember(chatId) { mutableStateOf(false) }
-    var sortNewest by remember(chatId) { mutableStateOf(true) }
+    // v2.6.4: the sort toggle is PERSISTED in DataStore (default
+    // Newest) — the old remember(chatId) reset to Newest on every
+    // channel re-open, so a user's Oldest choice never survived a
+    // re-open. Newest-first is the default: latest episode on top,
+    // the rest in arrival order (GetChatHistory pages newest-first
+    // and groupEpisodes preserves that order).
+    val sortNewest by settingsStore.channelSortNewest
+        .collectAsStateWithLifecycle(initialValue = true)
     var selectedVideo by remember(chatId) { mutableStateOf<VideoItem?>(null) }
     var sheetGroup by remember(chatId) { mutableStateOf<EpisodeGroup?>(null) }
 
@@ -768,17 +776,22 @@ fun ChannelScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    // v2.6.2: the DEDUPED episode count only, NO "+"
-                    // suffix ever — the stable bottom footer already
-                    // signals more pages loading. (v2.6.1's "+" came
-                    // from the same first-page-total confusion as
-                    // "50 videos": TDLib's first-page totalCount is a
-                    // locally-known message total, unreliable on a
-                    // cold sync.)
-                    // v2.6.3 (fix D): BLANK until the first grouping
-                    // pass completes — a fresh open never shows
-                    // "Episodes (0)" for the empty in-flight list.
-                    text = if (hasGrouped) "Episodes (${displayedVideos.size})" else "",
+                    // v2.6.4: the header number is the SERVER total
+                    // videos count, direct from Telegram
+                    // (SearchChatMessages + video filter, see
+                    // fetchServerCount) — the SAME number as the
+                    // "N videos" subtitle under the channel name.
+                    // It is NEVER the deduped episode count (577):
+                    // episode identity is OUR client-side Smart
+                    // Filter grouping (title/caption parsing) — the
+                    // server has no concept of an episode and no
+                    // endpoint returns a deduped episode total.
+                    // Blank until the background fetch lands; never
+                    // a wrong or intermediate number. (The v2.6.3
+                    // hasGrouped gate is retired for the header —
+                    // the count no longer derives from the loaded
+                    // list at all.)
+                    text = serverVideoCount?.let { "Episodes ($it)" } ?: "",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.weight(1f)
@@ -789,7 +802,11 @@ fun ChannelScreen(
                         onClick = { hideFillers = !hideFillers },
                         label = { Text("Skip Fillers") }
                     )
-                    IconButton(onClick = { sortNewest = !sortNewest }) {
+                    IconButton(onClick = {
+                        scope.launch {
+                            settingsStore.setChannelSortNewest(!sortNewest)
+                        }
+                    }) {
                         Icon(
                             Icons.Filled.SwapVert,
                             contentDescription = if (sortNewest) "Oldest first" else "Newest first"

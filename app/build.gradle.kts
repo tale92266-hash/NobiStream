@@ -13,14 +13,12 @@ android {
         applicationId = "com.nobi.nobistream"
         minSdk = 26
         targetSdk = 35
-        // v2.6.3: 2.6.3 / code 25 — flicker fix: full-list session
-        // cache (re-open shows the whole loaded history instantly,
-        // silent background refresh swaps atomically), load-more
-        // trigger gated on grouping settled, Best card no longer
-        // gated on !loading, header blank until first grouping,
-        // no-animation channel open/close. Everything else = 2.6.2.
-        versionCode = 25
-        versionName = "2.6.3"
+        // v2.6.4: 2.6.4 / code 26 — Episodes header shows the SERVER
+        // total videos count direct (SearchChatMessages + video
+        // filter), and the channel sort toggle is persisted in
+        // DataStore (default Newest). Everything else = 2.6.3.
+        versionCode = 26
+        versionName = "2.6.4"
         // Telegram API credentials are injected ONLY from CI secrets at build
         // time (env NOBISTREAM_API_ID / NOBISTREAM_API_HASH). They are never
         // written in source. Without them the fields are 0 / empty and the

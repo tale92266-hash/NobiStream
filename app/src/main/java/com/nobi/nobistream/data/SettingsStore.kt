@@ -45,6 +45,16 @@ class SettingsStore(context: Context) {
     val smartFilter: Flow<Boolean> = dataStore.data.map { it[KEY_SMART_FILTER] ?: true }
 
     /**
+     * v2.6.4 channel sort: default NEWEST-first — the latest episode
+     * on top, the rest in arrival order. Persisted (not remember),
+     * so the toggle's state survives channel re-opens, refreshes
+     * and process death; key absent = Newest, so existing installs
+     * get the default without any migration.
+     */
+    val channelSortNewest: Flow<Boolean> =
+        dataStore.data.map { it[KEY_CHANNEL_SORT_NEWEST] ?: true }
+
+    /**
      * v6 subtitles: default OFF — subtitles appear only when the
      * user wants them. When ON and a video has a sidecar track,
      * subtitles are enabled as soon as the video (or its discovered
@@ -160,6 +170,11 @@ class SettingsStore(context: Context) {
         dataStore.edit { it[KEY_SMART_FILTER] = value }
     }
 
+    /** v2.6.4: persist the channel sort toggle (true = Newest first). */
+    suspend fun setChannelSortNewest(value: Boolean) {
+        dataStore.edit { it[KEY_CHANNEL_SORT_NEWEST] = value }
+    }
+
     suspend fun setSubtitleAlwaysShow(value: Boolean) {
         dataStore.edit { it[KEY_SUBTITLE_ALWAYS_SHOW] = value }
     }
@@ -226,6 +241,7 @@ class SettingsStore(context: Context) {
         val KEY_LAST_FILTER = stringPreferencesKey("last_filter")
         val KEY_OPEN_LAST_EPISODE = booleanPreferencesKey("open_last_episode")
         val KEY_SMART_FILTER = booleanPreferencesKey("smart_filter")
+        val KEY_CHANNEL_SORT_NEWEST = booleanPreferencesKey("channel_sort_newest")
         val KEY_SUBTITLE_ALWAYS_SHOW = booleanPreferencesKey("subtitle_always_show")
         val KEY_SUBTITLE_SIZE = stringPreferencesKey("subtitle_size")
         val KEY_SUBTITLE_COLOR = stringPreferencesKey("subtitle_color")
