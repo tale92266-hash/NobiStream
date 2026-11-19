@@ -508,7 +508,7 @@ fun ControlScreen(
                     ) {
                         Text("Version", fontWeight = FontWeight.Bold)
                         Text(
-                            text = "2.6.1 (23)",
+                            text = "2.6.2 (24)",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

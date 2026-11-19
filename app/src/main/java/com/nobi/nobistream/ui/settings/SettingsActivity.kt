@@ -6,6 +6,11 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.lifecycleScope
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
@@ -59,7 +64,19 @@ class SettingsActivity : AppCompatActivity() {
             // v2.6.1: NobiThemeHost (see ChannelActivity) — the
             // 2.6.0 standalone host had no theme wrapper at all, so
             // Control stayed on the default LIGHT theme in every mode.
+            // v2.6.2: statusBarsPadding at the HOST level — the
+            // Control list started at y=0 under the status bar when
+            // opened standalone. (Inside MainActivity's Scaffold the
+            // tab version already gets the inset from innerPadding,
+            // so the screen itself stays untouched and is never
+            // double-padded.)
             NobiThemeHost(settingsStore = settingsStore) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .statusBarsPadding()
+                ) {
                 ControlScreen(
                     repository = repository,
                     downloadManager = downloadManager,
@@ -74,6 +91,7 @@ class SettingsActivity : AppCompatActivity() {
                         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
                     }
                 )
+                }
             }
         }
         // Downloads resume (same as MainActivity; guarded — the

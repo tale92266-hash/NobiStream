@@ -141,28 +141,56 @@ class NobiRepository(
     }
 
     /**
+     * v2.6.2: the ONE true video total for a channel — server-side
+     * SearchChatMessages with an empty query + video filter
+     * (SearchMessagesFilterVideo). Its totalCount is Telegram's count
+     * of ALL video messages in the chat, not the locally-known
+     * message total GetChatHistory returns (on a cold sync that only
+     * knows the newest ~50 messages, so the subtitle froze at
+     * "50 videos"). Returns null when the call throws OR returns 0 —
+     * a 0 is never displayed (the caller keeps the previous value /
+     * shows nothing), because a cold sync can also report 0 for a
+     * channel that has videos. NOTE: this counts video MESSAGES,
+     * including duplicate copies of one episode and non-episode
+     * video posts — roughly 4x the deduped episode count. Label it
+     * "videos" only, never "episodes".
+     */
+    suspend fun getServerVideoCount(chatId: Long): Int? {
+        return try {
+            val total = gateway.searchVideos(chatId, "", 1).totalCount
+            if (total > 0) total else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** v2.6.2: persist a server video total into the saved group row. */
+    suspend fun updateServerVideoCount(chatId: Long, total: Int) {
+        database.groupDao().updateCount(
+            chatId, total, System.currentTimeMillis() / 1000L
+        )
+    }
+
+    /**
      * v9.1 #3: non-mutating resolve for the Add Group preview — the
      * same resolveChat as addGroup, but nothing is written to the
-     * DB. The video count comes from a 1-item history load:
-     * resolveChat alone returns videoCount 0 (the count comes from
-     * loadVideos' totalCount, see refreshGroups).
+     * DB. The video count comes from the server-side search total
+     * (v2.6.2 — the old 1-item history load's totalCount was the
+     * locally-known message total, wrong on a cold sync).
      */
     suspend fun resolveGroupPreview(link: String): GroupItem {
         val group = gateway.resolveChat(link)
-        val total = runCatching { loadVideos(group.chatId, 0L, 1).totalCount }.getOrNull() ?: 0
+        val total = getServerVideoCount(group.chatId) ?: 0
         return group.copy(videoCount = total)
     }
 
     /** Load one page of videos and merge in saved resume positions. */
     suspend fun loadVideos(chatId: Long, fromMessageId: Long, limit: Int = 50): VideoPage {
         val page = gateway.loadVideos(chatId, fromMessageId, limit)
-        if (fromMessageId == 0L && page.totalCount > 0) {
-            database.groupDao().updateCount(
-                chatId,
-                page.totalCount,
-                System.currentTimeMillis() / 1000L
-            )
-        }
+        // v2.6.2: the history totalCount is NOT written to the group
+        // row any more — it is a locally-known MESSAGE total, not a
+        // video total, and it froze Home cards at "50 videos" on a
+        // cold sync. Group counts come only from getServerVideoCount.
         if (page.videos.isEmpty()) return page
         val positions = database.positionDao().getPositionsForChat(chatId)
             .associateBy { it.messageId }
@@ -610,10 +638,12 @@ class NobiRepository(
 
     /**
      * v4: re-fetch each saved group's info from Telegram — fresh
-     * title and photo via resolveChat, fresh video count via a
-     * 1-item history load (totalCount is what TDLib actually
-     * returns; nothing is invented). A group that fails is counted
-     * and skipped; the rest still refresh.
+     * title and photo via resolveChat, fresh video count via the
+     * server-side search total (v2.6.2 — the old 1-item history
+     * load's totalCount was the locally-known message total, wrong
+     * on a cold sync). A group that fails is counted and skipped;
+     * the rest still refresh. A null server total keeps the stored
+     * count — a wrong 0 is never written.
      */
     suspend fun refreshGroups(groups: List<GroupItem>): RefreshResult {
         var ok = 0
@@ -622,14 +652,14 @@ class NobiRepository(
         for (group in groups) {
             try {
                 val fresh = gateway.resolveChat(group.username)
-                val page = loadVideos(group.chatId, 0L, 1)
+                val total = getServerVideoCount(group.chatId)
                 database.groupDao().upsert(
                     SavedGroupEntity(
                         chatId = group.chatId,
                         username = group.username,
                         title = fresh.title,
                         photoLocalPath = fresh.photoLocalPath ?: group.photoLocalPath,
-                        videoCount = if (page.totalCount > 0) page.totalCount else group.videoCount,
+                        videoCount = total ?: group.videoCount,
                         lastUpdatedEpochSec = nowSec
                     )
                 )

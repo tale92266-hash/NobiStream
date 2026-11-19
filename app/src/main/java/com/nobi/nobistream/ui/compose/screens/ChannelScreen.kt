@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -88,6 +89,18 @@ private const val FIRST_PAGE_TIMEOUT_MS = 60_000L
 private const val MAX_FIRST_PAGE_ATTEMPTS = 3
 
 /**
+ * v2.6.2: grouping-pipeline output, computed OFF the main thread
+ * (LaunchedEffect + Dispatchers.Default) and read as State — see
+ * ChannelScreen. A top-level (not local) class: local data classes
+ * are not allowed in Kotlin.
+ */
+private data class GroupedChannelLists(
+    val groups: List<EpisodeGroup>,
+    val episodes: List<VideoItem>,
+    val other: List<VideoItem>
+)
+
+/**
  * Channel list in the mock Detail layout: banner, Best-copy card,
  * episode rows.
  *
@@ -140,7 +153,11 @@ fun ChannelScreen(
     var firstPageError by remember(chatId) { mutableStateOf(false) }
     var firstPageTimedOut by remember(chatId) { mutableStateOf(false) }
     var sawMessages by remember(chatId) { mutableStateOf(false) }
-    var totalVideoCount by remember(chatId) { mutableStateOf<Int?>(null) }
+    // v2.6.2: the ONE true video total — the server-side search
+    // count (see fetchServerCount). It is NEVER set from a history
+    // page's totalCount any more: that is a locally-known message
+    // total, and it froze the subtitle at "50 videos" on a cold sync.
+    var serverVideoCount by remember(chatId) { mutableStateOf<Int?>(null) }
     var loadJob by remember(chatId) { mutableStateOf<Job?>(null) }
     var timeoutJob by remember(chatId) { mutableStateOf<Job?>(null) }
 
@@ -166,7 +183,6 @@ fun ChannelScreen(
                 allVideos = cached.videos
                 if (cached.lastMessageId > 0L) fromMessageId = cached.lastMessageId
                 hasMore = cached.rawCount >= PAGE_SIZE
-                totalVideoCount = cached.totalCount
                 sawMessages = cached.rawCount > 0
             }
             loading = true
@@ -198,7 +214,6 @@ fun ChannelScreen(
                         }
                         if (page.lastMessageId > 0L) fromMessageId = page.lastMessageId
                         hasMore = page.rawCount >= PAGE_SIZE
-                        totalVideoCount = page.totalCount
                         sawMessages = true
                         loading = false
                         return@launch
@@ -249,6 +264,23 @@ fun ChannelScreen(
         }
     }
 
+    // v2.6.2: fetch the server video total in the background —
+    // never blocks the first-page render, and a null (throw / 0)
+    // keeps the previous value instead of showing a wrong 0. On
+    // success the total is also written to Room so the Home group
+    // card shows the same single true total.
+    fun fetchServerCount() {
+        scope.launch {
+            val total = withContext(Dispatchers.IO) {
+                repository.getServerVideoCount(chatId)
+            }
+            if (total != null) {
+                serverVideoCount = total
+                runCatching { repository.updateServerVideoCount(chatId, total) }
+            }
+        }
+    }
+
     fun resetAndLoad() {
         loadJob?.cancel()
         timeoutJob?.cancel()
@@ -258,7 +290,7 @@ fun ChannelScreen(
         hasMore = true
         firstPageError = false
         sawMessages = false
-        totalVideoCount = null
+        fetchServerCount()
         timeoutJob = scope.launch {
             delay(FIRST_PAGE_TIMEOUT_MS)
             if (allVideos.isEmpty() && !firstPageError) {
@@ -300,36 +332,54 @@ fun ChannelScreen(
     }
 
     // ---- Displayed list: dedup FIRST, then quality chip, then fillers, then sort ----
-    val currentGroups: List<EpisodeGroup> = remember(allVideos, smartOn, preferredMaxRank) {
-        if (smartOn) SmartFilter.groupEpisodes(allVideos, preferredMaxRank) else emptyList()
+    // v2.6.2: the whole grouping pipeline runs OFF the main thread
+    // (LaunchedEffect + Dispatchers.Default, result into State).
+    // It used to run in remember() DURING composition — groupEpisodes
+    // regex-parses every title+caption, so every Load More append,
+    // every watched toggle (full-list map copy) and every first-page
+    // replace re-parsed ~1000 captions on the UI thread and dropped
+    // frames while scrolling. Composition now only reads the State
+    // below; nothing here does O(n) regex work.
+    var groupedLists by remember(chatId) {
+        mutableStateOf(GroupedChannelLists(emptyList(), emptyList(), emptyList()))
+    }
+    LaunchedEffect(
+        allVideos, smartOn, preferredMaxRank, currentFilter, hideFillers, fillerMarks, sortNewest
+    ) {
+        val computed = withContext(Dispatchers.Default) {
+            val groups = if (smartOn) {
+                SmartFilter.groupEpisodes(allVideos, preferredMaxRank)
+            } else {
+                emptyList()
+            }
+            var list: List<VideoItem> = if (smartOn) {
+                groups.map { it.best.copy(hiddenCopies = it.hiddenCount) }
+            } else {
+                allVideos
+            }
+            if (currentFilter != VideoQuality.UNKNOWN) {
+                list = list.filter { it.quality == currentFilter }
+            }
+            if (hideFillers) {
+                list = list.filter { (it.chatId to it.messageId) !in fillerMarks }
+            }
+            if (!sortNewest) list = list.reversed()
+            GroupedChannelLists(
+                groups = groups,
+                episodes = list.filter { !SmartFilter.isNonEpisode(it) },
+                other = list.filter { SmartFilter.isNonEpisode(it) }
+            )
+        }
+        groupedLists = computed
     }
     // v2.6.1 (#11): non-episode posts (news / announcements /
     // trailers ...) leave the episode rows for a separate "Other
     // videos" section at the bottom. The pre-split list keeps the
     // shared pipeline (dedup -> filter -> fillers -> sort) identical
     // for both sections.
-    val preSplitVideos: List<VideoItem> = remember(
-        allVideos, smartOn, currentGroups, currentFilter, hideFillers, fillerMarks, sortNewest
-    ) {
-        var list = if (smartOn) {
-            currentGroups.map { it.best.copy(hiddenCopies = it.hiddenCount) }
-        } else {
-            allVideos
-        }
-        if (currentFilter != VideoQuality.UNKNOWN) {
-            list = list.filter { it.quality == currentFilter }
-        }
-        if (hideFillers) {
-            list = list.filter { (it.chatId to it.messageId) !in fillerMarks }
-        }
-        if (!sortNewest) list.reversed() else list
-    }
-    val displayedVideos: List<VideoItem> = remember(preSplitVideos) {
-        preSplitVideos.filter { !SmartFilter.isNonEpisode(it) }
-    }
-    val otherDisplayed: List<VideoItem> = remember(preSplitVideos) {
-        preSplitVideos.filter { SmartFilter.isNonEpisode(it) }
-    }
+    val currentGroups: List<EpisodeGroup> = groupedLists.groups
+    val displayedVideos: List<VideoItem> = groupedLists.episodes
+    val otherDisplayed: List<VideoItem> = groupedLists.other
     // v2.6.1 (#11 v): the merged list is re-deduped on every Load
     // More by construction — displayedVideos derives from allVideos
     // via groupEpisodes, whose map is keyed by episode key, so no
@@ -447,6 +497,11 @@ fun ChannelScreen(
             .fillMaxSize()
             // v2.6.1: root background in theme colours.
             .background(MaterialTheme.colorScheme.background)
+            // v2.6.2: the header starts BELOW the status bar —
+            // without this the title/back/avatar sat at y=0 under
+            // the status icons. (Background is applied BEFORE the
+            // padding so the theme colour still covers the strip.)
+            .statusBarsPadding()
     ) {
         // Banner: back + avatar + title + count + chips + Smart chip.
         Row(
@@ -466,14 +521,19 @@ fun ChannelScreen(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
+                    // v2.6.2: wraps to 2 lines, no ellipsis — the
+                    // full channel name must show; maxLines=1 cut
+                    // long names mid-word under the status bar.
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 2
                 )
                 Text(
-                    text = totalVideoCount?.let { "$it videos" } ?: "",
+                    // v2.6.2: the SERVER video total only — never a
+                    // history total, never an episode count. Blank
+                    // until the background fetch lands.
+                    text = serverVideoCount?.let { "$it videos" } ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -574,46 +634,53 @@ fun ChannelScreen(
         }
 
         // Episode filter header.
-        Row(
+        // v2.6.2: the hint is its OWN full-width row under the header
+        // row — it used to sit in an un-weighted Column next to the
+        // chips Row and ran UNDER the Skip Fillers button.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    // v2.6.1 (#11): the DEDUPED episode count only,
-                    // "+" while more pages remain — NEVER the first
-                    // page's bogus "/total" (S4 showed 1105/50:
-                    // 1105 deduped rows over a 50-message first
-                    // window). TDLib's first-page totalCount is a
+                    // v2.6.2: the DEDUPED episode count only, NO "+"
+                    // suffix ever — the stable bottom footer already
+                    // signals more pages loading. (v2.6.1's "+" came
+                    // from the same first-page-total confusion as
+                    // "50 videos": TDLib's first-page totalCount is a
                     // locally-known message total, unreliable on a
-                    // cold sync.
-                    text = "Episodes (${displayedVideos.size}" +
-                        (if (hasMore) "+" else "") + ")",
+                    // cold sync.)
+                    text = "Episodes (${displayedVideos.size})",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = "Tap a video to play • Long-press to mark filler",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = hideFillers,
-                    onClick = { hideFillers = !hideFillers },
-                    label = { Text("Skip Fillers") }
-                )
-                IconButton(onClick = { sortNewest = !sortNewest }) {
-                    Icon(
-                        Icons.Filled.SwapVert,
-                        contentDescription = if (sortNewest) "Oldest first" else "Newest first"
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = hideFillers,
+                        onClick = { hideFillers = !hideFillers },
+                        label = { Text("Skip Fillers") }
                     )
+                    IconButton(onClick = { sortNewest = !sortNewest }) {
+                        Icon(
+                            Icons.Filled.SwapVert,
+                            contentDescription = if (sortNewest) "Oldest first" else "Newest first"
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Tap a video to play • Long-press to mark filler",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2
+            )
         }
 
         when {
@@ -741,15 +808,20 @@ fun ChannelScreen(
                             )
                         }
                     }
-                    if (loading) {
+                    // v2.6.2: the footer is a STABLE fixed-height item
+                    // whenever more pages may exist — the spinner only
+                    // shows while a page is loading, so the list never
+                    // jumps when a page lands. (The old `if (loading)`
+                    // item appeared and disappeared per load.)
+                    if (hasMore) {
                         item(contentType = "loading") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .height(72.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator()
+                                if (loading) CircularProgressIndicator()
                             }
                         }
                     }
