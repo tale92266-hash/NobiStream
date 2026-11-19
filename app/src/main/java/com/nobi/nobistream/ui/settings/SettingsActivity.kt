@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
@@ -84,11 +85,11 @@ class SettingsActivity : AppCompatActivity() {
                     showBack = showBack,
                     onBack = { finish() },
                     onLogoutDone = {
-                        startActivity(Intent(this, LoginActivity::class.java))
+                        startActivity(Intent(this@SettingsActivity, LoginActivity::class.java))
                         finish()
                     },
                     onShowMessage = { message ->
-                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
                     }
                 )
                 }

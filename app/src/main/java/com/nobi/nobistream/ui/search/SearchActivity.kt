@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.nobi.nobistream.NobiStreamApplication
 import com.nobi.nobistream.core.AuthState
@@ -75,12 +76,12 @@ class SearchActivity : AppCompatActivity() {
                         openChannel(chatId, title, targetMessageId)
                     },
                     onAddGroupLink = { link ->
-                        val intent = Intent(this, MainActivity::class.java)
+                        val intent = Intent(this@SearchActivity, MainActivity::class.java)
                             .putExtra(MainActivity.EXTRA_ADD_GROUP_LINK, link)
                         startActivity(intent)
                     },
                     onShowMessage = { message ->
-                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SearchActivity, message, Toast.LENGTH_SHORT).show()
                     }
                 )
                 }
